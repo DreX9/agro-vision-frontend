@@ -1,4 +1,17 @@
 :root {
+  --color-primary: #546B41;
+  --color-secondary: #99AD7A;
+  --color-accent: #DCCCAC;
+  --color-background: #FFF8EC;
+  --color-surface: #FFFFFF;
+  --color-border: #D9DDCF;
+  --color-text: #111827;
+  --color-text-secondary: #4B5563;
+  --color-success: #4F8A3D;
+  --color-warning: #D89B2B;
+  --color-error: #C94C4C;
+  --color-info: #4A7FA5;
+
   --font-display:
     Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
     Segoe UI Symbol, Noto Color Emoji;
@@ -6,4 +19,19 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
+}
+
+/* Reset global para evitar doble borde en inputs web */
+input,
+textarea,
+select {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  box-shadow: none !important;
 }

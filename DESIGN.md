@@ -7,23 +7,29 @@ Agro Vision combina la precisión tecnológica de la visión computacional y la 
 
 ## 2. Paleta de Colores Institucional
 
-### Modo Claro (Predeterminado para Campo)
-* **Verde Bosque / Primario:** `#1B4332` (Encabezados, identidad, acciones principales).
-* **Verde Hoja / Interactivo:** `#2D6A4F` (Botones de acción, enlaces activos, pestañas seleccionadas).
-* **Verde Acento / Saludable:** `#52B788` (Indicadores de cultivo óptimo, badges de éxito, crecimiento).
-* **Amarillo Solar / Alerta:** `#E9C46A` (Advertencias de estrés hídrico, umbrales de humedad bajos).
-* **Rojo Plaga / Peligro:** `#E76F51` (Detección de enfermedades críticas, alertas fitosanitarias).
-* **Fondo Neutro Claro:** `#F8FAF8` (Fondo de pantalla general para máximo contraste y legibilidad).
-* **Superficie de Tarjetas:** `#FFFFFF` con bordes suaves `#E2E8F0` y sombras difuminadas.
-* **Texto Principal:** `#1E293B` (Gris oscuro de alta legibilidad).
-* **Texto Secundario:** `#64748B` (Subtítulos, fechas, etiquetas auxiliares).
+### Modo Claro (Predeterminado para Campo y Gestión)
+* **Verde Bosque / Identidad y Navegación (`#546B41`):** Color principal. Se utiliza en el sidebar, encabezados importantes, botones primarios y elementos de navegación activos.
+* **Verde Salvia / Agricultura y Positivo (`#99AD7A`):** Color secundario. Aplicado en tarjetas, estados positivos, indicadores de cultivo saludable y elementos destacados.
+* **Beige Tierra / Acento Agronómico (`#DCCCAC`):** Color de acento moderado. Empleado en tarjetas especiales, separadores, etiquetas de suelo y detalles sutiles de agricultura.
+* **Crema / Fondo General (`#FFF8EC`):** Fondo general de las páginas, aportando calidez, naturalidad y reduciendo la fatiga visual bajo iluminación solar.
+* **Blanco / Superficies y Tarjetas (`#FFFFFF`):** Usado en cards, formularios, tablas y contenedores elevados para lograr un contraste nítido sobre el fondo crema.
+* **Bordes y Divisores (`#D9DDCF`):** Líneas delimitadoras sutiles y bordes de componentes.
+* **Texto Principal (`#111827`):** Negro óptico de máxima nitidez, contraste y legibilidad.
+* **Texto Secundario / Muted (`#4B5563`):** Gris oscuro para subtítulos, metadatos y etiquetas secundarias.
 
-### Modo Oscuro (Análisis y Estaciones de Monitoreo)
-* **Fondo Profundo:** `#0B1E13` (Verde noche ultra-oscuro).
-* **Superficie de Tarjetas:** `#132E20` con bordes `#1C3B2B`.
-* **Acentos Luminosos:** `#74C69D` y `#81C784`.
-* **Texto Principal:** `#F1F5F9`.
-* **Texto Secundario:** `#94A3B8`.
+### Estados Semánticos
+* **Éxito (Success):** `#4F8A3D` (Parámetros óptimos, cosechas registradas, operaciones exitosas).
+* **Alerta (Warning):** `#D89B2B` (Estrés hídrico leve, umbrales de advertencia, recordatorios).
+* **Peligro (Error):** `#C94C4C` (Detección de plagas, anomalías críticas, errores de validación).
+* **Informativo (Info):** `#4A7FA5` (Telemetría de sensores, sincronizaciones, notas técnicas).
+
+### Modo Oscuro (Estaciones de Monitoreo)
+* **Fondo Profundo:** `#161F12` (Verde noche profundo).
+* **Superficie de Tarjetas:** `#222D1D` con bordes `#33422C`.
+* **Verde Identidad / Primario:** `#7A9663`.
+* **Verde Salvia / Secundario:** `#99AD7A`.
+* **Texto Principal:** `#F9FAF8`.
+* **Texto Secundario:** `#9CA3AF`.
 
 ---
 
