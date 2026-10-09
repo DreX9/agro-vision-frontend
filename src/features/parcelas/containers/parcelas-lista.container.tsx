@@ -50,6 +50,10 @@ export const ParcelasListaContainer: React.FC = () => {
     });
   };
 
+  const handleVerDetalle = (parcela: ParcelaItem) => {
+    router.push(`/parcelas/${parcela.id}` as Href);
+  };
+
   const handleEditar = (parcela: ParcelaItem) => {
     router.push(`/parcelas/${parcela.id}/editar` as Href);
   };
@@ -125,6 +129,7 @@ export const ParcelasListaContainer: React.FC = () => {
             <ParcelasTabla
               parcelas={data?.items || []}
               cargando={isFetching}
+              onVerDetalle={handleVerDetalle}
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
               onEliminar={handleEliminar}

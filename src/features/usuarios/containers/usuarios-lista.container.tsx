@@ -40,6 +40,10 @@ export const UsuariosListaContainer: React.FC = () => {
     });
   };
 
+  const handleVerDetalle = (usuario: Usuario) => {
+    router.push(`/usuarios/${usuario.id}` as Href);
+  };
+
   const handleEditar = (usuario: Usuario) => {
     router.push(`/usuarios/${usuario.id}/editar` as Href);
   };
@@ -86,6 +90,7 @@ export const UsuariosListaContainer: React.FC = () => {
             <UsuariosTabla
               usuarios={data?.elementos || []}
               cargando={isFetching}
+              onVerDetalle={handleVerDetalle}
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
               onEliminar={handleEliminar}

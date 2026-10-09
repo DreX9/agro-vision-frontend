@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { Pencil, Power, Trash2 } from 'lucide-react-native';
+import { Eye, Pencil, Power, Trash2 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { CultivoItem } from '../types/cultivo.types';
 
@@ -14,6 +14,7 @@ export interface CultivosMenuAccionesProps {
   posicion: PosicionMenu;
   visible: boolean;
   onCerrar: () => void;
+  onVerDetalle?: (cultivo: CultivoItem) => void;
   onEditar?: (cultivo: CultivoItem) => void;
   onCambiarEstado?: (cultivo: CultivoItem) => void;
   onEliminar?: (cultivo: CultivoItem) => void;
@@ -27,6 +28,7 @@ export const CultivosMenuAcciones: React.FC<CultivosMenuAccionesProps> = ({
   posicion,
   visible,
   onCerrar,
+  onVerDetalle,
   onEditar,
   onCambiarEstado,
   onEliminar,
@@ -37,6 +39,19 @@ export const CultivosMenuAcciones: React.FC<CultivosMenuAccionesProps> = ({
     <Modal visible={visible} transparent animationType="none" onRequestClose={onCerrar}>
       <Pressable style={styles.fondoTransparente} onPress={onCerrar}>
         <View style={[styles.menuFlotante, { top: posicion.top, left: posicion.left }]}>
+          {onVerDetalle && (
+            <Pressable
+              style={({ pressed }) => [styles.opcionMenu, pressed && styles.opcionPresionada]}
+              onPress={() => {
+                onCerrar();
+                onVerDetalle(cultivo);
+              }}
+            >
+              <Eye size={15} color="#2563EB" />
+              <Text style={styles.textoOpcion}>Ver Ficha / Detalle</Text>
+            </Pressable>
+          )}
+
           {onEditar && (
             <Pressable
               style={({ pressed }) => [styles.opcionMenu, pressed && styles.opcionPresionada]}

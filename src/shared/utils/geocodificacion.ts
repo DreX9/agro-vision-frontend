@@ -167,8 +167,7 @@ export function obtenerUbicacionActual(): Promise<{ lat: number; lng: number } |
             lng: Number(pos.coords.longitude.toFixed(6)),
           });
         },
-        (error) => {
-          console.warn('Geolocalización no disponible o permiso denegado:', error.message);
+        () => {
           resolve(null);
         },
         {
@@ -224,19 +223,19 @@ function encontrarProvinciaMasCercana(
 function estimarUbicacionPorProximidad(lat: number, lng: number): ResultadoUbicacionInversa {
   const depto = encontrarDepartamentoMasCercano(lat, lng);
   const prov = encontrarProvinciaMasCercana(lat, lng, depto);
-  const dist = prov.distritos[0] || prov.nombre;
   return {
     departamento: depto.nombre,
     provincia: prov.nombre,
-    distrito: dist,
-    direccion: `Sector ${dist}, ${prov.nombre}`,
+    distrito: '',
+    direccion: `Sector ${prov.nombre}, ${depto.nombre}`,
   };
 }
 
 /**
  * @description Geocodificación inversa para Perú: a partir de coordenadas geográficas
- * (latitud, longitud), deduce el departamento, provincia, distrito y dirección/referencia
- * autocompletable en el sistema.
+ * (latitud, longitud), deduce el departamento, provincia, distrito y referencia real
+ * utilizando el servicio libre BigDataCloud (sin bloqueo de CORS en navegadores)
+ * con fallback a Nominatim y estimación geométrica.
  */
 export async function geocodificacionInversa(
   lat: number,
@@ -244,9 +243,101 @@ export async function geocodificacionInversa(
 ): Promise<ResultadoUbicacionInversa | null> {
   if (!lat || !lng) return null;
 
+  // 1. Servicio primario: BigDataCloud Reverse Geocoding Client (100% libre, sin CORS, alta precisión en distritos peruanos)
+  try {
+    const urlBdc = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=es`;
+    const resBdc = await fetch(urlBdc);
+
+    if (resBdc.ok) {
+      const datos = await resBdc.json();
+      if (datos) {
+        let deptoDetectado = datos.principalSubdivision || '';
+        let provDetectada = '';
+        let distDetectado = datos.locality || datos.city || '';
+
+        if (datos.localityInfo?.administrative && Array.isArray(datos.localityInfo.administrative)) {
+          const admins: Array<{ adminLevel?: number; name?: string }> = datos.localityInfo.administrative;
+
+          const nivelDepto = admins.find((a) => a.adminLevel === 4);
+          if (nivelDepto?.name) deptoDetectado = nivelDepto.name;
+
+          const nivelProv = admins.find((a) => a.adminLevel === 6);
+          if (nivelProv?.name) {
+            provDetectada = nivelProv.name
+              .replace(/^(Provincia de|Municipalidad Metropolitana de|Provincia)\s+/i, '')
+              .trim();
+          }
+
+          const nivelDist = admins.find((a) => a.adminLevel === 8 || a.adminLevel === 7);
+          if (nivelDist?.name) {
+            distDetectado = nivelDist.name
+              .replace(/^(Distrito de|Distrito)\s+/i, '')
+              .trim();
+          }
+        }
+
+        if (!provDetectada && datos.city) {
+          provDetectada = datos.city.replace(/^(Distrito de|Provincia de)\s+/i, '').trim();
+        }
+
+        const normDepto = normalizarTexto(deptoDetectado);
+        const normProv = normalizarTexto(provDetectada);
+        const normDist = normalizarTexto(distDetectado);
+
+        // Asociar con catálogo oficial de Perú
+        let deptoMatch = DEPARTAMENTOS_PERU.find((d) => {
+          const nd = normalizarTexto(d.nombre);
+          return nd === normDepto || normDepto.includes(nd) || nd.includes(normDepto);
+        });
+        if (!deptoMatch) deptoMatch = encontrarDepartamentoMasCercano(lat, lng);
+
+        let provMatch = deptoMatch.provincias.find((p) => {
+          const np = normalizarTexto(p.nombre);
+          return np === normProv || normProv.includes(np) || np.includes(normProv);
+        });
+        if (!provMatch) provMatch = encontrarProvinciaMasCercana(lat, lng, deptoMatch);
+
+        let distMatch = provMatch.distritos.find((d) => {
+          const nd = normalizarTexto(d);
+          return nd === normDist || normDist.includes(nd) || nd.includes(normDist);
+        });
+
+        if (!distMatch) {
+          for (const p of deptoMatch.provincias) {
+            const encontrado = p.distritos.find((d) => {
+              const nd = normalizarTexto(d);
+              return nd === normDist || normDist.includes(nd) || nd.includes(normDist);
+            });
+            if (encontrado) {
+              provMatch = p;
+              distMatch = encontrado;
+              break;
+            }
+          }
+        }
+
+        const distritoFinal = distMatch || distDetectado || '';
+        const direccion = distritoFinal
+          ? `Sector ${distritoFinal}, ${provMatch.nombre}`
+          : `Sector ${provMatch.nombre}`;
+
+        return {
+          departamento: deptoMatch.nombre,
+          provincia: provMatch.nombre,
+          distrito: distritoFinal,
+          direccion,
+          nombreMostrar: `${distritoFinal}, ${provMatch.nombre}, ${deptoMatch.nombre}, Perú`,
+        };
+      }
+    }
+  } catch {
+    // Si falla BigDataCloud, intentar con Nominatim
+  }
+
+  // 2. Servicio secundario: Nominatim OpenStreetMap
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'AgroVisionApp/1.0' } });
+    const res = await fetch(url);
 
     if (res.ok) {
       const datos = await res.json();
@@ -260,74 +351,55 @@ export async function geocodificacionInversa(
           addr.suburb || addr.town || addr.village || addr.city_district || addr.municipality || addr.city || '',
         );
 
-        // 1. Buscar Departamento coincidente en DEPARTAMENTOS_PERU
         let deptoEncontrado = DEPARTAMENTOS_PERU.find((d) => {
           const normD = normalizarTexto(d.nombre);
           return normD === stateCandidate || stateCandidate.includes(normD) || normD.includes(stateCandidate);
         });
+        if (!deptoEncontrado) deptoEncontrado = encontrarDepartamentoMasCercano(lat, lng);
 
-        if (!deptoEncontrado) {
-          deptoEncontrado = encontrarDepartamentoMasCercano(lat, lng);
-        }
+        let provEncontrada = deptoEncontrado.provincias.find((p) => {
+          const normP = normalizarTexto(p.nombre);
+          return (
+            normP === countyCandidate ||
+            countyCandidate.includes(normP) ||
+            normP.includes(countyCandidate) ||
+            normP === distCandidate
+          );
+        });
+        if (!provEncontrada) provEncontrada = encontrarProvinciaMasCercana(lat, lng, deptoEncontrado);
 
-        let provEncontrada: ProvinciaUbigeo | undefined;
-        let distEncontrado = '';
-
-        if (deptoEncontrado) {
-          // 2. Buscar Provincia coincidente dentro del departamento
-          provEncontrada = deptoEncontrado.provincias.find((p) => {
-            const normP = normalizarTexto(p.nombre);
+        const distEncontrado =
+          provEncontrada.distritos.find((dist) => {
+            const normDist = normalizarTexto(dist);
+            const normDisplay = normalizarTexto(nombreMostrar);
             return (
-              normP === countyCandidate ||
-              countyCandidate.includes(normP) ||
-              normP.includes(countyCandidate) ||
-              normP === distCandidate
+              normDist === distCandidate ||
+              distCandidate.includes(normDist) ||
+              normDist.includes(distCandidate) ||
+              normDisplay.includes(normDist)
             );
-          });
+          }) || '';
 
-          if (!provEncontrada && deptoEncontrado.provincias.length > 0) {
-            provEncontrada = encontrarProvinciaMasCercana(lat, lng, deptoEncontrado);
-          }
-
-          if (provEncontrada) {
-            // 3. Buscar Distrito coincidente dentro de la provincia
-            const matchDist = provEncontrada.distritos.find((dist) => {
-              const normDist = normalizarTexto(dist);
-              const normDisplay = normalizarTexto(nombreMostrar);
-              return (
-                normDist === distCandidate ||
-                distCandidate.includes(normDist) ||
-                normDist.includes(distCandidate) ||
-                normDisplay.includes(normDist)
-              );
-            });
-            distEncontrado = matchDist || provEncontrada.distritos[0] || '';
-          }
-        }
-
-        // 4. Formatear dirección o referencia de fundo
         const via = addr.road || addr.neighbourhood || addr.suburb || addr.hamlet || '';
         const direccion = via
           ? `${via}${distEncontrado ? `, ${distEncontrado}` : ''}`
           : distEncontrado
           ? `Sector ${distEncontrado}`
-          : nombreMostrar.split(',').slice(0, 2).join(', ').trim();
+          : `Sector ${provEncontrada.nombre}`;
 
-        if (deptoEncontrado && provEncontrada) {
-          return {
-            departamento: deptoEncontrado.nombre,
-            provincia: provEncontrada.nombre,
-            distrito: distEncontrado,
-            direccion,
-            nombreMostrar,
-          };
-        }
+        return {
+          departamento: deptoEncontrado.nombre,
+          provincia: provEncontrada.nombre,
+          distrito: distEncontrado,
+          direccion,
+          nombreMostrar,
+        };
       }
     }
-  } catch (err) {
-    console.warn('Fallo en geocodificación inversa por red:', err);
+  } catch {
+    // Si fallan ambos servicios de red, recurrir a proximidad geográfica
   }
 
-  // Fallback por proximidad geométrica
+  // 3. Respaldo por proximidad geométrica
   return estimarUbicacionPorProximidad(lat, lng);
 }

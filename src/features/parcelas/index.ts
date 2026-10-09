@@ -5,6 +5,9 @@ export * from './components/parcelas-tabla';
 export * from './components/parcelas-skeleton';
 export * from './components/parcelas-menu-acciones';
 export * from './components/parcela-formulario';
+export * from './components/parcela-detalle-tabs';
 export * from './containers/parcelas-lista.container';
 export * from './containers/crear-parcela.container';
 export * from './containers/editar-parcela.container';
+export * from './containers/detalle-parcela.container';
+

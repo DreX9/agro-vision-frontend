@@ -101,7 +101,10 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
       flex: 2.2,
       anchoMinimo: 220,
       render: (u) => (
-        <View style={styles.columnaUsuario}>
+        <Pressable
+          style={styles.columnaUsuario}
+          onPress={() => (onVerDetalle || onEditar)?.(u)}
+        >
           <View style={styles.avatarIniciales}>
             <Text style={styles.textoIniciales}>
               {`${u.nombres.charAt(0)}${u.apellidos.charAt(0)}`.toUpperCase()}
@@ -118,7 +121,7 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
               </View>
             )}
           </View>
-        </View>
+        </Pressable>
       ),
     },
     {
@@ -251,8 +254,8 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
                     onVerDetalle(u);
                   }}
                 >
-                  <Eye size={15} color="#4A5568" />
-                  <Text style={styles.opcionTexto}>Ver</Text>
+                  <Eye size={15} color="#2563EB" />
+                  <Text style={styles.opcionTexto}>Ver Ficha / Perfil</Text>
                 </Pressable>
               )}
 

@@ -15,6 +15,7 @@ export interface MapaDelimitadorProps {
   centroInicial?: { lat: number; lng: number };
   zoomInicial?: number;
   altura?: DimensionValue;
+  soloLectura?: boolean;
   onCambioPoligono?: (datos: {
     puntos: CoordenadaPunto[];
     areaHectareas: number;
@@ -32,6 +33,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   centroInicial = { lat: -13.0768, lng: -76.3854 },
   zoomInicial = 15,
   altura = 380,
+  soloLectura = false,
   onCambioPoligono,
 }) => {
   const [puntos, setPuntos] = useState<CoordenadaPunto[]>(puntosIniciales);
@@ -138,6 +140,22 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           background: #DC2626 !important;
           box-shadow: 0 0 8px rgba(220,38,38,0.8);
         }
+        .vertice-midpoint {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #81C784;
+          border: 2px solid #ffffff;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+          cursor: grab;
+          opacity: 0.85;
+          transition: transform 0.12s ease, background 0.12s ease;
+        }
+        .vertice-midpoint:hover {
+          transform: scale(1.45);
+          background: #2E7D32;
+          opacity: 1;
+        }
       </style>
     </head>
     <body>
@@ -167,6 +185,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 
         let vertices = ${JSON.stringify(puntosIniciales)}.map(p => [p.latitude, p.longitude]);
         let marcadores = [];
+        let marcadoresMedios = [];
         let poligono = null;
 
         function ccw(p1, p2, p3) {
@@ -192,6 +211,44 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             }
           }
           return false;
+        }
+
+        function distanciaPuntoASegmento(p, a, b) {
+          const x = p[0], y = p[1];
+          const x1 = a[0], y1 = a[1];
+          const x2 = b[0], y2 = b[1];
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq === 0) {
+            const dLat = x - x1;
+            const dLng = y - y1;
+            return dLat * dLat + dLng * dLng;
+          }
+          let t = ((x - x1) * dx + (y - y1) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          const projX = x1 + t * dx;
+          const projY = y1 + t * dy;
+          const dLat = x - projX;
+          const dLng = y - projY;
+          return dLat * dLat + dLng * dLng;
+        }
+
+        function obtenerIndiceSegmentoMasCercano(nuevoPunto, verticesActuales) {
+          if (verticesActuales.length < 3) return verticesActuales.length;
+          const n = verticesActuales.length;
+          let menorDist = Infinity;
+          let mejorIdx = n;
+          for (let i = 0; i < n; i++) {
+            const a = verticesActuales[i];
+            const b = verticesActuales[(i + 1) % n];
+            const dist = distanciaPuntoASegmento(nuevoPunto, a, b);
+            if (dist < menorDist) {
+              menorDist = dist;
+              mejorIdx = i + 1;
+            }
+          }
+          return mejorIdx;
         }
 
         function crearIcono(esError) {
@@ -223,17 +280,22 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           if (poligono) map.removeLayer(poligono);
           marcadores.forEach(m => map.removeLayer(m));
           marcadores = [];
+          marcadoresMedios.forEach(m => map.removeLayer(m));
+          marcadoresMedios = [];
 
           const cruce = tieneAutoInterseccion(vertices);
 
-          if (vertices.length > 0) {
-            vertices.forEach((v, idx) => {
-              const m = L.marker(v, {
-                draggable: true,
-                icon: crearIcono(cruce),
-                title: 'Punto #' + (idx + 1) + ' (Arrastrar para mover, clic para borrar)'
-              }).addTo(map);
+        const esSoloLectura = ${soloLectura ? 'true' : 'false'};
 
+        if (vertices.length > 0) {
+          vertices.forEach((v, idx) => {
+            const m = L.marker(v, {
+              draggable: !esSoloLectura,
+              icon: crearIcono(cruce),
+              title: esSoloLectura ? 'Vértice #' + (idx + 1) : 'Vértice #' + (idx + 1) + ' (Arrastrar para mover, clic para borrar)'
+            }).addTo(map);
+
+            if (!esSoloLectura) {
               m.on('drag', function(ev) {
                 const pos = ev.target.getLatLng();
                 vertices[idx] = [pos.lat, pos.lng];
@@ -251,37 +313,93 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
                 vertices.splice(idx, 1);
                 actualizarPoligono();
               });
-
-              marcadores.push(m);
-            });
-
-            if (vertices.length >= 3) {
-              poligono = L.polygon(vertices, {
-                color: cruce ? '#DC2626' : '#2E7D32',
-                weight: 3,
-                fillColor: cruce ? '#EF4444' : '#4CAF50',
-                fillOpacity: cruce ? 0.35 : 0.4,
-                dashArray: cruce ? '6, 6' : null
-              }).addTo(map);
-            } else if (vertices.length === 2) {
-              poligono = L.polyline(vertices, { color: '#2E7D32', weight: 3 }).addTo(map);
             }
-          }
 
-          const puntosFormateados = vertices.map(v => ({ latitude: v[0], longitude: v[1] }));
-          window.parent.postMessage({
-            tipo: 'MAPA_VERTICES_ACTUALIZADOS',
-            puntos: puntosFormateados,
-            tieneCruce: cruce
-          }, '*');
+            marcadores.push(m);
+          });
+
+          if (vertices.length >= 3) {
+            poligono = L.polygon(vertices, {
+              color: cruce ? '#DC2626' : '#2E7D32',
+              weight: 3,
+              fillColor: cruce ? '#EF4444' : '#4CAF50',
+              fillOpacity: cruce ? 0.35 : 0.4,
+              dashArray: cruce ? '6, 6' : null
+            }).addTo(map);
+
+            if (!esSoloLectura) {
+              // Generar puntos medios (handles) en cada lado para estirar el perímetro
+              for (let i = 0; i < vertices.length; i++) {
+                const p1 = vertices[i];
+                const p2 = vertices[(i + 1) % vertices.length];
+                const medio = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+
+                const midMarker = L.marker(medio, {
+                  draggable: true,
+                  icon: L.divIcon({
+                    className: 'midpoint-wrapper',
+                    html: '<div class="vertice-midpoint"></div>',
+                    iconSize: [10, 10],
+                    iconAnchor: [5, 5]
+                  }),
+                  title: 'Arrastre para estirar este lado de la parcela'
+                }).addTo(map);
+
+                let nuevoIdx = -1;
+                midMarker.on('dragstart', function(ev) {
+                  const pos = ev.target.getLatLng();
+                  vertices.splice(i + 1, 0, [pos.lat, pos.lng]);
+                  nuevoIdx = i + 1;
+                });
+
+                midMarker.on('drag', function(ev) {
+                  if (nuevoIdx >= 0) {
+                    const pos = ev.target.getLatLng();
+                    vertices[nuevoIdx] = [pos.lat, pos.lng];
+                    redibujarEnArrastre();
+                  }
+                });
+
+                midMarker.on('dragend', function() {
+                  nuevoIdx = -1;
+                  actualizarPoligono();
+                });
+
+                marcadoresMedios.push(midMarker);
+              }
+            }
+          } else if (vertices.length === 2) {
+            poligono = L.polyline(vertices, { color: '#2E7D32', weight: 3 }).addTo(map);
+          }
         }
 
-        actualizarPoligono();
+        const puntosFormateados = vertices.map(v => ({ latitude: v[0], longitude: v[1] }));
+        window.parent.postMessage({
+          tipo: 'MAPA_VERTICES_ACTUALIZADOS',
+          puntos: puntosFormateados,
+          tieneCruce: cruce
+        }, '*');
+      }
 
-        map.on('click', function(e) {
-          vertices.push([e.latlng.lat, e.latlng.lng]);
-          actualizarPoligono();
-        });
+      actualizarPoligono();
+
+      if (vertices.length >= 3 && poligono) {
+        try {
+          map.fitBounds(poligono.getBounds(), { padding: [35, 35] });
+        } catch (e) {}
+      }
+
+      map.on('click', function(e) {
+        if (esSoloLectura) return;
+        const nuevoPunto = [e.latlng.lat, e.latlng.lng];
+        if (vertices.length < 3) {
+          vertices.push(nuevoPunto);
+        } else {
+          const idx = obtenerIndiceSegmentoMasCercano(nuevoPunto, vertices);
+          vertices.splice(idx, 0, nuevoPunto);
+        }
+        actualizarPoligono();
+      });
 
         window.addEventListener('message', function(e) {
           if (!e.data) return;
@@ -335,7 +453,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         </View>
 
         <View style={styles.botonesAccion}>
-          {tieneCruce && (
+          {!soloLectura && tieneCruce && (
             <Pressable onPress={reordenarContorno} style={[styles.botonPequeno, styles.botonReordenar]}>
               <RotateCw size={13} color="#15803D" />
               <Text style={styles.textoBotonReordenar}>Corregir contorno</Text>
@@ -345,32 +463,38 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             <Navigation size={13} color={Palette.forestGreen} />
             <Text style={[styles.textoBotonPequeno, { color: Palette.forestGreen }]}>Mi ubicación</Text>
           </Pressable>
-          <Pressable onPress={deshacer} style={styles.botonPequeno}>
-            <Undo size={14} color={Palette.forestGreen} />
-            <Text style={styles.textoBotonPequeno}>Deshacer</Text>
-          </Pressable>
-          <Pressable onPress={limpiar} style={[styles.botonPequeno, styles.botonPequenoPeligro]}>
-            <Trash2 size={14} color="#B71C1C" />
-            <Text style={[styles.textoBotonPequeno, { color: '#B71C1C' }]}>Limpiar</Text>
-          </Pressable>
+          {!soloLectura && (
+            <>
+              <Pressable onPress={deshacer} style={styles.botonPequeno}>
+                <Undo size={14} color={Palette.forestGreen} />
+                <Text style={styles.textoBotonPequeno}>Deshacer</Text>
+              </Pressable>
+              <Pressable onPress={limpiar} style={[styles.botonPequeno, styles.botonPequenoPeligro]}>
+                <Trash2 size={14} color="#B71C1C" />
+                <Text style={[styles.textoBotonPequeno, { color: '#B71C1C' }]}>Limpiar</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
 
       {/* Guía contextual para el usuario */}
-      <View style={[styles.bannerGuia, tieneCruce && styles.bannerGuiaError]}>
-        {tieneCruce ? (
-          <Text style={styles.textoGuiaError}>
-            ⚠️ El polígono se cruza sobre sí mismo. Mueva los puntos o presione "Corregir contorno" para desenredarlo.
-          </Text>
-        ) : (
-          <View style={styles.filaGuia}>
-            <Move size={12} color="#4B5563" />
-            <Text style={styles.textoGuia}>
-              Haga clic para agregar puntos. Puede arrastrar cualquier punto para ajustar el límite, o hacer clic en uno para eliminarlo.
+      {!soloLectura && (
+        <View style={[styles.bannerGuia, tieneCruce && styles.bannerGuiaError]}>
+          {tieneCruce ? (
+            <Text style={styles.textoGuiaError}>
+              ⚠️ El polígono se cruza sobre sí mismo. Mueva los puntos o presione "Corregir contorno" para desenredarlo.
             </Text>
-          </View>
-        )}
-      </View>
+          ) : (
+            <View style={styles.filaGuia}>
+              <Move size={12} color="#4B5563" />
+              <Text style={styles.textoGuia}>
+                Haga clic para agregar puntos. Puede arrastrar cualquier punto para ajustar el límite, o hacer clic en uno para eliminarlo.
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Contenedor del Mapa Satelital */}
       <View style={[styles.marcoMapa, { height: altura }]}>

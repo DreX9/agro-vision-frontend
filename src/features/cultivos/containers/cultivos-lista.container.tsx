@@ -23,6 +23,10 @@ export const CultivosListaContainer: React.FC = () => {
   const cambiarEstadoMutation = useCambiarEstadoCultivoMutation();
   const eliminarMutation = useEliminarCultivoMutation();
 
+  const handleVerDetalle = (c: CultivoItem) => {
+    router.push(`/cultivos/${c.id}` as Href);
+  };
+
   const handleEditar = (c: CultivoItem) => {
     router.push(`/cultivos/${c.id}/editar` as Href);
   };
@@ -78,6 +82,7 @@ export const CultivosListaContainer: React.FC = () => {
             <CultivosTabla
               cultivos={cultivosFiltrados}
               cargando={isFetching}
+              onVerDetalle={handleVerDetalle}
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
               onEliminar={handleEliminar}
