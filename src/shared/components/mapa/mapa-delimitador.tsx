@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, type DimensionValue } from 'react-native';
-import { Undo, Trash2, MapPin } from 'lucide-react-native';
+import { Undo, Trash2, MapPin, Navigation } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import {
   type CoordenadaPunto,
   calcularAreaHectareas,
   calcularCentroide,
 } from '@/shared/utils/geometria';
+import { obtenerUbicacionActual } from '@/shared/utils/geocodificacion';
 
 export interface MapaDelimitadorProps {
   puntosIniciales?: CoordenadaPunto[];
@@ -80,6 +81,15 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 
   const deshacer = () => enviarAccionAMapa('DESHACER');
   const centrarEnValle = (lat: number, lng: number) => enviarAccionAMapa('CENTRAR', { lat, lng, zoom: 15 });
+
+  const centrarEnMiUbicacion = async () => {
+    const loc = await obtenerUbicacionActual();
+    if (loc) {
+      enviarAccionAMapa('CENTRAR', { lat: loc.lat, lng: loc.lng, zoom: 17 });
+    } else {
+      enviarAccionAMapa('LOCALIZAR_ACTUAL');
+    }
+  };
 
   const htmlMapa = `
     <!DOCTYPE html>
@@ -160,6 +170,8 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             vertices.pop(); actualizarPoligono();
           } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
             map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 15);
+          } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
+            map.locate({ setView: true, maxZoom: 17 });
           }
         });
       </script>
@@ -177,6 +189,10 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         </View>
 
         <View style={styles.botonesAccion}>
+          <Pressable onPress={centrarEnMiUbicacion} style={[styles.botonPequeno, styles.botonUbicacion]}>
+            <Navigation size={13} color={Palette.forestGreen} />
+            <Text style={[styles.textoBotonPequeno, { color: Palette.forestGreen }]}>Mi ubicación</Text>
+          </Pressable>
           <Pressable onPress={deshacer} style={styles.botonPequeno}>
             <Undo size={14} color={Palette.forestGreen} />
             <Text style={styles.textoBotonPequeno}>Deshacer</Text>
@@ -266,6 +282,10 @@ const styles = StyleSheet.create({
     borderColor: '#D0DEC8',
   },
   botonPequenoPeligro: { borderColor: '#FFCDD2', backgroundColor: '#FFF8F8' },
+  botonUbicacion: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#C8E6C9',
+  },
   textoBotonPequeno: { fontSize: 12, fontWeight: '600', color: Palette.forestGreen },
   marcoMapa: { width: '100%', minHeight: 320, backgroundColor: '#E5E7EB' },
   avisoNativo: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },

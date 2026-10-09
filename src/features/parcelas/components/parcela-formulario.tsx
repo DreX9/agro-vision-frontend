@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +9,10 @@ import { parcelaSchema, type ParcelaFormValores } from '../schemas/parcela.schem
 import { ParcelaFormularioCultivo } from './parcela-formulario-cultivo';
 import { ParcelaUbicacionSelector } from './parcela-ubicacion-selector';
 import { type CoordenadaPunto } from '@/shared/utils/geometria';
+import {
+  obtenerUbicacionActual,
+  geocodificacionInversa,
+} from '@/shared/utils/geocodificacion';
 import { styles } from './parcela-formulario.styles';
 
 export interface ParcelaFormularioProps {
@@ -44,7 +48,29 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     }
     return undefined;
   });
-  const [zoomMapa, setZoomMapa] = useState<number>(14);
+  const [zoomMapa, setZoomMapa] = useState<number>(15);
+  const [autocompletandoUbicacion, setAutocompletandoUbicacion] = useState<boolean>(false);
+  const [mensajeAutocompletado, setMensajeAutocompletado] = useState<string | null>(null);
+  const timeoutGeocodificacionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // En primera instancia al crear una parcela, centrar el mapa en la ubicación actual
+  useEffect(() => {
+    let activo = true;
+    if (modo === 'crear' && !valoresIniciales?.latitudCentro) {
+      obtenerUbicacionActual().then((ubicacion) => {
+        if (activo && ubicacion) {
+          setCentroMapa(ubicacion);
+          setZoomMapa(16);
+        }
+      });
+    }
+    return () => {
+      activo = false;
+      if (timeoutGeocodificacionRef.current) {
+        clearTimeout(timeoutGeocodificacionRef.current);
+      }
+    };
+  }, [modo, valoresIniciales?.latitudCentro]);
 
   const {
     control,
@@ -82,11 +108,39 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     areaHectareas: number;
     centroide: CoordenadaPunto | null;
   }) => {
-    if (datos.areaHectareas > 0) setValue('areaHectareas', datos.areaHectareas);
+    if (datos.areaHectareas > 0) setValue('areaHectareas', datos.areaHectareas, { shouldValidate: true });
     setValue('delimitacionGeoJson', datos.puntos);
     if (datos.centroide) {
       setValue('latitudCentro', datos.centroide.latitude);
       setValue('longitudCentro', datos.centroide.longitude);
+
+      if (timeoutGeocodificacionRef.current) {
+        clearTimeout(timeoutGeocodificacionRef.current);
+      }
+
+      const latCentro = datos.centroide.latitude;
+      const lngCentro = datos.centroide.longitude;
+
+      // Autocompletar automáticamente el Punto 2 (Ubicación Territorial) desde el centroide del lote
+      timeoutGeocodificacionRef.current = setTimeout(async () => {
+        setAutocompletandoUbicacion(true);
+        try {
+          const resultado = await geocodificacionInversa(latCentro, lngCentro);
+          if (resultado) {
+            setValue('departamento', resultado.departamento, { shouldValidate: true });
+            setValue('provincia', resultado.provincia, { shouldValidate: true });
+            setValue('distrito', resultado.distrito, { shouldValidate: true });
+            if (resultado.direccion) {
+              setValue('ubicacion', resultado.direccion, { shouldValidate: true });
+            }
+            setMensajeAutocompletado(
+              `📍 Ubicación autocompletada desde el punto central: ${resultado.distrito}, ${resultado.provincia}, ${resultado.departamento}`,
+            );
+          }
+        } finally {
+          setAutocompletandoUbicacion(false);
+        }
+      }, 400);
     }
   };
 
@@ -165,7 +219,17 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
 
   const seccionTerritorial = (
     <View style={styles.tarjeta}>
-      <Text style={styles.tituloSeccion}>2. Ubicación Territorial</Text>
+      <View style={styles.cabeceraSeccionTerritorial}>
+        <Text style={styles.tituloSeccion}>2. Ubicación Territorial</Text>
+        {autocompletandoUbicacion && (
+          <Text style={styles.badgeDetectando}>Detectando desde mapa...</Text>
+        )}
+      </View>
+      {mensajeAutocompletado && (
+        <View style={styles.cajaNotificacionAuto}>
+          <Text style={styles.textoNotificacionAuto}>{mensajeAutocompletado}</Text>
+        </View>
+      )}
       <ParcelaUbicacionSelector
         departamento={departamentoActual}
         provincia={provinciaActual}

@@ -7,7 +7,39 @@ export type TipoActividadTipo =
   | 'COSECHA'
   | 'DESHIERBE'
   | 'MANTENIMIENTO'
+  | 'MONITOREO_FITOSANITARIO'
+  | 'AUDITORIA_CALIDAD'
+  | 'SUPERVISION_TECNICA'
+  | 'GESTION_ADMINISTRATIVA'
   | 'OTRO';
+
+export type CategoriaLaborTipo = 'CAMPO_OPERATIVA' | 'ADMINISTRATIVA_TECNICA';
+
+export const LABORES_CAMPO: TipoActividadTipo[] = [
+  'RIEGO',
+  'PODA',
+  'COSECHA',
+  'SIEMBRA',
+  'FERTILIZACION',
+  'CONTROL_PLAGAS',
+  'DESHIERBE',
+  'MANTENIMIENTO',
+];
+
+export const LABORES_ADMINISTRATIVAS_TECNICAS: TipoActividadTipo[] = [
+  'MONITOREO_FITOSANITARIO',
+  'AUDITORIA_CALIDAD',
+  'SUPERVISION_TECNICA',
+  'GESTION_ADMINISTRATIVA',
+];
+
+export const esLaborCampo = (tipo: TipoActividadTipo): boolean => {
+  return LABORES_CAMPO.includes(tipo);
+};
+
+export const esLaborAdministrativaOTecnica = (tipo: TipoActividadTipo): boolean => {
+  return LABORES_ADMINISTRATIVAS_TECNICAS.includes(tipo);
+};
 
 export type EstadoActividadTipo =
   | 'PENDIENTE'

@@ -78,6 +78,20 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const parcelaIdActual = watch('parcelaId');
   const responsableIdActual = watch('usuarioResponsableId');
 
+  // Si se selecciona un encargado/responsable, se excluye de la cuadrilla operativa
+  React.useEffect(() => {
+    if (responsableIdActual) {
+      setCuadrilla((prev) => {
+        if (prev.some((t) => t.usuarioId === responsableIdActual)) {
+          const filtrada = prev.filter((t) => t.usuarioId !== responsableIdActual);
+          setValue('trabajadores', filtrada);
+          return filtrada;
+        }
+        return prev;
+      });
+    }
+  }, [responsableIdActual, setValue]);
+
   const alternarTrabajador = (usuarioId: string) => {
     setCuadrilla((prev) => {
       const nueva = prev.some((t) => t.usuarioId === usuarioId)
@@ -130,6 +144,11 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     valor: u.id,
   }));
 
+  const responsableSeleccionado = usuarios.find((u) => u.id === responsableIdActual);
+  const nombreResponsable = responsableSeleccionado
+    ? `${responsableSeleccionado.nombres} ${responsableSeleccionado.apellidos}`
+    : undefined;
+
   const bloqueLabor = (
     <ActividadFormularioLabor
       control={control}
@@ -148,6 +167,9 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       <ActividadFormularioCuadrilla
         usuariosDisponibles={usuarios}
         trabajadoresSeleccionados={cuadrilla}
+        tipoActual={tipoActual}
+        responsableId={responsableIdActual}
+        nombreResponsable={nombreResponsable}
         onAlternarTrabajador={alternarTrabajador}
         onCambiarRol={cambiarRolTrabajador}
       />
