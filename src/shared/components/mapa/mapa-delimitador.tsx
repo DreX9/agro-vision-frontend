@@ -62,6 +62,13 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   }, [puntosIniciales, colorPoligono]);
 
   useEffect(() => {
+    enviarAccionAMapa('CONFIGURAR_MODO', {
+      soloLectura,
+      color: colorPoligono,
+    });
+  }, [soloLectura, colorPoligono]);
+
+  useEffect(() => {
     if (centroInicial && (centroInicial.lat !== 0 || centroInicial.lng !== 0)) {
       enviarAccionAMapa('CENTRAR', { lat: centroInicial.lat, lng: centroInicial.lng, zoom: zoomInicial });
     }
@@ -189,6 +196,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           "Calles (OSM)": callesOSM
         }, null, { position: 'topright' }).addTo(map);
 
+        let esSoloLectura = ${soloLectura ? 'true' : 'false'};
         let colorCultivo = '${colorPoligono}';
         let vertices = ${JSON.stringify(puntosIniciales)}.map(p => [p.latitude, p.longitude]);
         let marcadores = [];
@@ -293,10 +301,8 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 
           const cruce = tieneAutoInterseccion(vertices);
 
-        const esSoloLectura = ${soloLectura ? 'true' : 'false'};
-
-        if (vertices.length > 0) {
-          vertices.forEach((v, idx) => {
+          if (vertices.length > 0) {
+            vertices.forEach((v, idx) => {
             const m = L.marker(v, {
               draggable: !esSoloLectura,
               icon: crearIcono(cruce),
@@ -449,6 +455,14 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             }
           } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
             map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 15);
+          } else if (e.data.accion === 'CONFIGURAR_MODO' && e.data.carga) {
+            if (typeof e.data.carga.soloLectura !== 'undefined') {
+              esSoloLectura = Boolean(e.data.carga.soloLectura);
+            }
+            if (e.data.carga.color) {
+              colorCultivo = e.data.carga.color;
+            }
+            actualizarPoligono();
           } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
             map.locate({ setView: true, maxZoom: 17 });
           }

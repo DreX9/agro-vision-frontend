@@ -16,7 +16,7 @@ import { Palette } from '@/constants/theme';
 import { Badge } from '@/shared/components/ui';
 import { MapaDelimitador } from '@/shared/components/mapa/mapa-delimitador';
 import { ParcelaItem, EstadoParcelaTipo } from '../types/parcela.types';
-import { type CoordenadaPunto } from '@/shared/utils/geometria';
+import { type CoordenadaPunto, extraerPuntosPoligono } from '@/shared/utils/geometria';
 import { useCultivosQuery } from '@/features/cultivos';
 
 export interface ParcelaDetalleTabsProps {
@@ -72,84 +72,7 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
   const nombreCultivo = cultivoEncontrado?.nombre || parcela.cultivoNombre || 'Cultivo asignado';
 
   // Extraer puntos del polígono desde delimitacionGeoJson con soporte para arrays, GeoJSON y strings
-  const obtenerPuntosPoligono = (): CoordenadaPunto[] => {
-    if (!parcela.delimitacionGeoJson) return [];
-    try {
-      let geo: any = parcela.delimitacionGeoJson;
-      if (typeof geo === 'string') {
-        try {
-          geo = JSON.parse(geo);
-        } catch {
-          return [];
-        }
-      }
-
-      // Caso 1: Array directo de coordenadas [{ latitude, longitude }] o [{ lat, lng }]
-      if (Array.isArray(geo)) {
-        const puntos = geo
-          .map((item: any) => {
-            if (!item) return null;
-            if (typeof item === 'object' && !Array.isArray(item)) {
-              const lat = Number(item.latitude ?? item.lat);
-              const lng = Number(item.longitude ?? item.lng);
-              if (!isNaN(lat) && !isNaN(lng)) {
-                return { latitude: lat, longitude: lng };
-              }
-            }
-            if (Array.isArray(item) && item.length >= 2) {
-              let lat = Number(item[0]);
-              let lng = Number(item[1]);
-              if (lat < -50 && lng > -20 && lng < 0) {
-                const temp = lat;
-                lat = lng;
-                lng = temp;
-              }
-              if (!isNaN(lat) && !isNaN(lng)) {
-                return { latitude: lat, longitude: lng };
-              }
-            }
-            return null;
-          })
-          .filter((p): p is CoordenadaPunto => p !== null);
-
-        if (puntos.length > 0) return puntos;
-      }
-
-      // Caso 2: GeoJSON Feature o Polygon Geometry
-      if (geo && typeof geo === 'object') {
-        if (geo.type === 'Feature' && geo.geometry) {
-          geo = geo.geometry;
-        }
-
-        const coordinates = geo.coordinates;
-        if (Array.isArray(coordinates)) {
-          const ring =
-            Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])
-              ? coordinates[0]
-              : coordinates;
-
-          return ring
-            .map((coord: any) => {
-              if (Array.isArray(coord) && coord.length >= 2) {
-                return { latitude: Number(coord[1]), longitude: Number(coord[0]) };
-              }
-              if (typeof coord === 'object' && coord !== null) {
-                const lat = Number(coord.latitude ?? coord.lat);
-                const lng = Number(coord.longitude ?? coord.lng);
-                return { latitude: lat, longitude: lng };
-              }
-              return null;
-            })
-            .filter((p): p is CoordenadaPunto => Boolean(p && !isNaN(p.latitude) && !isNaN(p.longitude)));
-        }
-      }
-    } catch {
-      return [];
-    }
-    return [];
-  };
-
-  const puntosPoligono = obtenerPuntosPoligono();
+  const puntosPoligono = extraerPuntosPoligono(parcela.delimitacionGeoJson);
   const centroLat = parcela.latitudCentro ?? (puntosPoligono[0]?.latitude || -13.0768);
   const centroLng = parcela.longitudCentro ?? (puntosPoligono[0]?.longitude || -76.3854);
 

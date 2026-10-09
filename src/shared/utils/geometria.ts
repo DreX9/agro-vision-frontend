@@ -127,4 +127,93 @@ export function ordenarPuntosPerimetralmente(puntos: CoordenadaPunto[]): Coorden
     return angA - angB;
   });
 }
+/**
+ * @description Extrae de manera robusta un arreglo de vértices CoordenadaPunto a partir de cualquier
+ * estructura almacenada (GeoJSON Feature, Geometry Polygon, Array de coordenadas o string JSON).
+ */
+export function extraerPuntosPoligono(geoRaw: unknown): CoordenadaPunto[] {
+  if (!geoRaw) return [];
+  try {
+    let geo: any = geoRaw;
+    if (typeof geo === 'string') {
+      try {
+        geo = JSON.parse(geo);
+      } catch {
+        return [];
+      }
+    }
 
+    // Caso 1: Array directo de coordenadas [{ latitude, longitude }] o [[lat, lng], ...]
+    if (Array.isArray(geo)) {
+      const puntos = geo
+        .map((item: any) => {
+          if (!item) return null;
+          if (typeof item === 'object' && !Array.isArray(item)) {
+            const lat = Number(item.latitude ?? item.lat);
+            const lng = Number(item.longitude ?? item.lng);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              return { latitude: lat, longitude: lng };
+            }
+          }
+          if (Array.isArray(item) && item.length >= 2) {
+            let lat = Number(item[0]);
+            let lng = Number(item[1]);
+            // Heurística de inversión de ejes si lat y lng están invertidos (e.g. Perú latitud ~ -12, longitud ~ -76)
+            if (lat < -50 && lng > -20 && lng < 0) {
+              const temp = lat;
+              lat = lng;
+              lng = temp;
+            }
+            if (!isNaN(lat) && !isNaN(lng)) {
+              return { latitude: lat, longitude: lng };
+            }
+          }
+          return null;
+        })
+        .filter((p): p is CoordenadaPunto => p !== null);
+
+      if (puntos.length > 0) return puntos;
+    }
+
+    // Caso 2: GeoJSON Feature o Geometry Polygon
+    if (geo && typeof geo === 'object') {
+      if (geo.type === 'Feature' && geo.geometry) {
+        geo = geo.geometry;
+      }
+
+      const coordinates = geo.coordinates;
+      if (Array.isArray(coordinates)) {
+        // En GeoJSON Polygon estándar, coordinates es [ [ [lng, lat], [lng, lat], ... ] ]
+        let anillo: any[] = coordinates;
+        if (Array.isArray(coordinates[0])) {
+          anillo = Array.isArray(coordinates[0][0]) ? coordinates[0][0] : coordinates[0];
+        }
+
+        const puntosGeoJson = anillo
+          .map((coord: any) => {
+            if (Array.isArray(coord) && coord.length >= 2) {
+              // Estándar GeoJSON: [longitud, latitud]
+              const lng = Number(coord[0]);
+              const lat = Number(coord[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                return { latitude: lat, longitude: lng };
+              }
+            } else if (coord && typeof coord === 'object') {
+              const lat = Number(coord.latitude ?? coord.lat);
+              const lng = Number(coord.longitude ?? coord.lng);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                return { latitude: lat, longitude: lng };
+              }
+            }
+            return null;
+          })
+          .filter((p): p is CoordenadaPunto => p !== null);
+
+        if (puntosGeoJson.length > 0) return puntosGeoJson;
+      }
+    }
+  } catch (error) {
+    console.warn('Error al extraer puntos de delimitación geoespacial:', error);
+  }
+  return [];
+}
