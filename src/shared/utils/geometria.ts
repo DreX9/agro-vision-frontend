@@ -56,3 +56,75 @@ export function calcularCentroide(puntos: CoordenadaPunto[]): CoordenadaPunto | 
     longitude: Number((sumaLng / puntos.length).toFixed(6)),
   };
 }
+
+/**
+ * @description Comprueba si dos segmentos de línea se intersectan o cruzan entre sí.
+ */
+export function seCruzanSegmentos(
+  a: CoordenadaPunto,
+  b: CoordenadaPunto,
+  c: CoordenadaPunto,
+  d: CoordenadaPunto,
+): boolean {
+  const ccw = (p1: CoordenadaPunto, p2: CoordenadaPunto, p3: CoordenadaPunto): number => {
+    return (
+      (p3.longitude - p1.longitude) * (p2.latitude - p1.latitude) -
+      (p3.latitude - p1.latitude) * (p2.longitude - p1.longitude)
+    );
+  };
+
+  const d1 = ccw(a, b, c);
+  const d2 = ccw(a, b, d);
+  const d3 = ccw(c, d, a);
+  const d4 = ccw(c, d, b);
+
+  return (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  );
+}
+
+/**
+ * @description Evalúa si los bordes de un polígono se cruzan entre sí (polígono auto-intersecante o en reloj de arena).
+ * Un polígono agrícola válido no debe cruzar sus líneas de límite.
+ */
+export function esPoligonoAutoIntersecante(puntos: CoordenadaPunto[]): boolean {
+  if (!puntos || puntos.length < 4) return false;
+  const n = puntos.length;
+
+  for (let i = 0; i < n; i++) {
+    const a = puntos[i];
+    const b = puntos[(i + 1) % n];
+
+    for (let j = i + 1; j < n; j++) {
+      // Ignorar segmentos adyacentes que comparten un vértice
+      if (j === i || j === (i + 1) % n || (i === 0 && j === n - 1)) continue;
+
+      const c = puntos[j];
+      const d = puntos[(j + 1) % n];
+
+      if (seCruzanSegmentos(a, b, c, d)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * @description Reordena los vértices en sentido angular perimetral alrededor del centroide.
+ * Corrige polígonos complejos o con líneas cruzadas transformándolos en un contorno perimetral cerrado y limpio.
+ */
+export function ordenarPuntosPerimetralmente(puntos: CoordenadaPunto[]): CoordenadaPunto[] {
+  if (!puntos || puntos.length < 3) return [...(puntos || [])];
+  const centro = calcularCentroide(puntos);
+  if (!centro) return [...puntos];
+
+  return [...puntos].sort((a, b) => {
+    const angA = Math.atan2(a.latitude - centro.latitude, a.longitude - centro.longitude);
+    const angB = Math.atan2(b.latitude - centro.latitude, b.longitude - centro.longitude);
+    return angA - angB;
+  });
+}
+

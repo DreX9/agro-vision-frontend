@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, type DimensionValue } from 'react-native';
-import { Undo, Trash2, MapPin, Navigation } from 'lucide-react-native';
+import { Undo, Trash2, MapPin, Navigation, AlertTriangle, RotateCw, Move } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import {
   type CoordenadaPunto,
   calcularAreaHectareas,
   calcularCentroide,
+  esPoligonoAutoIntersecante,
 } from '@/shared/utils/geometria';
 import { obtenerUbicacionActual } from '@/shared/utils/geocodificacion';
 
@@ -18,12 +19,13 @@ export interface MapaDelimitadorProps {
     puntos: CoordenadaPunto[];
     areaHectareas: number;
     centroide: CoordenadaPunto | null;
+    tieneCruce?: boolean;
   }) => void;
 }
 
 /**
- * @description Componente de mapa interactivo multiplataforma para delimitar polígonos de parcelas
- * con capas satelitales de alta resolución sin errores de zoom ("Map data not yet available").
+ * @description Componente de mapa satelital interactivo para delimitación de parcelas
+ * con puntos arrastrables (draggable), detección de polígonos cruzados y auto-corrección perimetral.
  */
 export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   puntosIniciales = [],
@@ -34,12 +36,14 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 }) => {
   const [puntos, setPuntos] = useState<CoordenadaPunto[]>(puntosIniciales);
   const [areaHa, setAreaHa] = useState<number>(() => calcularAreaHectareas(puntosIniciales));
+  const [tieneCruce, setTieneCruce] = useState<boolean>(() => esPoligonoAutoIntersecante(puntosIniciales));
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     if (puntosIniciales.length > 0) {
       setPuntos(puntosIniciales);
       setAreaHa(calcularAreaHectareas(puntosIniciales));
+      setTieneCruce(esPoligonoAutoIntersecante(puntosIniciales));
     }
   }, [puntosIniciales]);
 
@@ -60,12 +64,21 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
     const manejarMensaje = (evento: MessageEvent) => {
       if (!evento.data || evento.data.tipo !== 'MAPA_VERTICES_ACTUALIZADOS') return;
       const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
+      const cruceDetectado: boolean = Boolean(evento.data.tieneCruce);
       const nuevaArea = calcularAreaHectareas(nuevosPuntos);
       const centroide = calcularCentroide(nuevosPuntos);
+
       setPuntos(nuevosPuntos);
       setAreaHa(nuevaArea);
+      setTieneCruce(cruceDetectado);
+
       if (onCambioPoligono) {
-        onCambioPoligono({ puntos: nuevosPuntos, areaHectareas: nuevaArea, centroide });
+        onCambioPoligono({
+          puntos: nuevosPuntos,
+          areaHectareas: nuevaArea,
+          centroide,
+          tieneCruce: cruceDetectado,
+        });
       }
     };
     window.addEventListener('message', manejarMensaje);
@@ -75,11 +88,15 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   const limpiar = () => {
     setPuntos([]);
     setAreaHa(0);
+    setTieneCruce(false);
     enviarAccionAMapa('LIMPIAR');
-    if (onCambioPoligono) onCambioPoligono({ puntos: [], areaHectareas: 0, centroide: null });
+    if (onCambioPoligono) {
+      onCambioPoligono({ puntos: [], areaHectareas: 0, centroide: null, tieneCruce: false });
+    }
   };
 
   const deshacer = () => enviarAccionAMapa('DESHACER');
+  const reordenarContorno = () => enviarAccionAMapa('REORDENAR');
   const centrarEnValle = (lat: number, lng: number) => enviarAccionAMapa('CENTRAR', { lat, lng, zoom: 15 });
 
   const centrarEnMiUbicacion = async () => {
@@ -98,7 +115,30 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <style>body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; }</style>
+      <style>
+        body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; }
+        .vertice-pin {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: #2E7D32;
+          border: 2.5px solid #ffffff;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.45);
+          cursor: grab;
+          transition: transform 0.1s ease;
+        }
+        .vertice-pin:hover {
+          transform: scale(1.35);
+          border-color: #E8F5E9;
+        }
+        .vertice-pin:active {
+          cursor: grabbing;
+        }
+        .vertice-pin.error {
+          background: #DC2626 !important;
+          box-shadow: 0 0 8px rgba(220,38,38,0.8);
+        }
+      </style>
     </head>
     <body>
       <div id="map"></div>
@@ -129,22 +169,99 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         let marcadores = [];
         let poligono = null;
 
+        function ccw(p1, p2, p3) {
+          return (p3[1] - p1[1]) * (p2[0] - p1[0]) - (p3[0] - p1[0]) * (p2[1] - p1[1]);
+        }
+        function seCruzan(a, b, c, d) {
+          const d1 = ccw(a, b, c);
+          const d2 = ccw(a, b, d);
+          const d3 = ccw(c, d, a);
+          const d4 = ccw(c, d, b);
+          return (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+                  ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)));
+        }
+        function tieneAutoInterseccion(pts) {
+          if (pts.length < 4) return false;
+          const n = pts.length;
+          for (let i = 0; i < n; i++) {
+            const a = pts[i];
+            const b = pts[(i + 1) % n];
+            for (let j = i + 1; j < n; j++) {
+              if (j === i || j === (i + 1) % n || (i === 0 && j === n - 1)) continue;
+              if (seCruzan(a, b, pts[j], pts[(j + 1) % n])) return true;
+            }
+          }
+          return false;
+        }
+
+        function crearIcono(esError) {
+          return L.divIcon({
+            className: 'vertice-wrapper',
+            html: '<div class="vertice-pin ' + (esError ? 'error' : '') + '"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+        }
+
+        function redibujarEnArrastre() {
+          if (vertices.length >= 3) {
+            const cruce = tieneAutoInterseccion(vertices);
+            if (poligono) {
+              poligono.setLatLngs(vertices);
+              poligono.setStyle({
+                color: cruce ? '#DC2626' : '#2E7D32',
+                fillColor: cruce ? '#EF4444' : '#4CAF50',
+                dashArray: cruce ? '6, 6' : null
+              });
+            }
+          } else if (vertices.length === 2 && poligono) {
+            poligono.setLatLngs(vertices);
+          }
+        }
+
         function actualizarPoligono() {
           if (poligono) map.removeLayer(poligono);
           marcadores.forEach(m => map.removeLayer(m));
           marcadores = [];
 
+          const cruce = tieneAutoInterseccion(vertices);
+
           if (vertices.length > 0) {
-            vertices.forEach((v) => {
-              const m = L.circleMarker(v, {
-                radius: 6, color: '#ffffff', weight: 2, fillColor: '#2E7D32', fillOpacity: 1
+            vertices.forEach((v, idx) => {
+              const m = L.marker(v, {
+                draggable: true,
+                icon: crearIcono(cruce),
+                title: 'Punto #' + (idx + 1) + ' (Arrastrar para mover, clic para borrar)'
               }).addTo(map);
+
+              m.on('drag', function(ev) {
+                const pos = ev.target.getLatLng();
+                vertices[idx] = [pos.lat, pos.lng];
+                redibujarEnArrastre();
+              });
+
+              m.on('dragend', function(ev) {
+                const pos = ev.target.getLatLng();
+                vertices[idx] = [pos.lat, pos.lng];
+                actualizarPoligono();
+              });
+
+              m.on('click', function(ev) {
+                L.DomEvent.stopPropagation(ev);
+                vertices.splice(idx, 1);
+                actualizarPoligono();
+              });
+
               marcadores.push(m);
             });
 
             if (vertices.length >= 3) {
               poligono = L.polygon(vertices, {
-                color: '#2E7D32', weight: 3, fillColor: '#4CAF50', fillOpacity: 0.4
+                color: cruce ? '#DC2626' : '#2E7D32',
+                weight: 3,
+                fillColor: cruce ? '#EF4444' : '#4CAF50',
+                fillOpacity: cruce ? 0.35 : 0.4,
+                dashArray: cruce ? '6, 6' : null
               }).addTo(map);
             } else if (vertices.length === 2) {
               poligono = L.polyline(vertices, { color: '#2E7D32', weight: 3 }).addTo(map);
@@ -152,7 +269,11 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           }
 
           const puntosFormateados = vertices.map(v => ({ latitude: v[0], longitude: v[1] }));
-          window.parent.postMessage({ tipo: 'MAPA_VERTICES_ACTUALIZADOS', puntos: puntosFormateados }, '*');
+          window.parent.postMessage({
+            tipo: 'MAPA_VERTICES_ACTUALIZADOS',
+            puntos: puntosFormateados,
+            tieneCruce: cruce
+          }, '*');
         }
 
         actualizarPoligono();
@@ -165,9 +286,24 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         window.addEventListener('message', function(e) {
           if (!e.data) return;
           if (e.data.accion === 'LIMPIAR') {
-            vertices = []; actualizarPoligono();
+            vertices = [];
+            actualizarPoligono();
           } else if (e.data.accion === 'DESHACER') {
-            vertices.pop(); actualizarPoligono();
+            vertices.pop();
+            actualizarPoligono();
+          } else if (e.data.accion === 'REORDENAR') {
+            if (vertices.length >= 3) {
+              let sLat = 0, sLng = 0;
+              vertices.forEach(v => { sLat += v[0]; sLng += v[1]; });
+              const cLat = sLat / vertices.length;
+              const cLng = sLng / vertices.length;
+              vertices.sort((a, b) => {
+                const angA = Math.atan2(a[0] - cLat, a[1] - cLng);
+                const angB = Math.atan2(b[0] - cLat, b[1] - cLng);
+                return angA - angB;
+              });
+              actualizarPoligono();
+            }
           } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
             map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 15);
           } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
@@ -181,14 +317,30 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 
   return (
     <View style={styles.contenedor}>
+      {/* Barra de Controles y Métricas */}
       <View style={styles.barraControl}>
         <View style={styles.infoArea}>
           <Text style={styles.textoAreaEtiqueta}>Área delimitada:</Text>
-          <Text style={styles.textoAreaValor}>{areaHa.toFixed(4)} ha</Text>
+          <Text style={[styles.textoAreaValor, tieneCruce && styles.textoAreaValorError]}>
+            {areaHa.toFixed(4)} ha
+          </Text>
           <Text style={styles.textoPuntos}>({puntos.length} vértices)</Text>
+
+          {tieneCruce && (
+            <View style={styles.badgeCruce}>
+              <AlertTriangle size={13} color="#B91C1C" />
+              <Text style={styles.textoBadgeCruce}>Líneas cruzadas</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.botonesAccion}>
+          {tieneCruce && (
+            <Pressable onPress={reordenarContorno} style={[styles.botonPequeno, styles.botonReordenar]}>
+              <RotateCw size={13} color="#15803D" />
+              <Text style={styles.textoBotonReordenar}>Corregir contorno</Text>
+            </Pressable>
+          )}
           <Pressable onPress={centrarEnMiUbicacion} style={[styles.botonPequeno, styles.botonUbicacion]}>
             <Navigation size={13} color={Palette.forestGreen} />
             <Text style={[styles.textoBotonPequeno, { color: Palette.forestGreen }]}>Mi ubicación</Text>
@@ -204,6 +356,23 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         </View>
       </View>
 
+      {/* Guía contextual para el usuario */}
+      <View style={[styles.bannerGuia, tieneCruce && styles.bannerGuiaError]}>
+        {tieneCruce ? (
+          <Text style={styles.textoGuiaError}>
+            ⚠️ El polígono se cruza sobre sí mismo. Mueva los puntos o presione "Corregir contorno" para desenredarlo.
+          </Text>
+        ) : (
+          <View style={styles.filaGuia}>
+            <Move size={12} color="#4B5563" />
+            <Text style={styles.textoGuia}>
+              Haga clic para agregar puntos. Puede arrastrar cualquier punto para ajustar el límite, o hacer clic en uno para eliminarlo.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Contenedor del Mapa Satelital */}
       <View style={[styles.marcoMapa, { height: altura }]}>
         {Platform.OS === 'web' ? (
           <iframe
@@ -224,6 +393,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         )}
       </View>
 
+      {/* Accesos rápidos a Valles Agrícolas */}
       <View style={styles.barraAccesos}>
         <Text style={styles.textoValle}>Valles:</Text>
         <Pressable onPress={() => centrarEnValle(-13.0768, -76.3854)} style={styles.chipValle}>
@@ -264,12 +434,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F7F2',
     borderBottomWidth: 1,
     borderBottomColor: '#E2EBDC',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  infoArea: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  infoArea: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   textoAreaEtiqueta: { fontSize: 12, fontWeight: '600', color: '#4B5563' },
   textoAreaValor: { fontSize: 14, fontWeight: '800', color: Palette.forestGreen },
+  textoAreaValorError: { color: '#DC2626' },
   textoPuntos: { fontSize: 11, color: '#6B7280' },
-  botonesAccion: { flexDirection: 'row', gap: 8 },
+  badgeCruce: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  textoBadgeCruce: { fontSize: 11, fontWeight: '700', color: '#B91C1C' },
+  botonesAccion: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   botonPequeno: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -281,12 +466,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D0DEC8',
   },
+  botonReordenar: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  textoBotonReordenar: { fontSize: 12, fontWeight: '700', color: '#15803D' },
   botonPequenoPeligro: { borderColor: '#FFCDD2', backgroundColor: '#FFF8F8' },
   botonUbicacion: {
     backgroundColor: '#E8F5E9',
     borderColor: '#C8E6C9',
   },
   textoBotonPequeno: { fontSize: 12, fontWeight: '600', color: Palette.forestGreen },
+  bannerGuia: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F8FAF5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8EFE3',
+  },
+  bannerGuiaError: {
+    backgroundColor: '#FEF2F2',
+    borderBottomColor: '#FEE2E2',
+  },
+  filaGuia: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  textoGuia: { fontSize: 11, color: '#4B5563', flex: 1 },
+  textoGuiaError: { fontSize: 11, fontWeight: '600', color: '#B91C1C' },
   marcoMapa: { width: '100%', minHeight: 320, backgroundColor: '#E5E7EB' },
   avisoNativo: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   textoAvisoNativo: { fontSize: 13, fontWeight: '600', color: '#374151' },

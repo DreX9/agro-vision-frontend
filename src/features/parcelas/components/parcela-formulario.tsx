@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, useWindowDimensions, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Compass, AlertTriangle } from 'lucide-react-native';
+import { Palette } from '@/constants/theme';
 import { Boton, Input } from '@/shared/components/ui';
 import { MapaDelimitador } from '@/shared/components/mapa/mapa-delimitador';
 import { CultivoItem } from '@/features/cultivos/types/cultivo.types';
@@ -51,6 +53,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   const [zoomMapa, setZoomMapa] = useState<number>(15);
   const [autocompletandoUbicacion, setAutocompletandoUbicacion] = useState<boolean>(false);
   const [mensajeAutocompletado, setMensajeAutocompletado] = useState<string | null>(null);
+  const [poligonoTieneCruce, setPoligonoTieneCruce] = useState<boolean>(false);
   const timeoutGeocodificacionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // En primera instancia al crear una parcela, centrar el mapa en la ubicación actual
@@ -102,17 +105,25 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   const departamentoActual = watch('departamento');
   const provinciaActual = watch('provincia');
   const distritoActual = watch('distrito');
+  const latitudActual = watch('latitudCentro');
+  const longitudActual = watch('longitudCentro');
 
   const manejarCambioPoligono = (datos: {
     puntos: CoordenadaPunto[];
     areaHectareas: number;
     centroide: CoordenadaPunto | null;
+    tieneCruce?: boolean;
   }) => {
-    if (datos.areaHectareas > 0) setValue('areaHectareas', datos.areaHectareas, { shouldValidate: true });
+    setPoligonoTieneCruce(Boolean(datos.tieneCruce));
+
+    if (datos.areaHectareas > 0) {
+      setValue('areaHectareas', datos.areaHectareas, { shouldValidate: true });
+    }
     setValue('delimitacionGeoJson', datos.puntos);
+
     if (datos.centroide) {
-      setValue('latitudCentro', datos.centroide.latitude);
-      setValue('longitudCentro', datos.centroide.longitude);
+      setValue('latitudCentro', datos.centroide.latitude, { shouldValidate: true });
+      setValue('longitudCentro', datos.centroide.longitude, { shouldValidate: true });
 
       if (timeoutGeocodificacionRef.current) {
         clearTimeout(timeoutGeocodificacionRef.current);
@@ -134,14 +145,28 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
               setValue('ubicacion', resultado.direccion, { shouldValidate: true });
             }
             setMensajeAutocompletado(
-              `📍 Ubicación autocompletada desde el punto central: ${resultado.distrito}, ${resultado.provincia}, ${resultado.departamento}`,
+              `📍 Ubicación autocompletada desde el centroide: ${resultado.distrito}, ${resultado.provincia}, ${resultado.departamento}`,
             );
           }
         } finally {
           setAutocompletandoUbicacion(false);
         }
       }, 400);
+    } else {
+      setValue('latitudCentro', null);
+      setValue('longitudCentro', null);
     }
+  };
+
+  const manejarSubmit = (valores: ParcelaFormValores) => {
+    if (poligonoTieneCruce) {
+      Alert.alert(
+        'Contorno del Lote no Válido',
+        'El polígono delimitado tiene líneas cruzadas sobre sí mismas (dimensión irregular). Por favor mueva los puntos o presione "Corregir contorno" en la barra del mapa antes de guardar.',
+      );
+      return;
+    }
+    onSubmit(valores);
   };
 
   const seccionAgronomica = (
@@ -182,31 +207,33 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
             name="areaHectareas"
             render={({ field: { onChange, value } }) => (
               <Input
-                label="Área en Hectáreas (ha) *"
-                placeholder="0.00"
-                keyboardType="numeric"
+                label="Área (Hectáreas) *"
+                placeholder="Calculada en mapa..."
                 value={value ? String(value) : ''}
-                onChangeText={(texto) => onChange(Number(texto) || 0)}
+                onChangeText={(v) => onChange(Number(v) || 0)}
+                keyboardType="numeric"
                 error={errors.areaHectareas?.message}
               />
             )}
           />
         </View>
       </View>
+
       <ParcelaFormularioCultivo
         cultivos={cultivos}
         cultivoSeleccionadoId={cultivoIdActual}
         variedadSeleccionada={variedadActual}
         errorCultivo={errors.cultivoId?.message}
-        onSeleccionarCultivo={(id) => setValue('cultivoId', id)}
-        onSeleccionarVariedad={(v) => setValue('variedad', v)}
+        onSeleccionarCultivo={(id) => setValue('cultivoId', id, { shouldValidate: true })}
+        onSeleccionarVariedad={(v) => setValue('variedad', v, { shouldValidate: true })}
       />
+
       <Controller
         control={control}
         name="variedad"
         render={({ field: { onChange, value } }) => (
           <Input
-            label="Variedad específica o clon"
+            label="Variedad Específica (Opcional)"
             placeholder="Ej. Hass, Red Globe, etc."
             value={value || ''}
             onChangeText={onChange}
@@ -225,11 +252,14 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           <Text style={styles.badgeDetectando}>Detectando desde mapa...</Text>
         )}
       </View>
+
       {mensajeAutocompletado && (
         <View style={styles.cajaNotificacionAuto}>
           <Text style={styles.textoNotificacionAuto}>{mensajeAutocompletado}</Text>
         </View>
       )}
+
+      {/* Selectores Jerárquicos Limpios: Departamento -> Provincia -> Distrito */}
       <ParcelaUbicacionSelector
         departamento={departamentoActual}
         provincia={provinciaActual}
@@ -244,8 +274,8 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           setCentroMapa(nuevoCentro);
           if (zoom) setZoomMapa(zoom);
         }}
-        onDireccionAutocompletada={(dir) => setValue('ubicacion', dir)}
       />
+
       <Controller
         control={control}
         name="ubicacion"
@@ -259,6 +289,42 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           />
         )}
       />
+
+      {/* Coordenadas GPS del punto central de la parcela */}
+      <View style={styles.cajaCoordenadasGps}>
+        <View style={styles.cabeceraCoordenadas}>
+          <View style={styles.filaTituloCoord}>
+            <Compass size={15} color={Palette.forestGreen} />
+            <Text style={styles.tituloCoordenadas}>Coordenadas GPS (Punto Central del Lote)</Text>
+          </View>
+          {latitudActual != null && longitudActual != null && (
+            <View style={styles.badgeCentroide}>
+              <Text style={styles.textoBadgeCentroide}>Centroide Calculado</Text>
+            </View>
+          )}
+        </View>
+
+        {latitudActual != null && longitudActual != null ? (
+          <View style={styles.filaCoordenadasValores}>
+            <View style={styles.campoCoordenada}>
+              <Text style={styles.etiquetaCoordenada}>Latitud</Text>
+              <Text style={styles.valorCoordenada}>
+                {typeof latitudActual === 'number' ? latitudActual.toFixed(6) : Number(latitudActual).toFixed(6)}°
+              </Text>
+            </View>
+            <View style={styles.campoCoordenada}>
+              <Text style={styles.etiquetaCoordenada}>Longitud</Text>
+              <Text style={styles.valorCoordenada}>
+                {typeof longitudActual === 'number' ? longitudActual.toFixed(6) : Number(longitudActual).toFixed(6)}°
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.textoCoordenadasPendiente}>
+            Se calcularán automáticamente al marcar los vértices de la parcela en el mapa satelital.
+          </Text>
+        )}
+      </View>
     </View>
   );
 
@@ -267,7 +333,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
       <View style={styles.cabeceraMapa}>
         <Text style={styles.tituloSeccion}>Delimitación y Mapeo Satelital</Text>
         <Text style={styles.ayudaMapa}>
-          Haga clic sobre el mapa para marcar los vértices de la parcela. El área se calculará automáticamente.
+          Haga clic sobre el mapa para marcar los vértices. Arrastre cualquier punto para ampliar o ajustar el contorno.
         </Text>
       </View>
       <MapaDelimitador
@@ -318,7 +384,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           <Boton
             titulo={modo === 'crear' ? 'Registrar Parcela' : 'Actualizar Parcela'}
             variante="primario"
-            onPress={handleSubmit(onSubmit)}
+            onPress={handleSubmit(manejarSubmit)}
             cargando={guardando}
           />
         </View>
@@ -326,4 +392,3 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     </View>
   );
 };
-

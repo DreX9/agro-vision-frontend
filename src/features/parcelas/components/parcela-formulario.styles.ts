@@ -129,4 +129,68 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  cajaCoordenadasGps: {
+    backgroundColor: '#F9FBF8',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DFEAE0',
+    padding: 12,
+    gap: 8,
+  },
+  cabeceraCoordenadas: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
+  },
+  filaTituloCoord: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tituloCoordenadas: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  badgeCentroide: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  textoBadgeCentroide: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  filaCoordenadasValores: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  campoCoordenada: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  etiquetaCoordenada: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  valorCoordenada: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  textoCoordenadasPendiente: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
 });
