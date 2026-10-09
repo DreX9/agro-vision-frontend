@@ -16,6 +16,7 @@ export interface MapaDelimitadorProps {
   zoomInicial?: number;
   altura?: DimensionValue;
   soloLectura?: boolean;
+  colorPoligono?: string;
   onCambioPoligono?: (datos: {
     puntos: CoordenadaPunto[];
     areaHectareas: number;
@@ -34,6 +35,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   zoomInicial = 15,
   altura = 380,
   soloLectura = false,
+  colorPoligono = '#2E7D32',
   onCambioPoligono,
 }) => {
   const [puntos, setPuntos] = useState<CoordenadaPunto[]>(puntosIniciales);
@@ -41,19 +43,23 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   const [tieneCruce, setTieneCruce] = useState<boolean>(() => esPoligonoAutoIntersecante(puntosIniciales));
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  useEffect(() => {
-    if (puntosIniciales.length > 0) {
-      setPuntos(puntosIniciales);
-      setAreaHa(calcularAreaHectareas(puntosIniciales));
-      setTieneCruce(esPoligonoAutoIntersecante(puntosIniciales));
-    }
-  }, [puntosIniciales]);
-
   const enviarAccionAMapa = (accion: string, carga?: unknown) => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ accion, carga }, '*');
     }
   };
+
+  useEffect(() => {
+    if (puntosIniciales && puntosIniciales.length > 0) {
+      setPuntos(puntosIniciales);
+      setAreaHa(calcularAreaHectareas(puntosIniciales));
+      setTieneCruce(esPoligonoAutoIntersecante(puntosIniciales));
+      enviarAccionAMapa('CARGAR_PUNTOS', {
+        puntos: puntosIniciales,
+        color: colorPoligono,
+      });
+    }
+  }, [puntosIniciales, colorPoligono]);
 
   useEffect(() => {
     if (centroInicial && (centroInicial.lat !== 0 || centroInicial.lng !== 0)) {
@@ -123,7 +129,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: #2E7D32;
+          background: ${colorPoligono};
           border: 2.5px solid #ffffff;
           box-shadow: 0 2px 5px rgba(0,0,0,0.45);
           cursor: grab;
@@ -183,6 +189,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           "Calles (OSM)": callesOSM
         }, null, { position: 'topright' }).addTo(map);
 
+        let colorCultivo = '${colorPoligono}';
         let vertices = ${JSON.stringify(puntosIniciales)}.map(p => [p.latitude, p.longitude]);
         let marcadores = [];
         let marcadoresMedios = [];
@@ -252,9 +259,10 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         }
 
         function crearIcono(esError) {
+          const bg = esError ? '#DC2626' : colorCultivo;
           return L.divIcon({
             className: 'vertice-wrapper',
-            html: '<div class="vertice-pin ' + (esError ? 'error' : '') + '"></div>',
+            html: '<div class="vertice-pin ' + (esError ? 'error' : '') + '" style="background:' + bg + ';"></div>',
             iconSize: [14, 14],
             iconAnchor: [7, 7]
           });
@@ -266,8 +274,8 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             if (poligono) {
               poligono.setLatLngs(vertices);
               poligono.setStyle({
-                color: cruce ? '#DC2626' : '#2E7D32',
-                fillColor: cruce ? '#EF4444' : '#4CAF50',
+                color: cruce ? '#DC2626' : colorCultivo,
+                fillColor: cruce ? '#EF4444' : colorCultivo,
                 dashArray: cruce ? '6, 6' : null
               });
             }
@@ -320,10 +328,10 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
 
           if (vertices.length >= 3) {
             poligono = L.polygon(vertices, {
-              color: cruce ? '#DC2626' : '#2E7D32',
+              color: cruce ? '#DC2626' : colorCultivo,
               weight: 3,
-              fillColor: cruce ? '#EF4444' : '#4CAF50',
-              fillOpacity: cruce ? 0.35 : 0.4,
+              fillColor: cruce ? '#EF4444' : colorCultivo,
+              fillOpacity: 0.38,
               dashArray: cruce ? '6, 6' : null
             }).addTo(map);
 
@@ -369,7 +377,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
               }
             }
           } else if (vertices.length === 2) {
-            poligono = L.polyline(vertices, { color: '#2E7D32', weight: 3 }).addTo(map);
+            poligono = L.polyline(vertices, { color: colorCultivo, weight: 3 }).addTo(map);
           }
         }
 
@@ -409,6 +417,23 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           } else if (e.data.accion === 'DESHACER') {
             vertices.pop();
             actualizarPoligono();
+          } else if (e.data.accion === 'CARGAR_PUNTOS' && e.data.carga) {
+            if (Array.isArray(e.data.carga.puntos)) {
+              vertices = e.data.carga.puntos.map(function(p) { return [p.latitude, p.longitude]; });
+              if (e.data.carga.color) {
+                colorCultivo = e.data.carga.color;
+              }
+              actualizarPoligono();
+              if (vertices.length >= 3 && poligono) {
+                try {
+                  map.fitBounds(poligono.getBounds(), { padding: [40, 40], maxZoom: 18 });
+                } catch (err) {}
+              } else if (vertices.length > 0) {
+                try {
+                  map.setView(vertices[0], 16);
+                } catch (err) {}
+              }
+            }
           } else if (e.data.accion === 'REORDENAR') {
             if (vertices.length >= 3) {
               let sLat = 0, sLng = 0;
@@ -438,6 +463,9 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
       {/* Barra de Controles y Métricas */}
       <View style={styles.barraControl}>
         <View style={styles.infoArea}>
+          {colorPoligono ? (
+            <View style={[styles.muestraColorCultivo, { backgroundColor: colorPoligono }]} />
+          ) : null}
           <Text style={styles.textoAreaEtiqueta}>Área delimitada:</Text>
           <Text style={[styles.textoAreaValor, tieneCruce && styles.textoAreaValorError]}>
             {areaHa.toFixed(4)} ha
@@ -562,6 +590,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   infoArea: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  muestraColorCultivo: { width: 12, height: 12, borderRadius: 6, marginRight: 2 },
   textoAreaEtiqueta: { fontSize: 12, fontWeight: '600', color: '#4B5563' },
   textoAreaValor: { fontSize: 14, fontWeight: '800', color: Palette.forestGreen },
   textoAreaValorError: { color: '#DC2626' },

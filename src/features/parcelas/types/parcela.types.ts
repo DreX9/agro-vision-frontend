@@ -12,6 +12,7 @@ export interface ParcelaItem {
   areaHectareas: number;
   cultivoId: string;
   cultivoNombre?: string;
+  cultivoColorHex?: string | null;
   variedad?: string | null;
   usuarioResponsableId?: string | null;
   usuarioResponsableNombre?: string | null;

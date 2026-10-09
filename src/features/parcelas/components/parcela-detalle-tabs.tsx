@@ -17,6 +17,7 @@ import { Badge } from '@/shared/components/ui';
 import { MapaDelimitador } from '@/shared/components/mapa/mapa-delimitador';
 import { ParcelaItem, EstadoParcelaTipo } from '../types/parcela.types';
 import { type CoordenadaPunto } from '@/shared/utils/geometria';
+import { useCultivosQuery } from '@/features/cultivos';
 
 export interface ParcelaDetalleTabsProps {
   parcela: ParcelaItem;
@@ -65,20 +66,82 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
     }
   };
 
-  // Extraer puntos del polígono desde delimitacionGeoJson
+  const { data: cultivos = [] } = useCultivosQuery();
+  const cultivoEncontrado = cultivos.find((c) => c.id === parcela.cultivoId);
+  const colorCosecha = cultivoEncontrado?.colorHex || parcela.cultivoColorHex || '#2E7D32';
+  const nombreCultivo = cultivoEncontrado?.nombre || parcela.cultivoNombre || 'Cultivo asignado';
+
+  // Extraer puntos del polígono desde delimitacionGeoJson con soporte para arrays, GeoJSON y strings
   const obtenerPuntosPoligono = (): CoordenadaPunto[] => {
     if (!parcela.delimitacionGeoJson) return [];
     try {
-      const geo = parcela.delimitacionGeoJson as {
-        type?: string;
-        coordinates?: number[][][] | number[][];
-      };
-      if (geo.type === 'Polygon' && Array.isArray(geo.coordinates) && geo.coordinates[0]) {
-        const ring = geo.coordinates[0] as number[][];
-        return ring.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      let geo: any = parcela.delimitacionGeoJson;
+      if (typeof geo === 'string') {
+        try {
+          geo = JSON.parse(geo);
+        } catch {
+          return [];
+        }
       }
-      if (Array.isArray(geo.coordinates)) {
-        return (geo.coordinates as number[][]).map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+
+      // Caso 1: Array directo de coordenadas [{ latitude, longitude }] o [{ lat, lng }]
+      if (Array.isArray(geo)) {
+        const puntos = geo
+          .map((item: any) => {
+            if (!item) return null;
+            if (typeof item === 'object' && !Array.isArray(item)) {
+              const lat = Number(item.latitude ?? item.lat);
+              const lng = Number(item.longitude ?? item.lng);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                return { latitude: lat, longitude: lng };
+              }
+            }
+            if (Array.isArray(item) && item.length >= 2) {
+              let lat = Number(item[0]);
+              let lng = Number(item[1]);
+              if (lat < -50 && lng > -20 && lng < 0) {
+                const temp = lat;
+                lat = lng;
+                lng = temp;
+              }
+              if (!isNaN(lat) && !isNaN(lng)) {
+                return { latitude: lat, longitude: lng };
+              }
+            }
+            return null;
+          })
+          .filter((p): p is CoordenadaPunto => p !== null);
+
+        if (puntos.length > 0) return puntos;
+      }
+
+      // Caso 2: GeoJSON Feature o Polygon Geometry
+      if (geo && typeof geo === 'object') {
+        if (geo.type === 'Feature' && geo.geometry) {
+          geo = geo.geometry;
+        }
+
+        const coordinates = geo.coordinates;
+        if (Array.isArray(coordinates)) {
+          const ring =
+            Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])
+              ? coordinates[0]
+              : coordinates;
+
+          return ring
+            .map((coord: any) => {
+              if (Array.isArray(coord) && coord.length >= 2) {
+                return { latitude: Number(coord[1]), longitude: Number(coord[0]) };
+              }
+              if (typeof coord === 'object' && coord !== null) {
+                const lat = Number(coord.latitude ?? coord.lat);
+                const lng = Number(coord.longitude ?? coord.lng);
+                return { latitude: lat, longitude: lng };
+              }
+              return null;
+            })
+            .filter((p): p is CoordenadaPunto => Boolean(p && !isNaN(p.latitude) && !isNaN(p.longitude)));
+        }
       }
     } catch {
       return [];
@@ -141,13 +204,16 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
 
               <View style={styles.grillaMetadatos}>
                 <View style={styles.itemMeta}>
-                  <Sprout size={16} color={Palette.forestGreen} />
+                  <Sprout size={16} color={colorCosecha} />
                   <View>
                     <Text style={styles.etiquetaMeta}>Cultivo Instalado</Text>
-                    <Text style={styles.valorMeta}>
-                      {parcela.cultivoNombre || 'Sin cultivo'}
-                      {parcela.variedad ? ` (${parcela.variedad})` : ''}
-                    </Text>
+                    <View style={styles.filaCultivoTab}>
+                      <View style={[styles.puntoColorPill, { backgroundColor: colorCosecha }]} />
+                      <Text style={styles.valorMeta}>
+                        {nombreCultivo}
+                        {parcela.variedad ? ` (${parcela.variedad})` : ''}
+                      </Text>
+                    </View>
                   </View>
                 </View>
 
@@ -243,9 +309,17 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
             <View style={styles.tarjetaFicha}>
               <View style={styles.cabeceraMapa}>
                 <View>
-                  <Text style={styles.tituloSeccion}>Inspección Satelital del Perímetro</Text>
+                  <View style={styles.filaTituloMapa}>
+                    <Text style={styles.tituloSeccion}>Inspección Satelital del Perímetro</Text>
+                    <View style={[styles.badgeCultivoSatelital, { borderColor: colorCosecha }]}>
+                      <View style={[styles.puntoColorPill, { backgroundColor: colorCosecha }]} />
+                      <Text style={[styles.textoBadgeCultivo, { color: colorCosecha }]}>
+                        {nombreCultivo}
+                      </Text>
+                    </View>
+                  </View>
                   <Text style={styles.subtituloMapa}>
-                    Superficie delimitada: {Number(parcela.areaHectareas).toFixed(4)} ha
+                    Superficie delimitada: {Number(parcela.areaHectareas).toFixed(4)} ha • {puntosPoligono.length} vértices
                   </Text>
                 </View>
 
@@ -265,6 +339,7 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
                 centroInicial={{ lat: Number(centroLat), lng: Number(centroLng) }}
                 altura={420}
                 soloLectura={true}
+                colorPoligono={colorCosecha}
               />
             </View>
 
@@ -278,8 +353,8 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
                   {puntosPoligono.map((pt, index) => (
                     <View key={index} style={styles.tarjetaVertice}>
                       <View style={styles.badgeVertice}>
-                        <CheckCircle2 size={12} color={Palette.forestGreen} />
-                        <Text style={styles.textoNumVertice}>V#{index + 1}</Text>
+                        <CheckCircle2 size={12} color={colorCosecha} />
+                        <Text style={[styles.textoNumVertice, { color: colorCosecha }]}>V#{index + 1}</Text>
                       </View>
                       <Text style={styles.coordenadaVertice}>
                         Lat: {pt.latitude.toFixed(6)}
@@ -413,5 +488,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#4B5563',
     fontFamily: 'monospace',
+  },
+  filaCultivoTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  puntoColorPill: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  filaTituloMapa: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  badgeCultivoSatelital: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  textoBadgeCultivo: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
