@@ -1,4 +1,10 @@
+/**
+ * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
+ * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ */
+
 import '@/global.css';
+
 import { Platform } from 'react-native';
 
 export const Palette = {
@@ -17,55 +23,6 @@ export const Palette = {
 } as const;
 
 export const Colors = {
-  // Brand colors
-  primary: '#1B5E40',
-  primaryDark: '#0C1912',
-  primaryLight: '#3A9B6C',
-  primarySurface: '#E6F0EB',
-
-  // Layout & Backgrounds
-  background: '#F2F6F4',
-  card: '#FFFFFF',
-  cardBorder: '#CDE0D6',
-  cardHover: '#F7FAF8',
-
-  // Text
-  text: '#0C1C14',
-  textSecondary: '#607A6B',
-  textMuted: '#8BA596',
-  textWhite: '#FFFFFF',
-
-  // Status colors
-  success: '#15803D',
-  successBg: '#F0FDF4',
-  successBorder: '#BBF7D0',
-
-  warning: '#B45309',
-  warningBg: '#FFFBEB',
-  warningBorder: '#FDE68A',
-
-  danger: '#B91C1C',
-  dangerBg: '#FEF2F2',
-  dangerBorder: '#FECACA',
-
-  info: '#1D4ED8',
-  infoBg: '#EFF6FF',
-  infoBorder: '#BFDBFE',
-
-  // Sidebar
-  sidebarBg: '#0C1912',
-  sidebarText: '#FFFFFF',
-  sidebarTextMuted: 'rgba(255, 255, 255, 0.55)',
-  sidebarItemActive: '#1B5E40',
-  sidebarBorder: 'rgba(255, 255, 255, 0.08)',
-
-  // Elements
-  border: '#CDE0D6',
-  inputBg: '#FFFFFF',
-  inputBorder: '#CDE0D6',
-  badgeBg: '#E6F0EB',
-
-  // Backward compatibility with expo template
   light: {
     primary: Palette.forestGreen,
     secondary: Palette.sageGreen,
@@ -102,17 +59,32 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-export const Spacing = {
-  // Named scale
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
+export const Fonts = Platform.select({
+  ios: {
+    /** iOS `UIFontDescriptorSystemDesignDefault` */
+    sans: 'system-ui',
+    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    serif: 'ui-serif',
+    /** iOS `UIFontDescriptorSystemDesignRounded` */
+    rounded: 'ui-rounded',
+    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
+    mono: 'ui-monospace',
+  },
+  default: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'normal',
+    mono: 'monospace',
+  },
+  web: {
+    sans: 'var(--font-display)',
+    serif: 'var(--font-serif)',
+    rounded: 'var(--font-rounded)',
+    mono: 'var(--font-mono)',
+  },
+});
 
-  // Backward compatibility numbers
+export const Spacing = {
   half: 2,
   one: 4,
   two: 8,
@@ -122,30 +94,5 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const Radius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
-  xl: 18,
-  full: 9999,
-};
-
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
-
-export const Fonts = Platform.select({
-  web: {
-    display: "'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-    sans: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-    mono: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
-    serif: 'serif',
-    rounded: 'sans-serif',
-  },
-  default: {
-    display: 'System',
-    sans: 'System',
-    mono: 'monospace',
-    serif: 'serif',
-    rounded: 'System',
-  },
-});
