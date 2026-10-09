@@ -1,6 +1,21 @@
 import '@/global.css';
 import { Platform } from 'react-native';
 
+export const Palette = {
+  forestGreen: '#546B41',
+  sageGreen: '#99AD7A',
+  earthBeige: '#DCCCAC',
+  cream: '#FFF8EC',
+  white: '#FFFFFF',
+  border: '#D9DDCF',
+  text: '#111827',
+  textSecondary: '#4B5563',
+  success: '#4F8A3D',
+  warning: '#D89B2B',
+  error: '#C94C4C',
+  info: '#4A7FA5',
+} as const;
+
 export const Colors = {
   // Brand colors
   primary: '#1B5E40',
@@ -52,18 +67,36 @@ export const Colors = {
 
   // Backward compatibility with expo template
   light: {
-    text: '#0C1C14',
-    background: '#F2F6F4',
-    backgroundElement: '#E6F0EB',
-    backgroundSelected: '#CDE0D6',
-    textSecondary: '#607A6B',
+    primary: Palette.forestGreen,
+    secondary: Palette.sageGreen,
+    accent: Palette.earthBeige,
+    background: Palette.cream,
+    surface: Palette.white,
+    border: Palette.border,
+    text: Palette.text,
+    textSecondary: Palette.textSecondary,
+    backgroundElement: '#EFE8D8',
+    backgroundSelected: '#E2DCB9',
+    success: Palette.success,
+    warning: Palette.warning,
+    error: Palette.error,
+    info: Palette.info,
   },
   dark: {
-    text: '#FFFFFF',
-    background: '#0C1912',
-    backgroundElement: '#1B5E40',
-    backgroundSelected: '#257853',
-    textSecondary: '#8BA596',
+    primary: '#7A9663',
+    secondary: '#99AD7A',
+    accent: '#DCCCAC',
+    background: '#161F12',
+    surface: '#222D1D',
+    border: '#33422C',
+    text: '#F9FAF8',
+    textSecondary: '#9CA3AF',
+    backgroundElement: '#1F2A19',
+    backgroundSelected: '#2C3B24',
+    success: Palette.success,
+    warning: Palette.warning,
+    error: Palette.error,
+    info: Palette.info,
   },
 } as const;
 
