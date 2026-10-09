@@ -42,7 +42,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   onCancelar,
 }) => {
   const { width } = useWindowDimensions();
-  const esEscritorio = width >= 980;
+  const esEscritorio = width >= 1150;
 
   const [centroMapa, setCentroMapa] = useState<{ lat: number; lng: number } | undefined>(() => {
     if (valoresIniciales?.latitudCentro && valoresIniciales?.longitudCentro) {
