@@ -35,6 +35,10 @@ export const UsuarioEdicionContainer: React.FC = () => {
           direccion: datos.direccion,
           departamento: datos.departamento,
           provincia: datos.provincia,
+          codigoEmpleado: datos.codigoEmpleado,
+          numeroDocumento: datos.numeroDocumento,
+          especialidad: datos.especialidad,
+          cuadrilla: datos.cuadrilla,
         },
       },
       {
@@ -61,6 +65,10 @@ export const UsuarioEdicionContainer: React.FC = () => {
         direccion: usuario.direccion || '',
         departamento: usuario.departamento || '',
         provincia: usuario.provincia || '',
+        codigoEmpleado: usuario.codigoEmpleado || '',
+        numeroDocumento: usuario.numeroDocumento || '',
+        especialidad: usuario.especialidad || 'GENERAL',
+        cuadrilla: usuario.cuadrilla || '',
       }
     : undefined;
 

@@ -54,6 +54,9 @@ export interface TrabajadorAsignado {
   apellidos: string;
   rolEnActividad?: string | null;
   telefono?: string | null;
+  horaInicio?: string | null;
+  horaFin?: string | null;
+  horasAsignadas?: number | null;
 }
 
 export interface RecursoAsignado {

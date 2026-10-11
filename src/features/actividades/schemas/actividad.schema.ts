@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const actividadTrabajadorSchema = z.object({
   usuarioId: z.string().min(1, 'Debe seleccionar un trabajador'),
   rolEnActividad: z.string().optional(),
+  horaInicio: z.string().optional(),
+  horaFin: z.string().optional(),
+  horasAsignadas: z.number().optional(),
 });
 
 export const actividadRecursoSchema = z.object({
@@ -40,7 +43,10 @@ export const actividadSchema = z.object({
   ] as const),
   parcelaId: z.string().min(1, 'Debe seleccionar una parcela de campo'),
   fechaInicio: z.string().min(1, 'La fecha de inicio es requerida'),
+  horaInicio: z.string().optional(),
   fechaFin: z.string().optional().or(z.literal('')),
+  horaFin: z.string().optional(),
+  duracionHoras: z.number().optional(),
   usuarioResponsableId: z.string().optional().or(z.literal('')),
   descripcion: z.string().optional().or(z.literal('')),
   observaciones: z.string().optional().or(z.literal('')),

@@ -10,10 +10,34 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  Users,
+  Wrench,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge } from '@/shared/components/ui';
 import { Usuario, RolUsuarioTipo } from '../types/usuario.types';
+
+const formatearEspecialidad = (esp?: string | null): string => {
+  if (!esp) return 'No asignada';
+  switch (esp) {
+    case 'GENERAL':
+      return 'General / Jornalero';
+    case 'PODADOR':
+      return 'Podador';
+    case 'FUMIGADOR_APLICADOR':
+      return 'Fumigador / Aplicador';
+    case 'REGADOR':
+      return 'Regador / Riego';
+    case 'TRACTORISTA_MAQUINISTA':
+      return 'Tractorista / Maquinista';
+    case 'COSECHADOR':
+      return 'Cosechador';
+    case 'INJERTADOR':
+      return 'Injertador';
+    default:
+      return esp;
+  }
+};
 
 export interface UsuarioDetalleFichaProps {
   usuario: Usuario;
@@ -120,6 +144,48 @@ export const UsuarioDetalleFicha: React.FC<UsuarioDetalleFichaProps> = ({ usuari
                     })
                   : 'No registrada'}
               </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Tarjeta de Identificación Operativa y de Campo */}
+      <View style={styles.tarjetaFicha}>
+        <View style={styles.cabeceraSeccion}>
+          <Users size={16} color={Palette.forestGreen} />
+          <Text style={styles.tituloSeccion}>Identificación Operativa y Cuadrilla de Campo</Text>
+        </View>
+
+        <View style={styles.grillaMetadatos}>
+          <View style={styles.itemMeta}>
+            <Wrench size={16} color={Palette.forestGreen} />
+            <View>
+              <Text style={styles.etiquetaMeta}>Código de Empleado / Fotocheck</Text>
+              <Text style={styles.valorMeta}>{usuario.codigoEmpleado || 'Sin código asignado'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.itemMeta}>
+            <User size={16} color={Palette.forestGreen} />
+            <View>
+              <Text style={styles.etiquetaMeta}>Documento de Identidad (DNI/CE)</Text>
+              <Text style={styles.valorMeta}>{usuario.numeroDocumento || 'No registrado'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.itemMeta}>
+            <Sparkles size={16} color={Palette.forestGreen} />
+            <View>
+              <Text style={styles.etiquetaMeta}>Especialidad Agrícola</Text>
+              <Text style={styles.valorMeta}>{formatearEspecialidad(usuario.especialidad)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.itemMeta}>
+            <Users size={16} color={Palette.forestGreen} />
+            <View>
+              <Text style={styles.etiquetaMeta}>Cuadrilla Habitual</Text>
+              <Text style={styles.valorMeta}>{usuario.cuadrilla || 'Sin cuadrilla asignada'}</Text>
             </View>
           </View>
         </View>

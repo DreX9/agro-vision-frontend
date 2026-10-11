@@ -10,6 +10,9 @@ import { styles } from './actividad-formulario-cuadrilla.styles';
 export interface TrabajadorAsignadoInput {
   usuarioId: string;
   rolEnActividad?: string;
+  horaInicio?: string;
+  horaFin?: string;
+  horasAsignadas?: number;
 }
 
 export interface ActividadFormularioCuadrillaProps {
@@ -18,8 +21,14 @@ export interface ActividadFormularioCuadrillaProps {
   tipoActual: TipoActividadTipo;
   responsableId?: string;
   nombreResponsable?: string;
+  turnoHorasLabor?: {
+    inicio: string;
+    fin: string;
+    duracion: number;
+  };
   onAlternarTrabajador: (usuarioId: string) => void;
   onCambiarRol: (usuarioId: string, rol: string) => void;
+  onCambiarHoras?: (usuarioId: string, horas: number) => void;
 }
 
 export interface EvaluacionTrabajador {
@@ -38,20 +47,53 @@ export interface EvaluacionTrabajador {
 export const evaluarTrabajadorParaLabor = (
   rol: string,
   tipo: TipoActividadTipo,
+  especialidad?: string | null,
 ): EvaluacionTrabajador => {
   if (esLaborCampo(tipo)) {
     if (rol === 'OPERADOR') {
       let roles: string[] = ['Operador', 'Ayudante'];
-      if (tipo === 'RIEGO') roles = ['Regador', 'Controlador Válvulas', 'Operador Bombeo', 'Apoyo'];
-      else if (tipo === 'PODA') roles = ['Podador', 'Recogedor', 'Desinfectador', 'Operador'];
-      else if (tipo === 'COSECHA') roles = ['Cosechador', 'Seleccionador', 'Pesador', 'Estibador'];
-      else if (tipo === 'FERTILIZACION') roles = ['Aplicador', 'Preparador Mezcla', 'Cargador', 'Operador'];
-      else if (tipo === 'CONTROL_PLAGAS') roles = ['Fumigador', 'Preparador Caldo', 'Guía', 'Operador'];
-      else if (tipo === 'DESHIERBE') roles = ['Deshierbador', 'Limpieza', 'Operador'];
+      let etiqueta = '⭐ Recomendado (Labor de campo)';
+      let score = 100;
+
+      if (tipo === 'RIEGO') {
+        roles = ['Regador', 'Controlador Válvulas', 'Operador Bombeo', 'Apoyo'];
+        if (especialidad === 'REGADOR') {
+          score = 120;
+          etiqueta = '⭐ Especialista en Riego';
+        }
+      } else if (tipo === 'PODA') {
+        roles = ['Podador', 'Recogedor', 'Desinfectador', 'Operador'];
+        if (especialidad === 'PODADOR') {
+          score = 120;
+          etiqueta = '⭐ Especialista Podador';
+        }
+      } else if (tipo === 'COSECHA') {
+        roles = ['Cosechador', 'Seleccionador', 'Pesador', 'Estibador'];
+        if (especialidad === 'COSECHADOR') {
+          score = 120;
+          etiqueta = '⭐ Especialista Cosechador';
+        }
+      } else if (tipo === 'FERTILIZACION' || tipo === 'CONTROL_PLAGAS') {
+        roles = tipo === 'CONTROL_PLAGAS' 
+          ? ['Fumigador', 'Preparador Caldo', 'Guía', 'Operador']
+          : ['Aplicador', 'Preparador Mezcla', 'Cargador', 'Operador'];
+        if (especialidad === 'FUMIGADOR_APLICADOR') {
+          score = 120;
+          etiqueta = '⭐ Especialista Fitosanitario / Aplicador';
+        }
+      } else if (tipo === 'DESHIERBE') {
+        roles = ['Deshierbador', 'Limpieza', 'Operador'];
+      }
+
+      if (especialidad === 'TRACTORISTA_MAQUINISTA') {
+        score = Math.max(score, 110);
+        etiqueta = '🚜 Operador de Maquinaria';
+      }
+
       return {
         esRecomendado: true,
-        score: 100,
-        etiquetaIdoneidad: '⭐ Recomendado (Labor de campo)',
+        score,
+        etiquetaIdoneidad: etiqueta,
         tipoAviso: 'recomendado',
         rolesSugeridos: roles,
       };
@@ -272,8 +314,10 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   tipoActual,
   responsableId,
   nombreResponsable,
+  turnoHorasLabor,
   onAlternarTrabajador,
   onCambiarRol,
+  onCambiarHoras,
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [rolFiltro, setRolFiltro] = useState<string>('TODOS');
@@ -289,7 +333,7 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   const usuariosEvaluados = useMemo(() => {
     const lista = usuariosSinEncargado.map((usuario) => ({
       usuario,
-      evaluacion: evaluarTrabajadorParaLabor(usuario.rol, tipoActual),
+      evaluacion: evaluarTrabajadorParaLabor(usuario.rol, tipoActual, usuario.especialidad),
     }));
 
     // Filtrar por texto de búsqueda
@@ -300,7 +344,11 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
       return (
         nombreCompleto.includes(q) ||
         usuario.correo.toLowerCase().includes(q) ||
-        (usuario.telefono && usuario.telefono.includes(q))
+        (usuario.telefono && usuario.telefono.includes(q)) ||
+        (usuario.codigoEmpleado && usuario.codigoEmpleado.toLowerCase().includes(q)) ||
+        (usuario.numeroDocumento && usuario.numeroDocumento.includes(q)) ||
+        (usuario.cuadrilla && usuario.cuadrilla.toLowerCase().includes(q)) ||
+        (usuario.especialidad && usuario.especialidad.toLowerCase().includes(q))
       );
     });
 
@@ -458,9 +506,18 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                     </View>
 
                     <View style={styles.datosUsuario}>
-                      <Text style={styles.nombreUsuario}>
-                        {usuario.nombres} {usuario.apellidos}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={styles.nombreUsuario}>
+                          {usuario.nombres} {usuario.apellidos}
+                        </Text>
+                        {usuario.codigoEmpleado ? (
+                          <View style={{ backgroundColor: '#EBF2E5', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: '#D4E3CA' }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: Palette.forestGreen }}>
+                              {usuario.codigoEmpleado}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
                       <View style={styles.filaMeta}>
                         <Badge
                           texto={usuario.rol}
@@ -474,6 +531,20 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                               : 'alerta'
                           }
                         />
+
+                        {/* Especialidad agrícola del operario */}
+                        {usuario.especialidad ? (
+                          <Text style={{ fontSize: 11, fontWeight: '600', color: Palette.forestGreen }}>
+                            🌱 {usuario.especialidad.replace(/_/g, ' ')}
+                          </Text>
+                        ) : null}
+
+                        {/* Cuadrilla habitual */}
+                        {usuario.cuadrilla ? (
+                          <Text style={{ fontSize: 11, color: '#4B5563', fontWeight: '500' }}>
+                            👥 {usuario.cuadrilla}
+                          </Text>
+                        ) : null}
 
                         {/* Distintivo de idoneidad/recomendación según la labor */}
                         {evaluacion.tipoAviso === 'recomendado' && (
@@ -524,6 +595,36 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                             </Pressable>
                           );
                         })}
+                      </View>
+
+                      {/* Horario y Horas asignadas a este trabajador */}
+                      <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: Palette.forestGreen }}>
+                          ⏱️ Turno: {asignado?.horaInicio || turnoHorasLabor?.inicio || '07:00'} - {asignado?.horaFin || turnoHorasLabor?.fin || '12:00'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Text style={{ fontSize: 11, color: '#4B5563', fontWeight: '600' }}>Horas:</Text>
+                          {[2, 3, 4, 5, 8].map((h) => {
+                            const horasActuales = asignado?.horasAsignadas ?? turnoHorasLabor?.duracion ?? 5;
+                            const esHorasActivo = horasActuales === h;
+                            return (
+                              <Pressable
+                                key={h}
+                                onPress={() => onCambiarHoras && onCambiarHoras(usuario.id, h)}
+                                style={{
+                                  paddingHorizontal: 7,
+                                  paddingVertical: 2,
+                                  borderRadius: 6,
+                                  backgroundColor: esHorasActivo ? Palette.forestGreen : '#F3F4F6',
+                                }}
+                              >
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: esHorasActivo ? '#FFFFFF' : '#374151' }}>
+                                  {h}h
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
                       </View>
                     </View>
                   )}

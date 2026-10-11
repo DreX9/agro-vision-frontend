@@ -111,9 +111,16 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
             </Text>
           </View>
           <View style={styles.infoUsuario}>
-            <Text style={styles.nombreTexto} numberOfLines={1}>
-              {u.nombreCompleto || `${u.nombres} ${u.apellidos}`}
-            </Text>
+            <View style={styles.nombreYCodigoFila}>
+              <Text style={styles.nombreTexto} numberOfLines={1}>
+                {u.nombreCompleto || `${u.nombres} ${u.apellidos}`}
+              </Text>
+              {u.codigoEmpleado ? (
+                <View style={styles.tagCodigo}>
+                  <Text style={styles.textoTagCodigo}>{u.codigoEmpleado}</Text>
+                </View>
+              ) : null}
+            </View>
             {u.telefono && (
               <View style={styles.telefonoFila}>
                 <Phone size={11} color={Palette.textSecondary} />
@@ -127,8 +134,8 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
     {
       id: 'correo',
       encabezado: 'Correo Institucional',
-      flex: 2.2,
-      anchoMinimo: 220,
+      flex: 2.0,
+      anchoMinimo: 200,
       render: (u) => (
         <View style={styles.correoFila}>
           <Mail size={13} color="#6B7280" />
@@ -141,10 +148,28 @@ export const UsuariosTabla: React.FC<UsuariosTablaProps> = ({
     {
       id: 'rol',
       encabezado: 'Rol',
-      flex: 1.3,
-      anchoMinimo: 130,
+      flex: 1.2,
+      anchoMinimo: 120,
       render: (u) => (
         <Badge texto={u.rol} variante={obtenerVarianteRol(u.rol)} />
+      ),
+    },
+    {
+      id: 'especialidad',
+      encabezado: 'Especialidad / Cuadrilla',
+      flex: 1.6,
+      anchoMinimo: 160,
+      render: (u) => (
+        <View style={styles.columnaEspecialidad}>
+          <Text style={styles.especialidadTextoPrincipal} numberOfLines={1}>
+            {u.especialidad ? u.especialidad.replace(/_/g, ' ') : '—'}
+          </Text>
+          {u.cuadrilla ? (
+            <Text style={styles.cuadrillaTextoSecundario} numberOfLines={1}>
+              {u.cuadrilla}
+            </Text>
+          ) : null}
+        </View>
       ),
     },
     {
@@ -360,6 +385,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: Palette.text,
+  },
+  nombreYCodigoFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  tagCodigo: {
+    backgroundColor: '#EBF2E5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#D4E3CA',
+  },
+  textoTagCodigo: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Palette.forestGreen,
+  },
+  columnaEspecialidad: {
+    justifyContent: 'center',
+  },
+  especialidadTextoPrincipal: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Palette.text,
+    textTransform: 'capitalize',
+  },
+  cuadrillaTextoSecundario: {
+    fontSize: 11,
+    color: Palette.textSecondary,
+    marginTop: 1,
   },
   telefonoFila: {
     flexDirection: 'row',

@@ -202,4 +202,37 @@ export const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
+  tarjetaTurno: {
+    backgroundColor: '#F9FBF8',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D0DEC8',
+    padding: 12,
+    gap: 8,
+  },
+  cabeceraTurno: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tituloTurno: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.forestGreen,
+  },
+  badgeDuracionTurno: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  textoDuracionTurno: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  avisoTurno: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
 });

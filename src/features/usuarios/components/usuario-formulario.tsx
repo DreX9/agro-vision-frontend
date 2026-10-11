@@ -10,7 +10,8 @@ import {
   editarUsuarioSchema,
   UsuarioFormularioValores,
 } from '../schemas/crear-usuario.schema';
-import { RolUsuarioTipo, SexoUsuarioTipo } from '../types/usuario.types';
+import { RolUsuarioTipo, SexoUsuarioTipo, EspecialidadAgricolaTipo } from '../types/usuario.types';
+import { obtenerSiguienteCodigoApi } from '../api/usuarios.api';
 
 export interface UsuarioFormularioProps {
   modo?: 'creacion' | 'edicion';
@@ -32,6 +33,16 @@ const SEXOS: { id: SexoUsuarioTipo; nombre: string }[] = [
   { id: 'MASCULINO', nombre: 'Masculino' },
   { id: 'FEMENINO', nombre: 'Femenino' },
   { id: 'OTRO', nombre: 'Otro' },
+];
+
+const ESPECIALIDADES: { id: EspecialidadAgricolaTipo; nombre: string }[] = [
+  { id: 'GENERAL', nombre: 'General / Jornalero' },
+  { id: 'PODADOR', nombre: 'Podador' },
+  { id: 'FUMIGADOR_APLICADOR', nombre: 'Fumigador / Aplicador' },
+  { id: 'REGADOR', nombre: 'Regador / Riego' },
+  { id: 'TRACTORISTA_MAQUINISTA', nombre: 'Tractorista' },
+  { id: 'COSECHADOR', nombre: 'Cosechador' },
+  { id: 'INJERTADOR', nombre: 'Injertador' },
 ];
 
 /**
@@ -68,6 +79,10 @@ export const UsuarioFormulario: React.FC<UsuarioFormularioProps> = ({
       direccion: valoresIniciales?.direccion || '',
       departamento: valoresIniciales?.departamento || '',
       provincia: valoresIniciales?.provincia || '',
+      codigoEmpleado: valoresIniciales?.codigoEmpleado || '',
+      numeroDocumento: valoresIniciales?.numeroDocumento || '',
+      especialidad: valoresIniciales?.especialidad || 'GENERAL',
+      cuadrilla: valoresIniciales?.cuadrilla || '',
     },
   });
 
@@ -85,12 +100,32 @@ export const UsuarioFormulario: React.FC<UsuarioFormularioProps> = ({
         direccion: valoresIniciales.direccion || '',
         departamento: valoresIniciales.departamento || '',
         provincia: valoresIniciales.provincia || '',
+        codigoEmpleado: valoresIniciales.codigoEmpleado || '',
+        numeroDocumento: valoresIniciales.numeroDocumento || '',
+        especialidad: valoresIniciales.especialidad || 'GENERAL',
+        cuadrilla: valoresIniciales.cuadrilla || '',
       });
     }
   }, [valoresIniciales, reset]);
 
   const rolSeleccionado = watch('rol');
   const sexoSeleccionado = watch('sexo');
+  const especialidadSeleccionada = watch('especialidad');
+
+  // Sugerir automáticamente correlativo según el rol (OP-001, AD-001, etc.) en modo creación
+  useEffect(() => {
+    if (!esEdicion && rolSeleccionado) {
+      const codigoActual = watch('codigoEmpleado');
+      const esCodigoVacioOAutogenerado = !codigoActual || /^(OP|AD|AG|SU)-\d{3}$/.test(codigoActual);
+      if (esCodigoVacioOAutogenerado) {
+        obtenerSiguienteCodigoApi(rolSeleccionado)
+          .then((codigoSugerido) => {
+            setValue('codigoEmpleado', codigoSugerido);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [rolSeleccionado, esEdicion, setValue, watch]);
 
   return (
     <Card estilo={styles.tarjeta}>
@@ -289,6 +324,82 @@ export const UsuarioFormulario: React.FC<UsuarioFormularioProps> = ({
                   onChangeText={onChange}
                   onBlur={onBlur}
                   error={errors.departamento?.message}
+                />
+              )}
+            />
+          </View>
+        </View>
+
+        {/* Sección: Datos de Operación y Cuadrilla de Campo */}
+        <Text style={styles.seccionTitulo}>4. Datos de Campo, Especialidad y Cuadrilla</Text>
+        <View style={styles.filaGrid}>
+          <View style={styles.columnaGrid}>
+            <Controller
+              control={control}
+              name="codigoEmpleado"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Código de Empleado / Fotocheck"
+                  placeholder="Ej. OP-001"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={errors.codigoEmpleado?.message}
+                />
+              )}
+            />
+          </View>
+          <View style={styles.columnaGrid}>
+            <Controller
+              control={control}
+              name="numeroDocumento"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Documento de Identidad (DNI / CE)"
+                  placeholder="Ej. 72345678"
+                  keyboardType="numeric"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={errors.numeroDocumento?.message}
+                />
+              )}
+            />
+          </View>
+        </View>
+
+        <View style={styles.filaGrid}>
+          <View style={styles.columnaGrid}>
+            <Text style={styles.labelCampo}>Especialidad Agrícola</Text>
+            <View style={styles.chipsContenedor}>
+              {ESPECIALIDADES.map((esp) => {
+                const seleccionado = (especialidadSeleccionada || 'GENERAL') === esp.id;
+                return (
+                  <Pressable
+                    key={esp.id}
+                    onPress={() => setValue('especialidad', esp.id)}
+                    style={[styles.chip, seleccionado && styles.chipSeleccionado]}
+                  >
+                    <Text style={[styles.textoChip, seleccionado && styles.textoChipSeleccionado]}>
+                      {esp.nombre}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={styles.columnaGrid}>
+            <Controller
+              control={control}
+              name="cuadrilla"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <Input
+                  label="Cuadrilla / Equipo Habitual"
+                  placeholder="Ej. Cuadrilla 1 - Poda"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  error={errors.cuadrilla?.message}
                 />
               )}
             />

@@ -29,6 +29,20 @@ export const crearUsuarioSchema = z.object({
   direccion: z.string().optional(),
   departamento: z.string().optional(),
   provincia: z.string().optional(),
+  codigoEmpleado: z.string().max(50, 'El código no debe exceder 50 caracteres').optional(),
+  numeroDocumento: z.string().max(20, 'El documento no debe exceder 20 caracteres').optional(),
+  especialidad: z
+    .enum([
+      'GENERAL',
+      'PODADOR',
+      'FUMIGADOR_APLICADOR',
+      'REGADOR',
+      'TRACTORISTA_MAQUINISTA',
+      'COSECHADOR',
+      'INJERTADOR',
+    ] as const)
+    .optional(),
+  cuadrilla: z.string().max(100, 'La cuadrilla no debe exceder 100 caracteres').optional(),
 });
 
 /**

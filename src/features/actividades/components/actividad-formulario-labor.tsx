@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Controller, Control, FieldErrors } from 'react-hook-form';
-import { Boton, Input, Select, SelectOpcion } from '@/shared/components/ui';
+import { Boton, Input, Select, SelectOpcion, SelectorFecha, SelectorHora } from '@/shared/components/ui';
 import { esLaborCampo, TipoActividadTipo } from '../types/actividad.types';
 import { ActividadFormValores } from '../schemas/actividad.schema';
 import { styles } from './actividad-formulario.styles';
@@ -34,6 +34,9 @@ export interface ActividadFormularioLaborProps {
   opcionesParcelas: SelectOpcion[];
   opcionesResponsables: SelectOpcion[];
   onCambiarTipo: (tipo: TipoActividadTipo) => void;
+  horaInicioActual?: string;
+  horaFinActual?: string;
+  onCambiarHorario?: (inicio: string, fin: string) => void;
 }
 
 /**
@@ -49,12 +52,22 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   opcionesParcelas,
   opcionesResponsables,
   onCambiarTipo,
+  horaInicioActual = '07:00',
+  horaFinActual = '12:00',
+  onCambiarHorario,
 }) => {
   const [categoriaTab, setCategoriaTab] = React.useState<'CAMPO' | 'ADMIN'>(() => {
     return esLaborCampo(tipoActual) ? 'CAMPO' : 'ADMIN';
   });
 
   const listaActual = categoriaTab === 'CAMPO' ? LABORES_CAMPO_ITEMS : LABORES_ADMINISTRATIVAS_ITEMS;
+
+  const duracionCalculada = React.useMemo(() => {
+    const [h1, m1] = (horaInicioActual || '07:00').split(':').map(Number);
+    const [h2, m2] = (horaFinActual || '12:00').split(':').map(Number);
+    const diff = ((h2 || 0) * 60 + (m2 || 0) - ((h1 || 0) * 60 + (m1 || 0))) / 60;
+    return diff > 0 ? Number(diff.toFixed(1)) : 0;
+  }, [horaInicioActual, horaFinActual]);
 
   return (
     <View style={styles.tarjeta}>
@@ -151,17 +164,18 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
         )}
       />
 
+      {/* Selector interactivo de Fechas (Calendario) */}
       <View style={styles.filaDosColumnas}>
         <View style={styles.columna}>
           <Controller
             control={control}
             name="fechaInicio"
             render={({ field: { onChange, value } }) => (
-              <Input
+              <SelectorFecha
                 label="Fecha de Inicio *"
-                placeholder="AAAA-MM-DD"
-                value={value}
-                onChangeText={onChange}
+                placeholder="Seleccionar en calendario..."
+                valor={value}
+                onChange={onChange}
                 error={errors.fechaInicio?.message}
               />
             )}
@@ -172,16 +186,69 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             control={control}
             name="fechaFin"
             render={({ field: { onChange, value } }) => (
-              <Input
+              <SelectorFecha
                 label="Fecha Fin (Opcional)"
-                placeholder="AAAA-MM-DD"
-                value={value || ''}
-                onChangeText={onChange}
+                placeholder="Seleccionar en calendario..."
+                valor={value || ''}
+                onChange={onChange}
                 error={errors.fechaFin?.message}
               />
             )}
           />
         </View>
+      </View>
+
+      {/* Sección: Horario de Turno Diario y Duración (Reloj) */}
+      <View style={styles.tarjetaTurno}>
+        <View style={styles.cabeceraTurno}>
+          <Text style={styles.tituloTurno}>⏰ Horario de Jornada / Turno Diario</Text>
+          <View style={styles.badgeDuracionTurno}>
+            <Text style={styles.textoDuracionTurno}>
+              ⏱️ {duracionCalculada}h programadas
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.filaDosColumnas}>
+          <View style={styles.columna}>
+            <Controller
+              control={control}
+              name="horaInicio"
+              render={({ field: { onChange, value } }) => (
+                <SelectorHora
+                  label="Hora de Inicio *"
+                  valor={value || '07:00'}
+                  onChange={(h) => {
+                    onChange(h);
+                    if (onCambiarHorario) onCambiarHorario(h, horaFinActual || '12:00');
+                  }}
+                  error={errors.horaInicio?.message}
+                />
+              )}
+            />
+          </View>
+          <View style={styles.columna}>
+            <Controller
+              control={control}
+              name="horaFin"
+              render={({ field: { onChange, value } }) => (
+                <SelectorHora
+                  label="Hora de Fin *"
+                  valor={value || '12:00'}
+                  onChange={(h) => {
+                    onChange(h);
+                    if (onCambiarHorario) onCambiarHorario(horaInicioActual || '07:00', h);
+                  }}
+                  error={errors.horaFin?.message}
+                />
+              )}
+            />
+          </View>
+        </View>
+
+        <Text style={styles.avisoTurno}>
+          💡 La cuadrilla asumirá este horario para validar automáticamente que ningún trabajador tenga cruces de turno ni traslados imposibles entre parcelas.
+        </Text>
       </View>
 
       <Controller

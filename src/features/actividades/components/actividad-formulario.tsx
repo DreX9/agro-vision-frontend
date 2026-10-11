@@ -64,7 +64,10 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       tipo: valoresIniciales?.tipo || 'FERTILIZACION',
       parcelaId: valoresIniciales?.parcelaId || (parcelas[0]?.id ?? ''),
       fechaInicio: valoresIniciales?.fechaInicio || new Date().toISOString().split('T')[0],
+      horaInicio: valoresIniciales?.horaInicio || '07:00',
       fechaFin: valoresIniciales?.fechaFin || '',
+      horaFin: valoresIniciales?.horaFin || '12:00',
+      duracionHoras: valoresIniciales?.duracionHoras || 5,
       usuarioResponsableId: valoresIniciales?.usuarioResponsableId || '',
       descripcion: valoresIniciales?.descripcion || '',
       observaciones: valoresIniciales?.observaciones || '',
@@ -77,6 +80,9 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const tipoActual = watch('tipo');
   const parcelaIdActual = watch('parcelaId');
   const responsableIdActual = watch('usuarioResponsableId');
+  const horaInicioActual = watch('horaInicio') || '07:00';
+  const horaFinActual = watch('horaFin') || '12:00';
+  const duracionHorasActual = watch('duracionHoras') || 5;
 
   // Si se selecciona un encargado/responsable, se excluye de la cuadrilla operativa
   React.useEffect(() => {
@@ -96,7 +102,16 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     setCuadrilla((prev) => {
       const nueva = prev.some((t) => t.usuarioId === usuarioId)
         ? prev.filter((t) => t.usuarioId !== usuarioId)
-        : [...prev, { usuarioId, rolEnActividad: 'Operador' }];
+        : [
+            ...prev,
+            {
+              usuarioId,
+              rolEnActividad: 'Operador',
+              horaInicio: horaInicioActual,
+              horaFin: horaFinActual,
+              horasAsignadas: duracionHorasActual,
+            },
+          ];
       setValue('trabajadores', nueva);
       return nueva;
     });
@@ -105,6 +120,14 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const cambiarRolTrabajador = (usuarioId: string, rol: string) => {
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, rolEnActividad: rol } : t));
+      setValue('trabajadores', nueva);
+      return nueva;
+    });
+  };
+
+  const cambiarHorasTrabajador = (usuarioId: string, horas: number) => {
+    setCuadrilla((prev) => {
+      const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, horasAsignadas: horas } : t));
       setValue('trabajadores', nueva);
       return nueva;
     });
@@ -159,6 +182,27 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       opcionesParcelas={opcionesParcelas}
       opcionesResponsables={opcionesResponsables}
       onCambiarTipo={(t) => setValue('tipo', t)}
+      horaInicioActual={horaInicioActual}
+      horaFinActual={horaFinActual}
+      onCambiarHorario={(ini, fin) => {
+        setValue('horaInicio', ini);
+        setValue('horaFin', fin);
+        const [h1, m1] = ini.split(':').map(Number);
+        const [h2, m2] = fin.split(':').map(Number);
+        const diff = Math.max(0, ((h2 || 0) * 60 + (m2 || 0) - ((h1 || 0) * 60 + (m1 || 0))) / 60);
+        const dur = Number(diff.toFixed(1));
+        setValue('duracionHoras', dur);
+        setCuadrilla((prev) => {
+          const nueva = prev.map((t) => ({
+            ...t,
+            horaInicio: ini,
+            horaFin: fin,
+            horasAsignadas: dur,
+          }));
+          setValue('trabajadores', nueva);
+          return nueva;
+        });
+      }}
     />
   );
 
@@ -170,8 +214,14 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         tipoActual={tipoActual}
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
+        turnoHorasLabor={{
+          inicio: horaInicioActual,
+          fin: horaFinActual,
+          duracion: duracionHorasActual,
+        }}
         onAlternarTrabajador={alternarTrabajador}
         onCambiarRol={cambiarRolTrabajador}
+        onCambiarHoras={cambiarHorasTrabajador}
       />
     </View>
   );

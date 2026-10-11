@@ -26,6 +26,26 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
   const actualizarMutation = useActualizarActividadMutation();
 
   const handleGuardar = (valores: ActividadFormValores) => {
+    const fechaSolo = valores.fechaInicio.split('T')[0];
+    const horaIni = valores.horaInicio || '07:00';
+    const horaFin = valores.horaFin || '12:00';
+
+    const fechaInicioIso = new Date(`${fechaSolo}T${horaIni}:00`).toISOString();
+    const fechaFinSolo = valores.fechaFin ? valores.fechaFin.split('T')[0] : fechaSolo;
+    const fechaFinIso = new Date(`${fechaFinSolo}T${horaFin}:00`).toISOString();
+
+    const trabajadoresFormateados = valores.trabajadores.map((t) => {
+      const tHoraIni = t.horaInicio || horaIni;
+      const tHoraFin = t.horaFin || horaFin;
+      return {
+        usuarioId: t.usuarioId,
+        rolEnActividad: t.rolEnActividad,
+        horaInicio: new Date(`${fechaSolo}T${tHoraIni}:00`).toISOString(),
+        horaFin: new Date(`${fechaFinSolo}T${tHoraFin}:00`).toISOString(),
+        horasAsignadas: t.horasAsignadas || valores.duracionHoras || 5,
+      };
+    });
+
     actualizarMutation.mutate(
       {
         id,
@@ -33,13 +53,13 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           titulo: valores.titulo,
           tipo: valores.tipo,
           parcelaId: valores.parcelaId,
-          fechaInicio: valores.fechaInicio,
-          fechaFin: valores.fechaFin || undefined,
+          fechaInicio: fechaInicioIso,
+          fechaFin: fechaFinIso,
           usuarioResponsableId: valores.usuarioResponsableId || undefined,
           descripcion: valores.descripcion || undefined,
           observaciones: valores.observaciones || undefined,
           estado: valores.estado,
-          trabajadores: valores.trabajadores,
+          trabajadores: trabajadoresFormateados,
           recursos: valores.recursos,
         },
       },
@@ -90,7 +110,21 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
             tipo: actividad.tipo,
             parcelaId: actividad.parcelaId,
             fechaInicio: actividad.fechaInicio.split('T')[0],
+            horaInicio: (() => {
+              const d = new Date(actividad.fechaInicio);
+              return !isNaN(d.getTime())
+                ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                : '07:00';
+            })(),
             fechaFin: actividad.fechaFin ? actividad.fechaFin.split('T')[0] : '',
+            horaFin: (() => {
+              if (!actividad.fechaFin) return '12:00';
+              const d = new Date(actividad.fechaFin);
+              return !isNaN(d.getTime())
+                ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                : '12:00';
+            })(),
+            duracionHoras: 5,
             usuarioResponsableId: actividad.usuarioResponsableId || '',
             descripcion: actividad.descripcion || '',
             observaciones: actividad.observaciones || '',
@@ -98,6 +132,23 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
             trabajadores: actividad.trabajadores.map((t) => ({
               usuarioId: t.usuarioId,
               rolEnActividad: t.rolEnActividad || undefined,
+              horaInicio: t.horaInicio
+                ? (() => {
+                    const d = new Date(t.horaInicio);
+                    return !isNaN(d.getTime())
+                      ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                      : undefined;
+                  })()
+                : undefined,
+              horaFin: t.horaFin
+                ? (() => {
+                    const d = new Date(t.horaFin);
+                    return !isNaN(d.getTime())
+                      ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                      : undefined;
+                  })()
+                : undefined,
+              horasAsignadas: t.horasAsignadas ? Number(t.horasAsignadas) : undefined,
             })),
             recursos: actividad.recursos.map((r) => ({
               insumoId: r.insumoId,
