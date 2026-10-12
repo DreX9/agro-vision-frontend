@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { ParcelaFormulario } from '../components/parcela-formulario';
 import { useCultivosQuery } from '@/features/cultivos/api/cultivos.api';
-import { useCrearParcelaMutation } from '../api/parcelas.api';
+import { useCrearParcelaMutation, useParcelasQuery } from '../api/parcelas.api';
 import { useAuthStore } from '@/features/autenticacion';
 import { ParcelaFormValores } from '../schemas/parcela.schema';
 import { ParcelasSkeleton } from '../components/parcelas-skeleton';
@@ -16,6 +16,8 @@ export const CrearParcelaContainer: React.FC = () => {
   const router = useRouter();
   const usuarioActual = useAuthStore((s) => s.usuario);
   const { data: cultivos = [], isLoading: cargandoCultivos } = useCultivosQuery();
+  const { data: respuestaParcelas } = useParcelasQuery({ limite: 100 });
+  const parcelasExistentes = respuestaParcelas?.items || [];
   const crearMutation = useCrearParcelaMutation();
 
   const handleGuardar = (valores: ParcelaFormValores) => {
@@ -59,6 +61,7 @@ export const CrearParcelaContainer: React.FC = () => {
         <View style={styles.contenedor}>
           <ParcelaFormulario
             cultivos={cultivos}
+            parcelasExistentes={parcelasExistentes}
             modo="crear"
             guardando={crearMutation.isPending}
             onSubmit={handleGuardar}

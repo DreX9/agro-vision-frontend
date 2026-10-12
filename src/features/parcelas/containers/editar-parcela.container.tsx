@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { ParcelaFormulario } from '../components/parcela-formulario';
 import { useCultivosQuery } from '@/features/cultivos/api/cultivos.api';
-import { useParcelaPorIdQuery, useActualizarParcelaMutation } from '../api/parcelas.api';
+import { useParcelaPorIdQuery, useActualizarParcelaMutation, useParcelasQuery } from '../api/parcelas.api';
 import { ParcelaFormValores } from '../schemas/parcela.schema';
 import { ParcelasSkeleton } from '../components/parcelas-skeleton';
 import { type CoordenadaPunto } from '@/shared/utils/geometria';
@@ -20,6 +20,8 @@ export const EditarParcelaContainer: React.FC<EditarParcelaContainerProps> = ({ 
   const router = useRouter();
   const { data: parcela, isLoading: cargandoParcela } = useParcelaPorIdQuery(id);
   const { data: cultivos = [], isLoading: cargandoCultivos } = useCultivosQuery();
+  const { data: respuestaParcelas } = useParcelasQuery({ limite: 100 });
+  const parcelasExistentes = respuestaParcelas?.items || [];
   const actualizarMutation = useActualizarParcelaMutation();
 
   const handleGuardar = (valores: ParcelaFormValores) => {
@@ -82,6 +84,8 @@ export const EditarParcelaContainer: React.FC<EditarParcelaContainerProps> = ({ 
       <View style={styles.contenedor}>
         <ParcelaFormulario
           cultivos={cultivos}
+          parcelasExistentes={parcelasExistentes}
+          idParcelaActual={id}
           modo="editar"
           valoresIniciales={{
             codigo: parcela.codigo,

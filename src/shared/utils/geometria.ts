@@ -1,3 +1,5 @@
+import * as turf from '@turf/turf';
+
 export interface CoordenadaPunto {
   latitude: number;
   longitude: number;
@@ -216,4 +218,125 @@ export function extraerPuntosPoligono(geoRaw: unknown): CoordenadaPunto[] {
     console.warn('Error al extraer puntos de delimitación geoespacial:', error);
   }
   return [];
+}
+
+/**
+ * @description Evalúa si un punto se encuentra dentro de un polígono utilizando el algoritmo de ray casting.
+ */
+export function puntoEnPoligono(punto: CoordenadaPunto, poligono: CoordenadaPunto[]): boolean {
+  if (!poligono || poligono.length < 3) return false;
+  let adentro = false;
+  const n = poligono.length;
+
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = poligono[i].longitude, yi = poligono[i].latitude;
+    const xj = poligono[j].longitude, yj = poligono[j].latitude;
+
+    const intersecta =
+      yi > punto.latitude !== yj > punto.latitude &&
+      punto.longitude < ((xj - xi) * (punto.latitude - yi)) / (yj - yi) + xi;
+
+    if (intersecta) adentro = !adentro;
+  }
+
+  return adentro;
+}
+
+/**
+ * @description Calcula la distancia euclidiana aproximada en metros entre dos coordenadas geográficas.
+ */
+export function distanciaEntrePuntosMetros(p1: CoordenadaPunto, p2: CoordenadaPunto): number {
+  const R = 6371000; // Radio de la Tierra en metros
+  const dLat = ((p2.latitude - p1.latitude) * Math.PI) / 180;
+  const dLng = ((p2.longitude - p1.longitude) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((p1.latitude * Math.PI) / 180) *
+      Math.cos((p2.latitude * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * @description Evalúa si un punto está prácticamente sobre algún borde del polígono (tolerancia en grados aprox ~1.5m).
+ */
+export function estaSobreBordePoligono(
+  punto: CoordenadaPunto,
+  poligono: CoordenadaPunto[],
+  toleranciaGrados = 0.00003,
+): boolean {
+  if (!poligono || poligono.length < 2) return false;
+  const n = poligono.length;
+
+  for (let i = 0; i < n; i++) {
+    const a = poligono[i];
+    const b = poligono[(i + 1) % n];
+
+    // Verificar si está dentro de la caja delimitadora del segmento
+    const minLat = Math.min(a.latitude, b.latitude) - toleranciaGrados;
+    const maxLat = Math.max(a.latitude, b.latitude) + toleranciaGrados;
+    const minLng = Math.min(a.longitude, b.longitude) - toleranciaGrados;
+    const maxLng = Math.max(a.longitude, b.longitude) + toleranciaGrados;
+
+    if (
+      punto.latitude >= minLat &&
+      punto.latitude <= maxLat &&
+      punto.longitude >= minLng &&
+      punto.longitude <= maxLng
+    ) {
+      // Distancia punto a segmento
+      const dx = b.longitude - a.longitude;
+      const dy = b.latitude - a.latitude;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) {
+        const d = Math.hypot(punto.longitude - a.longitude, punto.latitude - a.latitude);
+        if (d <= toleranciaGrados) return true;
+        continue;
+      }
+      let t = ((punto.longitude - a.longitude) * dx + (punto.latitude - a.latitude) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      const projLng = a.longitude + t * dx;
+      const projLat = a.latitude + t * dy;
+      const dist = Math.hypot(punto.longitude - projLng, punto.latitude - projLat);
+      if (dist <= toleranciaGrados) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * @description Detecta si dos polígonos tienen superposición real de superficie (área > 5 m²).
+ * Si únicamente comparten vértices o un borde común (linde compartido contiguo), NO se considera superposición.
+ */
+export function detectarSuperposicionPoligonos(
+  poligonoA: CoordenadaPunto[],
+  poligonoB: CoordenadaPunto[],
+): boolean {
+  if (!poligonoA || poligonoA.length < 3 || !poligonoB || poligonoB.length < 3) {
+    return false;
+  }
+
+  try {
+    const coordsA = poligonoA.map((p) => [p.longitude, p.latitude]);
+    coordsA.push([poligonoA[0].longitude, poligonoA[0].latitude]);
+    const polyA = turf.polygon([coordsA]);
+
+    const coordsB = poligonoB.map((p) => [p.longitude, p.latitude]);
+    coordsB.push([poligonoB[0].longitude, poligonoB[0].latitude]);
+    const polyB = turf.polygon([coordsB]);
+
+    const interseccion = turf.intersect(turf.featureCollection([polyA, polyB]));
+    if (interseccion) {
+      const areaM2 = turf.area(interseccion);
+      // Solo consideramos superposición real si el área interceptada supera 5 m²
+      // (evita cualquier falso positivo por contacto perimetral o imprecisión decimal)
+      return areaM2 > 5;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }

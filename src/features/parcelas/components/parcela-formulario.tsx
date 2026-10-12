@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, ScrollView, useWindowDimensions, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Compass, AlertTriangle } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Boton, Input } from '@/shared/components/ui';
-import { MapaDelimitador } from '@/shared/components/mapa/mapa-delimitador';
+import { MapaDelimitador, type ParcelaOcupadaGeo } from '@/shared/components/mapa/mapa-delimitador';
 import { CultivoItem } from '@/features/cultivos/types/cultivo.types';
+import { ParcelaItem } from '../types/parcela.types';
 import { parcelaSchema, type ParcelaFormValores } from '../schemas/parcela.schema';
 import { ParcelaFormularioCultivo } from './parcela-formulario-cultivo';
 import { ParcelaUbicacionSelector } from './parcela-ubicacion-selector';
-import { type CoordenadaPunto } from '@/shared/utils/geometria';
+import { type CoordenadaPunto, extraerPuntosPoligono } from '@/shared/utils/geometria';
 import {
   obtenerUbicacionActual,
   geocodificacionInversa,
@@ -21,6 +22,8 @@ export interface ParcelaFormularioProps {
   cultivos: CultivoItem[];
   valoresIniciales?: Partial<ParcelaFormValores>;
   puntosIniciales?: CoordenadaPunto[];
+  parcelasExistentes?: ParcelaItem[];
+  idParcelaActual?: string;
   guardando?: boolean;
   modo?: 'crear' | 'editar';
   onSubmit: (valores: ParcelaFormValores) => void;
@@ -36,6 +39,8 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   cultivos,
   valoresIniciales,
   puntosIniciales = [],
+  parcelasExistentes = [],
+  idParcelaActual,
   guardando = false,
   modo = 'crear',
   onSubmit,
@@ -54,7 +59,32 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   const [autocompletandoUbicacion, setAutocompletandoUbicacion] = useState<boolean>(false);
   const [mensajeAutocompletado, setMensajeAutocompletado] = useState<string | null>(null);
   const [poligonoTieneCruce, setPoligonoTieneCruce] = useState<boolean>(false);
+  const [poligonoTieneSuperposicion, setPoligonoTieneSuperposicion] = useState<boolean>(false);
+  const [parcelaConflicto, setParcelaConflicto] = useState<string | null>(null);
   const timeoutGeocodificacionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mapear parcelas ocupadas con delimitaciones válidas para mostrarlas en el mapa
+  const parcelasOcupadas: ParcelaOcupadaGeo[] = useMemo(() => {
+    if (!parcelasExistentes || parcelasExistentes.length === 0) return [];
+    const lista: ParcelaOcupadaGeo[] = [];
+    for (const p of parcelasExistentes) {
+      if (p.id === idParcelaActual) continue;
+      const puntos = extraerPuntosPoligono(p.delimitacionGeoJson);
+      if (puntos.length >= 3) {
+        lista.push({
+          id: p.id,
+          nombre: p.nombre,
+          codigo: p.codigo || null,
+          cultivoNombre: p.cultivoNombre || null,
+          cultivoColorHex: p.cultivoColorHex || null,
+          variedad: p.variedad || null,
+          areaHectareas: p.areaHectareas ? Number(p.areaHectareas) : 0,
+          puntos,
+        });
+      }
+    }
+    return lista;
+  }, [parcelasExistentes, idParcelaActual]);
 
   // En primera instancia al crear una parcela, centrar el mapa en la ubicación actual
   useEffect(() => {
@@ -113,8 +143,12 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     areaHectareas: number;
     centroide: CoordenadaPunto | null;
     tieneCruce?: boolean;
+    tieneSuperposicion?: boolean;
+    parcelaConflicto?: string | null;
   }) => {
     setPoligonoTieneCruce(Boolean(datos.tieneCruce));
+    setPoligonoTieneSuperposicion(Boolean(datos.tieneSuperposicion));
+    setParcelaConflicto(datos.parcelaConflicto || null);
 
     if (datos.areaHectareas > 0) {
       setValue('areaHectareas', datos.areaHectareas, { shouldValidate: true });
@@ -159,6 +193,14 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   };
 
   const manejarSubmit = (valores: ParcelaFormValores) => {
+    if (poligonoTieneSuperposicion) {
+      Alert.alert(
+        'Superposición de Lotes Detectada',
+        `El área seleccionada invade el espacio de la parcela "${parcelaConflicto}". Las parcelas contiguas pueden compartir el mismo lindero perimetral, pero sus superficies no deben superponerse. Ajuste los vértices antes de registrar.`,
+      );
+      return;
+    }
+
     if (poligonoTieneCruce) {
       Alert.alert(
         'Contorno del Lote no Válido',
@@ -340,6 +382,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
         puntosIniciales={puntosIniciales}
         centroInicial={centroMapa}
         zoomInicial={zoomMapa}
+        parcelasOcupadas={parcelasOcupadas}
         onCambioPoligono={manejarCambioPoligono}
         altura={alturaMapa}
       />
