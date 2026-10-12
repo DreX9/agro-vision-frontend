@@ -305,19 +305,27 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script>
         const googleHibrido = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-          attribution: '&copy; Google Satellite', maxNativeZoom: 20, maxZoom: 22
+          attribution: '&copy; Google Satellite', maxNativeZoom: 20, maxZoom: 22, noWrap: true
         });
         const esriSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-          attribution: 'Tiles &copy; Esri', maxNativeZoom: 18, maxZoom: 21
+          attribution: 'Tiles &copy; Esri', maxNativeZoom: 18, maxZoom: 21, noWrap: true
         });
         const callesOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap', maxZoom: 19
+          attribution: '&copy; OpenStreetMap', maxZoom: 19, noWrap: true
         });
+
+        const limitesPeru = L.latLngBounds(
+          L.latLng(-19.5, -83.0),
+          L.latLng(1.0, -67.0)
+        );
 
         const map = L.map('map', {
           center: [-13.0768, -76.3854],
           zoom: 14,
+          minZoom: 5,
           maxZoom: 21,
+          maxBounds: limitesPeru,
+          maxBoundsViscosity: 1.0,
           layers: [googleHibrido]
         });
 

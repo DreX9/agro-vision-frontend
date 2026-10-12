@@ -199,4 +199,11 @@ export const styles = StyleSheet.create({
     color: '#6B7280',
     fontStyle: 'italic',
   },
+  textoAyudaCampo: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: -10,
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
 });

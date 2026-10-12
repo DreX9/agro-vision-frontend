@@ -31,6 +31,24 @@ export interface ParcelaFormularioProps {
 }
 
 /**
+ * @description Genera el siguiente código correlativo de parcela (ej. P-001, P-002, etc.)
+ */
+function calcularSiguienteCodigoParcela(parcelas: ParcelaItem[] = []): string {
+  let maxCorrelativo = 0;
+  for (const p of parcelas) {
+    if (!p.codigo) continue;
+    const coincidencia = p.codigo.match(/(\d+)$/);
+    if (coincidencia) {
+      const num = parseInt(coincidencia[1], 10);
+      if (!isNaN(num) && num > maxCorrelativo) {
+        maxCorrelativo = num;
+      }
+    }
+  }
+  return `P-${String(maxCorrelativo + 1).padStart(3, '0')}`;
+}
+
+/**
  * @description Formulario responsive para registro/edición de parcelas:
  * 2 columnas en Desktop (Formulario a la izquierda, Mapa satelital expandido a la derecha)
  * y flujo vertical optimizado en Móvil.
@@ -48,6 +66,14 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
 }) => {
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 1150;
+
+  // Código correlativo autoincrementable
+  const codigoAutoincrementable = useMemo(() => {
+    if (modo === 'editar' && valoresIniciales?.codigo) {
+      return valoresIniciales.codigo;
+    }
+    return calcularSiguienteCodigoParcela(parcelasExistentes);
+  }, [modo, valoresIniciales?.codigo, parcelasExistentes]);
 
   const [centroMapa, setCentroMapa] = useState<{ lat: number; lng: number } | undefined>(() => {
     if (valoresIniciales?.latitudCentro && valoresIniciales?.longitudCentro) {
@@ -114,7 +140,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   } = useForm<ParcelaFormValores>({
     resolver: zodResolver(parcelaSchema),
     defaultValues: {
-      codigo: valoresIniciales?.codigo || '',
+      codigo: valoresIniciales?.codigo || codigoAutoincrementable,
       nombre: valoresIniciales?.nombre || '',
       areaHectareas: valoresIniciales?.areaHectareas || 0,
       cultivoId: valoresIniciales?.cultivoId || (cultivos[0]?.id ?? ''),
@@ -129,6 +155,13 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
       longitudCentro: valoresIniciales?.longitudCentro,
     },
   });
+
+  // Mantener actualizado el código correlativo autoincrementado en modo creación
+  useEffect(() => {
+    if (modo === 'crear' && codigoAutoincrementable) {
+      setValue('codigo', codigoAutoincrementable, { shouldValidate: true });
+    }
+  }, [codigoAutoincrementable, modo, setValue]);
 
   const cultivoIdActual = watch('cultivoId');
   const variedadActual = watch('variedad');
@@ -150,12 +183,14 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     setPoligonoTieneSuperposicion(Boolean(datos.tieneSuperposicion));
     setParcelaConflicto(datos.parcelaConflicto || null);
 
-    if (datos.areaHectareas > 0) {
-      setValue('areaHectareas', datos.areaHectareas, { shouldValidate: true });
-    }
-    setValue('delimitacionGeoJson', datos.puntos);
+    const tienePuntosValidos = datos.puntos && datos.puntos.length >= 3;
+    const nuevaArea = tienePuntosValidos ? (datos.areaHectareas || 0) : 0;
 
-    if (datos.centroide) {
+    // Actualizar área según el mapa: si se limpian o borran puntos, se actualiza a 0
+    setValue('areaHectareas', nuevaArea, { shouldValidate: true });
+    setValue('delimitacionGeoJson', tienePuntosValidos ? datos.puntos : undefined);
+
+    if (datos.centroide && tienePuntosValidos) {
       setValue('latitudCentro', datos.centroide.latitude, { shouldValidate: true });
       setValue('longitudCentro', datos.centroide.longitude, { shouldValidate: true });
 
@@ -187,12 +222,24 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
         }
       }, 400);
     } else {
+      if (timeoutGeocodificacionRef.current) {
+        clearTimeout(timeoutGeocodificacionRef.current);
+      }
       setValue('latitudCentro', null);
       setValue('longitudCentro', null);
+      setMensajeAutocompletado(null);
     }
   };
 
   const manejarSubmit = (valores: ParcelaFormValores) => {
+    if (!valores.areaHectareas || valores.areaHectareas <= 0) {
+      Alert.alert(
+        'Área no delimitada',
+        'Debe delimitar el área de la parcela en el mapa satelital marcando al menos 3 vértices para calcular su superficie.',
+      );
+      return;
+    }
+
     if (poligonoTieneSuperposicion) {
       Alert.alert(
         'Superposición de Lotes Detectada',
@@ -232,14 +279,21 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           <Controller
             control={control}
             name="codigo"
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Código (Opcional)"
-                placeholder="Ej. P-001"
-                value={value || ''}
-                onChangeText={onChange}
-                error={errors.codigo?.message}
-              />
+            render={({ field: { value } }) => (
+              <View>
+                <Input
+                  label="Código (Autoincrementable)"
+                  placeholder="Generando código..."
+                  value={value || codigoAutoincrementable}
+                  editable={false}
+                  error={errors.codigo?.message}
+                />
+                <Text style={styles.textoAyudaCampo}>
+                  {modo === 'crear'
+                    ? 'Correlativo asignado automáticamente'
+                    : 'Código identificador único'}
+                </Text>
+              </View>
             )}
           />
         </View>
@@ -247,15 +301,19 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           <Controller
             control={control}
             name="areaHectareas"
-            render={({ field: { onChange, value } }) => (
-              <Input
-                label="Área (Hectáreas) *"
-                placeholder="Calculada en mapa..."
-                value={value ? String(value) : ''}
-                onChangeText={(v) => onChange(Number(v) || 0)}
-                keyboardType="numeric"
-                error={errors.areaHectareas?.message}
-              />
+            render={({ field: { value } }) => (
+              <View>
+                <Input
+                  label="Área (Hectáreas) *"
+                  placeholder="Delimite en el mapa..."
+                  value={value && value > 0 ? String(value) : ''}
+                  editable={false}
+                  error={errors.areaHectareas?.message}
+                />
+                <Text style={styles.textoAyudaCampo}>
+                  Calculada automáticamente desde el mapa satelital
+                </Text>
+              </View>
             )}
           />
         </View>

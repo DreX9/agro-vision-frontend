@@ -271,18 +271,29 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
       <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
       <script>
         const googleHibrido = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-          attribution: '&copy; Google Satellite', maxNativeZoom: 20, maxZoom: 22
+          attribution: '&copy; Google Satellite', maxNativeZoom: 20, maxZoom: 22, noWrap: true
         });
         const esriSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-          attribution: 'Tiles &copy; Esri', maxNativeZoom: 18, maxZoom: 21
+          attribution: 'Tiles &copy; Esri', maxNativeZoom: 18, maxZoom: 21, noWrap: true
         });
         const callesOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap', maxZoom: 19
+          attribution: '&copy; OpenStreetMap', maxZoom: 19, noWrap: true
         });
+
+        // Delimitación geográfica de navegación (Territorio de Perú con margen de maniobra)
+        const limitesPeru = L.latLngBounds(
+          L.latLng(-19.5, -83.0),
+          L.latLng(1.0, -67.0)
+        );
 
         const map = L.map('map', {
           center: [${centroInicial.lat}, ${centroInicial.lng}],
-          zoom: ${zoomInicial}, maxZoom: 21, layers: [googleHibrido]
+          zoom: ${zoomInicial},
+          minZoom: 5,
+          maxZoom: 21,
+          maxBounds: limitesPeru,
+          maxBoundsViscosity: 1.0,
+          layers: [googleHibrido]
         });
 
         L.control.layers({
@@ -827,6 +838,67 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           puntoSnapActivo = null;
         });
 
+        function distEuclidea(p1, p2) {
+          return Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+        }
+
+        function ordenarPerimetralmente(pts) {
+          if (!pts || pts.length < 3) return pts;
+          let sLat = 0, sLng = 0;
+          pts.forEach(function(v) { sLat += v[0]; sLng += v[1]; });
+          const cLat = sLat / pts.length;
+          const cLng = sLng / pts.length;
+          return pts.slice().sort(function(a, b) {
+            const angA = Math.atan2(a[0] - cLat, a[1] - cLng);
+            const angB = Math.atan2(b[0] - cLat, b[1] - cLng);
+            return angA - angB;
+          });
+        }
+
+        // Inserta un nuevo punto en el segmento que minimiza el perímetro sin cruzar líneas
+        function insertarVerticeOptimo(nuevoPunto, verticesActuales) {
+          if (verticesActuales.length < 3) {
+            return verticesActuales.concat([nuevoPunto]);
+          }
+
+          const n = verticesActuales.length;
+          let mejorCandidato = null;
+          let menorCosto = Infinity;
+
+          for (let i = 0; i < n; i++) {
+            const a = verticesActuales[i];
+            const b = verticesActuales[(i + 1) % n];
+
+            // Variación de perímetro: dist(a, p) + dist(p, b) - dist(a, b)
+            const dAB = distEuclidea(a, b);
+            const dAP = distEuclidea(a, nuevoPunto);
+            const dPB = distEuclidea(nuevoPunto, b);
+            const deltaPerimetro = dAP + dPB - dAB;
+
+            const candidato = verticesActuales.slice();
+            candidato.splice(i + 1, 0, nuevoPunto);
+
+            const cruza = tieneAutoInterseccion(candidato);
+            // Penalización severa para configuraciones que generen líneas cruzadas
+            const costo = deltaPerimetro + (cruza ? 1000 : 0);
+
+            if (costo < menorCosto) {
+              menorCosto = costo;
+              mejorCandidato = candidato;
+            }
+          }
+
+          // Si la inserción simple aún cruza líneas, aplicar orden perimetral automático
+          if (mejorCandidato && tieneAutoInterseccion(mejorCandidato)) {
+            const perimetral = ordenarPerimetralmente(mejorCandidato);
+            if (!tieneAutoInterseccion(perimetral)) {
+              return perimetral;
+            }
+          }
+
+          return mejorCandidato || verticesActuales.concat([nuevoPunto]);
+        }
+
         // Click para registrar vértice (priorizando el punto de snap magnético si está activo)
         map.on('click', function(e) {
           if (esSoloLectura) return;
@@ -834,8 +906,13 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             ? [puntoSnapActivo.lat, puntoSnapActivo.lng]
             : [e.latlng.lat, e.latlng.lng];
 
-          // Siempre anexar al final de la cadena secuencial del perímetro
-          vertices.push(puntoFinal);
+          // Evitar registrar puntos fuera de los límites territoriales
+          if (!limitesPeru.contains(puntoFinal)) {
+            return;
+          }
+
+          // Insertar óptimamente en el linde más cercano sin romper ni cruzar la figura
+          vertices = insertarVerticeOptimo(puntoFinal, vertices);
           actualizarPoligono();
         });
 
@@ -876,15 +953,7 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             }
           } else if (e.data.accion === 'REORDENAR') {
             if (vertices.length >= 3) {
-              let sLat = 0, sLng = 0;
-              vertices.forEach(function(v) { sLat += v[0]; sLng += v[1]; });
-              const cLat = sLat / vertices.length;
-              const cLng = sLng / vertices.length;
-              vertices.sort(function(a, b) {
-                const angA = Math.atan2(a[0] - cLat, a[1] - cLng);
-                const angB = Math.atan2(b[0] - cLat, b[1] - cLng);
-                return angA - angB;
-              });
+              vertices = ordenarPerimetralmente(vertices);
               actualizarPoligono();
             }
           } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
