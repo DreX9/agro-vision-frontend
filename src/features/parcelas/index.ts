@@ -1,6 +1,8 @@
 export * from './types/parcela.types';
+export * from './types/sector-parcela.types';
 export * from './schemas/parcela.schema';
 export * from './api/parcelas.api';
+export * from './api/sectores.api';
 export * from './components/parcelas-tabla';
 export * from './components/parcelas-skeleton';
 export * from './components/parcelas-menu-acciones';
@@ -10,4 +12,5 @@ export * from './containers/parcelas-lista.container';
 export * from './containers/crear-parcela.container';
 export * from './containers/editar-parcela.container';
 export * from './containers/detalle-parcela.container';
+export * from './containers/asignacion-cultivos.container';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ArrowLeft, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Pencil, Layers } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { Boton } from '@/shared/components/ui';
@@ -56,6 +56,13 @@ export const DetalleParcelaContainer: React.FC<DetalleParcelaContainerProps> = (
             <ArrowLeft size={16} color={Palette.forestGreen} />
             <Text style={styles.textoVolver}>Volver al listado</Text>
           </Pressable>
+
+          <Boton
+            titulo="Asignar Cultivos"
+            variante="secundario"
+            iconoIzquierda={<Layers size={16} color={Palette.forestGreen} />}
+            onPress={() => router.push(`/parcelas/asignacion-cultivos?parcelaId=${id}` as Href)}
+          />
 
           <Boton
             titulo="Editar Parcela"
