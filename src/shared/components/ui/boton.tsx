@@ -12,7 +12,7 @@ import { Palette } from '@/constants/theme';
 
 export interface BotonProps extends PressableProps {
   titulo: string;
-  variante?: 'primario' | 'secundario' | 'outline' | 'fantasma';
+  variante?: 'primario' | 'secundario' | 'outline' | 'fantasma' | 'peligro';
   cargando?: boolean;
   estilo?: ViewStyle;
   estiloTexto?: TextStyle;
@@ -44,6 +44,8 @@ export const Boton: React.FC<BotonProps> = ({
         return styles.outline;
       case 'fantasma':
         return styles.fantasma;
+      case 'peligro':
+        return styles.peligro;
       case 'primario':
       default:
         return styles.primario;
@@ -58,6 +60,8 @@ export const Boton: React.FC<BotonProps> = ({
         return styles.texto_outline;
       case 'fantasma':
         return styles.texto_fantasma;
+      case 'peligro':
+        return styles.texto_peligro;
       case 'primario':
       default:
         return styles.texto_primario;
@@ -132,6 +136,9 @@ const styles = StyleSheet.create({
   fantasma: {
     backgroundColor: 'transparent',
   },
+  peligro: {
+    backgroundColor: '#DC2626',
+  },
   textoBase: {
     fontSize: 16,
     fontWeight: '700',
@@ -149,5 +156,8 @@ const styles = StyleSheet.create({
   },
   texto_fantasma: {
     color: Palette.forestGreen,
+  },
+  texto_peligro: {
+    color: Palette.white,
   },
 });

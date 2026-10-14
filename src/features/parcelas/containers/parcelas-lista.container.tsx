@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { Plus, Search, ListTree, PlusCircle, Sprout, Map as MapIcon } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
-import { Boton, Input, Card } from '@/shared/components/ui';
+import { Boton, Input, Card, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
 import { Paginacion } from '@/shared/components/ui/paginacion';
 import { ParcelasTabla } from '../components/parcelas-tabla';
 import { ParcelasSkeleton } from '../components/parcelas-skeleton';
@@ -25,6 +25,8 @@ export const ParcelasListaContainer: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
+  const [parcelaAEliminar, setParcelaAEliminar] = useState<ParcelaItem | null>(null);
+  const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
 
   const { data, isLoading, isFetching } = useParcelasQuery({
     busqueda: busqueda.trim() || undefined,
@@ -66,7 +68,21 @@ export const ParcelasListaContainer: React.FC = () => {
   };
 
   const handleEliminar = (parcela: ParcelaItem) => {
-    eliminarMutation.mutate(parcela.id);
+    setParcelaAEliminar(parcela);
+  };
+
+  const confirmarEliminar = () => {
+    if (!parcelaAEliminar) return;
+    const parcelaActual = parcelaAEliminar;
+
+    eliminarMutation.mutate(parcelaActual.id, {
+      onSuccess: () => {
+        setParcelaAEliminar(null);
+        setModalExitoEliminacion(
+          `La parcela "${parcelaActual.nombre}" (${parcelaActual.codigo}) fue eliminada exitosamente y su delimitación perimetral ha sido liberada.`,
+        );
+      },
+    });
   };
 
   return (
@@ -194,6 +210,51 @@ export const ParcelasListaContainer: React.FC = () => {
           </>
         )}
       </ScrollView>
+
+      {/* Modal de Confirmación para Eliminar Parcela */}
+      <ModalConfirmacion
+        visible={Boolean(parcelaAEliminar)}
+        tipo="peligro"
+        titulo="¿Eliminar Parcela Agrícola?"
+        mensaje={`Está a punto de dar de baja la parcela "${parcelaAEliminar?.nombre}". Esta acción liberará su delimitación geoespacial y su código identificador.`}
+        detalles={
+          parcelaAEliminar
+            ? [
+                {
+                  etiqueta: 'Código del Lote',
+                  valor: parcelaAEliminar.codigo || '-',
+                },
+                {
+                  etiqueta: 'Nombre de Parcela',
+                  valor: parcelaAEliminar.nombre,
+                },
+                {
+                  etiqueta: 'Superficie',
+                  valor: `${parcelaAEliminar.areaHectareas} ha`,
+                },
+                {
+                  etiqueta: 'Cultivo Asociado',
+                  valor: parcelaAEliminar.cultivoNombre || 'Sin cultivo',
+                },
+              ]
+            : undefined
+        }
+        textoConfirmar="Eliminar Parcela"
+        textoCancelar="Cancelar"
+        cargando={eliminarMutation.isPending}
+        onConfirmar={confirmarEliminar}
+        onCancelar={() => setParcelaAEliminar(null)}
+      />
+
+      {/* Modal de Éxito al Eliminar Parcela */}
+      <ModalConfirmacion
+        visible={Boolean(modalExitoEliminacion)}
+        tipo="exito"
+        titulo="Parcela Eliminada"
+        mensaje={modalExitoEliminacion || ''}
+        textoConfirmar="Aceptar"
+        onConfirmar={() => setModalExitoEliminacion(null)}
+      />
     </AppLayout>
   );
 };

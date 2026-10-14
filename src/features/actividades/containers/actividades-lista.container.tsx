@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { Plus, Search } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
-import { Boton, Input, Card } from '@/shared/components/ui';
+import { Boton, Input, Card, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
 import { Paginacion } from '@/shared/components/ui/paginacion';
 import { ActividadesTabla } from '../components/actividades-tabla';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
@@ -23,6 +23,8 @@ export const ActividadesListaContainer: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
+  const [actividadAEliminar, setActividadAEliminar] = useState<ActividadItem | null>(null);
+  const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
 
   const { data, isLoading, isFetching } = useActividadesQuery({
     busqueda: busqueda.trim() || undefined,
@@ -58,7 +60,21 @@ export const ActividadesListaContainer: React.FC = () => {
   };
 
   const handleEliminar = (actividad: ActividadItem) => {
-    eliminarMutation.mutate(actividad.id);
+    setActividadAEliminar(actividad);
+  };
+
+  const confirmarEliminar = () => {
+    if (!actividadAEliminar) return;
+    const act = actividadAEliminar;
+
+    eliminarMutation.mutate(act.id, {
+      onSuccess: () => {
+        setActividadAEliminar(null);
+        setModalExitoEliminacion(
+          `La actividad "${act.codigo} - ${act.titulo}" ha sido eliminada correctamente.`,
+        );
+      },
+    });
   };
 
   return (
@@ -118,6 +134,51 @@ export const ActividadesListaContainer: React.FC = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de Confirmación para Eliminar Actividad */}
+      <ModalConfirmacion
+        visible={Boolean(actividadAEliminar)}
+        tipo="peligro"
+        titulo="¿Eliminar Actividad Agrícola?"
+        mensaje={`Está a punto de eliminar la actividad "${actividadAEliminar?.titulo}". Los recursos asignados e insumos serán desvinculados.`}
+        detalles={
+          actividadAEliminar
+            ? [
+                {
+                  etiqueta: 'Código de Labor',
+                  valor: actividadAEliminar.codigo || '-',
+                },
+                {
+                  etiqueta: 'Tipo de Actividad',
+                  valor: actividadAEliminar.tipo,
+                },
+                {
+                  etiqueta: 'Parcela',
+                  valor: actividadAEliminar.parcelaNombre || 'No asignada',
+                },
+                {
+                  etiqueta: 'Estado Actual',
+                  valor: actividadAEliminar.estado,
+                },
+              ]
+            : undefined
+        }
+        textoConfirmar="Eliminar Actividad"
+        textoCancelar="Cancelar"
+        cargando={eliminarMutation.isPending}
+        onConfirmar={confirmarEliminar}
+        onCancelar={() => setActividadAEliminar(null)}
+      />
+
+      {/* Modal Informativo de Éxito */}
+      <ModalConfirmacion
+        visible={Boolean(modalExitoEliminacion)}
+        tipo="exito"
+        titulo="Actividad Eliminada"
+        mensaje={modalExitoEliminacion || ''}
+        textoConfirmar="Aceptar"
+        onConfirmar={() => setModalExitoEliminacion(null)}
+      />
     </AppLayout>
   );
 };
