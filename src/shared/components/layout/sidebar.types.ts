@@ -9,6 +9,7 @@ import {
   ScanLine,
   PlusCircle,
   ListTree,
+  Layers,
 } from 'lucide-react-native';
 
 export interface SubItemNavegacion {
@@ -34,6 +35,7 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
     subitems: [
       { nombre: 'Lista de parcelas', ruta: '/parcelas', icono: ListTree },
       { nombre: 'Registrar parcela', ruta: '/parcelas/nuevo', icono: PlusCircle },
+      { nombre: 'Asignar cultivos', ruta: '/parcelas/asignacion-cultivos', icono: Layers },
       { nombre: 'Registrar cultivo', ruta: '/cultivos/nuevo', icono: Sprout },
     ],
   },

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Linking } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import {
   Info,
   MapPin,
@@ -11,13 +12,16 @@ import {
   ExternalLink,
   Map as MapIcon,
   CheckCircle2,
+  PlusCircle,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Badge } from '@/shared/components/ui';
+import { Badge, Boton } from '@/shared/components/ui';
 import { MapaDelimitador } from '@/shared/components/mapa/mapa-delimitador';
+import { MapaSectoresDelimitador } from '@/shared/components/mapa/mapa-sectores-delimitador';
 import { ParcelaItem, EstadoParcelaTipo } from '../types/parcela.types';
 import { type CoordenadaPunto, extraerPuntosPoligono } from '@/shared/utils/geometria';
 import { useCultivosQuery } from '@/features/cultivos';
+import { useSectoresPorParcelaQuery } from '../api/sectores.api';
 
 export interface ParcelaDetalleTabsProps {
   parcela: ParcelaItem;
@@ -28,7 +32,15 @@ export interface ParcelaDetalleTabsProps {
  * agronómica y la delimitación satelital georreferenciada de una parcela.
  */
 export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela }) => {
-  const [tabActivo, setTabActivo] = useState<'info' | 'mapa'>('info');
+  const router = useRouter();
+  const [tabActivo, setTabActivo] = useState<'info' | 'mapa' | 'sectores'>('info');
+  const { data: resumenSectores } = useSectoresPorParcelaQuery(parcela.id);
+  const sectores = resumenSectores?.sectores || [];
+  const areaTotal = resumenSectores?.areaTotalHectareas ?? Number(parcela.areaHectareas || 0);
+  const areaAsignada = resumenSectores?.areaAsignadaHectareas ?? 0;
+  const areaDisponible = resumenSectores?.areaDisponibleHectareas ?? areaTotal;
+  const porcentajeOcupado =
+    resumenSectores?.porcentajeOcupado ?? (areaTotal > 0 ? (areaAsignada / areaTotal) * 100 : 0);
 
   const obtenerVarianteEstado = (
     estado: EstadoParcelaTipo,
@@ -103,7 +115,17 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
         >
           <MapIcon size={16} color={tabActivo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
           <Text style={[styles.textoTab, tabActivo === 'mapa' && styles.textoTabActivo]}>
-            Georreferenciación y Mapa Satelital ({puntosPoligono.length} vértices)
+            Georreferenciación ({puntosPoligono.length} vértices)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => setTabActivo('sectores')}
+          style={[styles.botonTab, tabActivo === 'sectores' && styles.botonTabActivo]}
+        >
+          <Layers size={16} color={tabActivo === 'sectores' ? Palette.forestGreen : '#6B7280'} />
+          <Text style={[styles.textoTab, tabActivo === 'sectores' && styles.textoTabActivo]}>
+            Sectores y Cultivos ({sectores.length})
           </Text>
         </Pressable>
       </View>
@@ -225,7 +247,7 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
               ) : null}
             </View>
           </View>
-        ) : (
+        ) : tabActivo === 'mapa' ? (
           /* Tab Georreferenciación y Mapa */
           <View style={styles.bloqueTab}>
             {/* Mapa Satelital Interactivo */}
@@ -287,6 +309,117 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
                       </Text>
                     </View>
                   ))}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          /* Tab Sectores y Cuarteles de Cultivo */
+          <View style={styles.bloqueTab}>
+            {/* Balance y Resumen de Ocupación */}
+            <View style={styles.tarjetaFicha}>
+              <View style={styles.cabeceraFicha}>
+                <View>
+                  <Text style={styles.tituloSeccion}>Distribución y Subdivisión de Cultivos</Text>
+                  <Text style={styles.subtituloMapa}>
+                    Superficie total: {areaTotal.toFixed(2)} ha • Asignada: {areaAsignada.toFixed(2)} ha ({porcentajeOcupado.toFixed(1)}%)
+                  </Text>
+                </View>
+                <Boton
+                  titulo="Asignar y Delimitar"
+                  variante="primario"
+                  iconoIzquierda={<PlusCircle size={15} color={Palette.white} />}
+                  onPress={() =>
+                    router.push(`/parcelas/asignacion-cultivos?parcelaId=${parcela.id}` as Href)
+                  }
+                />
+              </View>
+
+              <View style={styles.grillaMetadatos}>
+                <View style={styles.itemMeta}>
+                  <Layers size={16} color={Palette.forestGreen} />
+                  <View>
+                    <Text style={styles.etiquetaMeta}>Área Total Matriz</Text>
+                    <Text style={styles.valorMeta}>{areaTotal.toFixed(2)} ha</Text>
+                  </View>
+                </View>
+
+                <View style={styles.itemMeta}>
+                  <Sprout size={16} color={Palette.forestGreen} />
+                  <View>
+                    <Text style={styles.etiquetaMeta}>Área Cultivada Asignada</Text>
+                    <Text style={[styles.valorMeta, { color: Palette.forestGreen }]}>
+                      {areaAsignada.toFixed(2)} ha ({sectores.length} {sectores.length === 1 ? 'sector' : 'sectores'})
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.itemMeta}>
+                  <Compass size={16} color="#2563EB" />
+                  <View>
+                    <Text style={styles.etiquetaMeta}>Área Libre Disponible</Text>
+                    <Text style={[styles.valorMeta, { color: '#2563EB' }]}>
+                      {areaDisponible.toFixed(2)} ha ({(100 - porcentajeOcupado).toFixed(1)}%)
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Mapa Satelital con todos los Sectores */}
+            <View style={styles.tarjetaFicha}>
+              <Text style={styles.tituloSeccion}>Vista Satelital de Cuarteles y Sectores</Text>
+              <MapaSectoresDelimitador
+                poligonoParcelaMatriz={puntosPoligono}
+                sectoresExistentes={sectores}
+                nombreParcela={parcela.nombre}
+                codigoParcela={parcela.codigo}
+                areaMatrizHectareas={areaTotal}
+                altura={440}
+                soloLectura={true}
+              />
+            </View>
+
+            {/* Lista detallada de sectores */}
+            <View style={styles.tarjetaFicha}>
+              <Text style={styles.tituloSeccion}>Cuarteles Registrados ({sectores.length})</Text>
+              {sectores.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
+                  <Text style={styles.textoVacio}>
+                    No hay sectores delimitados aún en esta parcela.
+                  </Text>
+                  <Boton
+                    titulo="Comenzar Delimitación de Sectores"
+                    variante="secundario"
+                    onPress={() =>
+                      router.push(`/parcelas/asignacion-cultivos?parcelaId=${parcela.id}` as Href)
+                    }
+                  />
+                </View>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {sectores.map((sec) => {
+                    const colorPill = sec.colorHex || sec.cultivoColorHex || Palette.forestGreen;
+                    const pct = areaTotal > 0 ? ((sec.areaHectareas / areaTotal) * 100).toFixed(1) : 0;
+                    return (
+                      <View key={sec.id} style={styles.tarjetaSectorFicha}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View style={[styles.barraColorSector, { backgroundColor: colorPill }]} />
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={styles.codigoSectorFicha}>{sec.codigo}</Text>
+                              <Badge texto={`${sec.areaHectareas.toFixed(2)} ha (${pct}%)`} variante="info" />
+                            </View>
+                            <Text style={styles.nombreSectorFicha}>{sec.nombre}</Text>
+                            <Text style={styles.subtextoSectorFicha}>
+                              Cultivo: {sec.cultivoNombre || 'Cultivo'}{sec.variedad ? ` • ${sec.variedad}` : ''}
+                              {sec.fechaSiembra ? ` • Siembra: ${sec.fechaSiembra}` : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -442,5 +575,32 @@ const styles = StyleSheet.create({
   textoBadgeCultivo: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  tarjetaSectorFicha: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    padding: 12,
+  },
+  barraColorSector: {
+    width: 6,
+    height: 40,
+    borderRadius: 3,
+  },
+  codigoSectorFicha: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  nombreSectorFicha: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  subtextoSectorFicha: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
 });
