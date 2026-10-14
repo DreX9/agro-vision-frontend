@@ -661,17 +661,21 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
                     {/* Acciones de guardado y limpieza */}
                     <View style={styles.filaAccionesFormulario}>
                       <Boton
-                        titulo="Limpiar Trazo"
-                        variante="outline"
-                        onPress={handleLimpiarTrazo}
-                        disabled={puntosTrazados.length === 0}
-                      />
-                      <Boton
                         titulo="Guardar y Asignar Sector"
                         variante="primario"
                         cargando={crearMutation.isPending}
                         onPress={validarYConfirmarCreacion}
                         disabled={puntosTrazados.length < 3 || !cultivoId || !nombreSector.trim()}
+                        estilo={styles.botonGuardarSector}
+                        estiloTexto={styles.textoBotonAccion}
+                      />
+                      <Boton
+                        titulo="Limpiar Trazo"
+                        variante="outline"
+                        onPress={handleLimpiarTrazo}
+                        disabled={puntosTrazados.length === 0}
+                        estilo={styles.botonLimpiarTrazo}
+                        estiloTexto={styles.textoBotonAccion}
                       />
                     </View>
                   </View>
@@ -1057,6 +1061,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    width: '100%',
+    overflow: 'hidden',
     ...Platform.select({
       web: {
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
@@ -1084,6 +1090,7 @@ const styles = StyleSheet.create({
   },
   cuerpoFormulario: {
     gap: 14,
+    width: '100%',
   },
   cajaError: {
     flexDirection: 'row',
@@ -1104,6 +1111,7 @@ const styles = StyleSheet.create({
   },
   grupoCampo: {
     gap: 6,
+    width: '100%',
   },
   etiquetaCampo: {
     fontSize: 13,
@@ -1113,13 +1121,13 @@ const styles = StyleSheet.create({
   filaPaletaColores: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   chipColor: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1131,6 +1139,7 @@ const styles = StyleSheet.create({
   filaFechas: {
     flexDirection: 'row',
     gap: 10,
+    width: '100%',
   },
   tarjetaAreaEnVivo: {
     backgroundColor: '#F0FDF4',
@@ -1139,6 +1148,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BBF7D0',
     marginTop: 4,
+    width: '100%',
   },
   filaAreaEnVivo: {
     flexDirection: 'row',
@@ -1163,9 +1173,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   filaAccionesFormulario: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
+    flexDirection: 'column',
+    gap: 8,
+    marginTop: 8,
+    width: '100%',
+  },
+  botonGuardarSector: {
+    width: '100%',
+    minHeight: 46,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  botonLimpiarTrazo: {
+    width: '100%',
+    minHeight: 40,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  textoBotonAccion: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   tarjetaMapa: {
     backgroundColor: Palette.white,
