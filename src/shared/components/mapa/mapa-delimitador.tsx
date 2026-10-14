@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, type DimensionValue } from 'react-native';
 import {
   Undo,
@@ -54,14 +54,18 @@ export interface MapaDelimitadorProps {
  * @description Componente de mapa satelital interactivo para delimitación de parcelas
  * con puntos arrastrables, snapping magnético a linderos de áreas existentes y validación de superposición.
  */
+const PUNTOS_VACIOS_DEFAULT: CoordenadaPunto[] = [];
+const PARCELAS_OCUPADAS_DEFAULT: ParcelaOcupadaGeo[] = [];
+const CENTRO_DEFAULT = { lat: -13.0768, lng: -76.3854 };
+
 export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
-  puntosIniciales = [],
-  centroInicial = { lat: -13.0768, lng: -76.3854 },
+  puntosIniciales = PUNTOS_VACIOS_DEFAULT,
+  centroInicial = CENTRO_DEFAULT,
   zoomInicial = 15,
   altura = 380,
   soloLectura = false,
   colorPoligono = '#2E7D32',
-  parcelasOcupadas = [],
+  parcelasOcupadas = PARCELAS_OCUPADAS_DEFAULT,
   onCambioPoligono,
 }) => {
   const [puntos, setPuntos] = useState<CoordenadaPunto[]>(puntosIniciales);
@@ -72,81 +76,131 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
   const [adherenciaActiva, setAdherenciaActiva] = useState<boolean>(true);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const mapaListoRef = useRef<boolean>(false);
+  const colaMensajesRef = useRef<Array<{ accion: string; carga?: unknown }>>([]);
+  const onCambioPoligonoRef = useRef(onCambioPoligono);
+  onCambioPoligonoRef.current = onCambioPoligono;
+  const colorPoligonoRef = useRef(colorPoligono);
+  colorPoligonoRef.current = colorPoligono;
 
   const enviarAccionAMapa = (accion: string, carga?: unknown) => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
+    if (mapaListoRef.current && iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ accion, carga }, '*');
+    } else {
+      colaMensajesRef.current.push({ accion, carga });
     }
   };
 
+  // Notificaciones y sincronización de eventos provenientes del iframe
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const manejarMensaje = (evento: MessageEvent) => {
+      if (!evento.data) return;
+
+      if (evento.data.tipo === 'MAPA_LISTO') {
+        mapaListoRef.current = true;
+        while (colaMensajesRef.current.length > 0) {
+          const item = colaMensajesRef.current.shift();
+          if (item && iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(item, '*');
+          }
+        }
+        return;
+      }
+
+      if (evento.data.tipo === 'MAPA_VERTICES_ACTUALIZADOS') {
+        const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
+        const cruceDetectado: boolean = Boolean(evento.data.tieneCruce);
+        const superposicionDetectada: boolean = Boolean(evento.data.tieneSuperposicion);
+        const conflictoDetectado: string | null = evento.data.parcelaConflicto || null;
+        const nuevaArea = calcularAreaHectareas(nuevosPuntos);
+        const centroide = calcularCentroide(nuevosPuntos);
+
+        setPuntos(nuevosPuntos);
+        setAreaHa(nuevaArea);
+        setTieneCruce(cruceDetectado);
+        setTieneSuperposicion(superposicionDetectada);
+        setParcelaConflicto(conflictoDetectado);
+
+        if (onCambioPoligonoRef.current) {
+          onCambioPoligonoRef.current({
+            puntos: nuevosPuntos,
+            areaHectareas: nuevaArea,
+            centroide,
+            tieneCruce: cruceDetectado,
+            tieneSuperposicion: superposicionDetectada,
+            parcelaConflicto: conflictoDetectado,
+          });
+        }
+      }
+    };
+    window.addEventListener('message', manejarMensaje);
+    return () => window.removeEventListener('message', manejarMensaje);
+  }, []);
+
+  // Carga de puntos iniciales sólo cuando realmente cambian desde las props externas
+  const prevPuntosInicialesRef = useRef<string>(JSON.stringify(puntosIniciales));
   useEffect(() => {
     if (puntosIniciales && puntosIniciales.length > 0) {
-      setPuntos(puntosIniciales);
-      setAreaHa(calcularAreaHectareas(puntosIniciales));
-      setTieneCruce(esPoligonoAutoIntersecante(puntosIniciales));
-      enviarAccionAMapa('CARGAR_PUNTOS', {
-        puntos: puntosIniciales,
-        color: colorPoligono,
-      });
+      const puntosStr = JSON.stringify(puntosIniciales);
+      if (puntosStr !== prevPuntosInicialesRef.current) {
+        prevPuntosInicialesRef.current = puntosStr;
+        setPuntos(puntosIniciales);
+        setAreaHa(calcularAreaHectareas(puntosIniciales));
+        setTieneCruce(esPoligonoAutoIntersecante(puntosIniciales));
+        enviarAccionAMapa('CARGAR_PUNTOS', {
+          puntos: puntosIniciales,
+          color: colorPoligonoRef.current,
+        });
+      }
     }
-  }, [puntosIniciales, colorPoligono]);
+  }, [puntosIniciales]);
 
+  // Cambio dinámico de color del polígono sin recargar ni alterar los vértices existentes
+  useEffect(() => {
+    enviarAccionAMapa('CAMBIAR_COLOR', {
+      color: colorPoligono,
+    });
+  }, [colorPoligono]);
+
+  // Sincronización de modo solo lectura
   useEffect(() => {
     enviarAccionAMapa('CONFIGURAR_MODO', {
       soloLectura,
-      color: colorPoligono,
+      color: colorPoligonoRef.current,
     });
-  }, [soloLectura, colorPoligono]);
+  }, [soloLectura]);
 
+  // Sincronización de parcelas ocupadas vecinas
+  const prevParcelasOcupadasRef = useRef<string>('');
   useEffect(() => {
-    enviarAccionAMapa('CARGAR_PARCELAS_OCUPADAS', {
-      parcelas: parcelasOcupadas,
-    });
+    const parcelasStr = JSON.stringify(parcelasOcupadas);
+    if (parcelasStr !== prevParcelasOcupadasRef.current) {
+      prevParcelasOcupadasRef.current = parcelasStr;
+      enviarAccionAMapa('CARGAR_PARCELAS_OCUPADAS', {
+        parcelas: parcelasOcupadas,
+      });
+    }
   }, [parcelasOcupadas]);
 
+  // Snapping magnético
   useEffect(() => {
     enviarAccionAMapa('CONFIGURAR_SNAPPING', {
       activo: adherenciaActiva,
     });
   }, [adherenciaActiva]);
 
+  // Centrado de cámara satelital
+  const prevCentroRef = useRef<string>('');
   useEffect(() => {
     if (centroInicial && (centroInicial.lat !== 0 || centroInicial.lng !== 0)) {
-      enviarAccionAMapa('CENTRAR', { lat: centroInicial.lat, lng: centroInicial.lng, zoom: zoomInicial });
+      const centroStr = `${centroInicial.lat},${centroInicial.lng},${zoomInicial}`;
+      if (centroStr !== prevCentroRef.current) {
+        prevCentroRef.current = centroStr;
+        enviarAccionAMapa('CENTRAR', { lat: centroInicial.lat, lng: centroInicial.lng, zoom: zoomInicial });
+      }
     }
   }, [centroInicial?.lat, centroInicial?.lng, zoomInicial]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const manejarMensaje = (evento: MessageEvent) => {
-      if (!evento.data || evento.data.tipo !== 'MAPA_VERTICES_ACTUALIZADOS') return;
-      const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
-      const cruceDetectado: boolean = Boolean(evento.data.tieneCruce);
-      const superposicionDetectada: boolean = Boolean(evento.data.tieneSuperposicion);
-      const conflictoDetectado: string | null = evento.data.parcelaConflicto || null;
-      const nuevaArea = calcularAreaHectareas(nuevosPuntos);
-      const centroide = calcularCentroide(nuevosPuntos);
-
-      setPuntos(nuevosPuntos);
-      setAreaHa(nuevaArea);
-      setTieneCruce(cruceDetectado);
-      setTieneSuperposicion(superposicionDetectada);
-      setParcelaConflicto(conflictoDetectado);
-
-      if (onCambioPoligono) {
-        onCambioPoligono({
-          puntos: nuevosPuntos,
-          areaHectareas: nuevaArea,
-          centroide,
-          tieneCruce: cruceDetectado,
-          tieneSuperposicion: superposicionDetectada,
-          parcelaConflicto: conflictoDetectado,
-        });
-      }
-    };
-    window.addEventListener('message', manejarMensaje);
-    return () => window.removeEventListener('message', manejarMensaje);
-  }, [onCambioPoligono]);
 
   const limpiar = () => {
     setPuntos([]);
@@ -155,8 +209,8 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
     setTieneSuperposicion(false);
     setParcelaConflicto(null);
     enviarAccionAMapa('LIMPIAR');
-    if (onCambioPoligono) {
-      onCambioPoligono({
+    if (onCambioPoligonoRef.current) {
+      onCambioPoligonoRef.current({
         puntos: [],
         areaHectareas: 0,
         centroide: null,
@@ -183,7 +237,18 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
     }
   };
 
-  const htmlMapa = `
+  // Memoizar el HTML del mapa para que el iframe se monte UNA SOLA VEZ y no se recargue por cambios de color o estado
+  const htmlMapa = useMemo(() => {
+    const colorInicial = colorPoligono;
+    const centroLat = centroInicial.lat;
+    const centroLng = centroInicial.lng;
+    const zoomInit = zoomInicial;
+    const soloLecturaInit = soloLectura;
+    const puntosInit = puntosIniciales;
+    const parcelasInit = parcelasOcupadas;
+    const adherenciaInit = adherenciaActiva;
+
+    return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -192,15 +257,18 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <style>
         body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        :root {
+          --color-cultivo: ${colorInicial};
+        }
         .vertice-pin {
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: ${colorPoligono};
+          background: var(--color-cultivo, ${colorInicial});
           border: 2.5px solid #ffffff;
           box-shadow: 0 2px 6px rgba(0,0,0,0.5);
           cursor: grab;
-          transition: transform 0.1s ease;
+          transition: transform 0.1s ease, background 0.15s ease;
         }
         .vertice-pin:hover {
           transform: scale(1.35);
@@ -287,8 +355,8 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
         );
 
         const map = L.map('map', {
-          center: [${centroInicial.lat}, ${centroInicial.lng}],
-          zoom: ${zoomInicial},
+          center: [${centroLat}, ${centroLng}],
+          zoom: ${zoomInit},
           minZoom: 5,
           maxZoom: 21,
           maxBounds: limitesPeru,
@@ -302,11 +370,11 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
           "Calles (OSM)": callesOSM
         }, null, { position: 'topright' }).addTo(map);
 
-        let esSoloLectura = ${soloLectura ? 'true' : 'false'};
-        let colorCultivo = '${colorPoligono}';
-        let vertices = ${JSON.stringify(puntosIniciales)}.map(p => [p.latitude, p.longitude]);
-        let parcelasOcupadasData = ${JSON.stringify(parcelasOcupadas || [])};
-        let snappingHabilitado = ${adherenciaActiva ? 'true' : 'false'};
+        let esSoloLectura = ${soloLecturaInit ? 'true' : 'false'};
+        let colorCultivo = '${colorInicial}';
+        let vertices = ${JSON.stringify(puntosInit)}.map(p => [p.latitude, p.longitude]);
+        let parcelasOcupadasData = ${JSON.stringify(parcelasInit || [])};
+        let snappingHabilitado = ${adherenciaInit ? 'true' : 'false'};
 
         let marcadores = [];
         let marcadoresMedios = [];
@@ -958,22 +1026,39 @@ export const MapaDelimitador: React.FC<MapaDelimitadorProps> = ({
             }
           } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
             map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 15);
+          } else if (e.data.accion === 'CAMBIAR_COLOR' && e.data.carga) {
+            if (e.data.carga.color) {
+              colorCultivo = e.data.carga.color;
+              document.documentElement.style.setProperty('--color-cultivo', colorCultivo);
+              if (poligono) {
+                const cruce = tieneAutoInterseccion(vertices);
+                const superposicion = evaluarSuperposicionConOcupadas(vertices);
+                const hayError = cruce || superposicion.superpuesto;
+                const colorTrazado = hayError ? '#DC2626' : colorCultivo;
+                const fillTrazado = hayError ? '#EF4444' : colorCultivo;
+                poligono.setStyle({ color: colorTrazado, fillColor: fillTrazado });
+              }
+            }
           } else if (e.data.accion === 'CONFIGURAR_MODO' && e.data.carga) {
             if (typeof e.data.carga.soloLectura !== 'undefined') {
               esSoloLectura = Boolean(e.data.carga.soloLectura);
             }
             if (e.data.carga.color) {
               colorCultivo = e.data.carga.color;
+              document.documentElement.style.setProperty('--color-cultivo', colorCultivo);
             }
             actualizarPoligono();
           } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
             map.locate({ setView: true, maxZoom: 17 });
           }
         });
+
+        window.parent.postMessage({ tipo: 'MAPA_LISTO' }, '*');
       </script>
     </body>
     </html>
   `;
+  }, []);
 
   return (
     <View style={styles.contenedor}>

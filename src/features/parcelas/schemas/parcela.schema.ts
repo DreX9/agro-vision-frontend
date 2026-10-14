@@ -14,9 +14,8 @@ export const parcelaSchema = z.object({
   areaHectareas: z
     .number()
     .positive('El área debe ser mayor a 0 hectáreas'),
-  cultivoId: z
-    .string()
-    .min(1, 'Debe seleccionar un cultivo del catálogo'),
+  cultivoId: z.string().optional().or(z.literal('')),
+  colorHex: z.string().optional(),
   variedad: z.string().max(100, 'La variedad no puede superar 100 caracteres').optional(),
   usuarioResponsableId: z.string().optional().or(z.literal('')),
   ubicacion: z.string().max(255, 'La referencia de ubicación no puede superar 255 caracteres').optional(),

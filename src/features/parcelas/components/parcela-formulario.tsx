@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, ScrollView, useWindowDimensions, Alert } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
+import { View, Text, ScrollView, useWindowDimensions, Alert, Pressable, Platform } from 'react-native';
+import { useForm, Controller, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Compass, AlertTriangle } from 'lucide-react-native';
+import { Compass, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Boton, Input } from '@/shared/components/ui';
 import { MapaDelimitador, type ParcelaOcupadaGeo } from '@/shared/components/mapa/mapa-delimitador';
 import { CultivoItem } from '@/features/cultivos/types/cultivo.types';
 import { ParcelaItem } from '../types/parcela.types';
 import { parcelaSchema, type ParcelaFormValores } from '../schemas/parcela.schema';
-import { ParcelaFormularioCultivo } from './parcela-formulario-cultivo';
 import { ParcelaUbicacionSelector } from './parcela-ubicacion-selector';
 import { type CoordenadaPunto, extraerPuntosPoligono } from '@/shared/utils/geometria';
 import {
@@ -18,13 +17,48 @@ import {
 } from '@/shared/utils/geocodificacion';
 import { styles } from './parcela-formulario.styles';
 
+/**
+ * @description Utilidad multiplataforma para desplegar diálogos informativos en Web y React Native.
+ */
+export const mostrarAlerta = (titulo: string, mensaje: string) => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(`${titulo}\n\n${mensaje}`);
+  } else {
+    Alert.alert(titulo, mensaje);
+  }
+};
+
+export const PALETA_COLORES_LOTES = [
+  '#15803D', // Verde Bosque
+  '#0284C7', // Azul Océano
+  '#D97706', // Ámbar / Dorado
+  '#7C3AED', // Púrpura / Violeta
+  '#EA580C', // Naranja Fuego
+  '#0D9488', // Turquesa / Teal
+  '#DB2777', // Rosa Fucsia
+  '#65A30D', // Verde Lima
+  '#4F46E5', // Índigo
+  '#B45309', // Ocre / Bronce
+];
+
+/**
+ * @description Obtiene un color distintivo según el número correlativo del código de área (ej. P-001 -> Verde, P-002 -> Azul...)
+ */
+export function calcularColorDistintivoPorCodigo(codigo: string): string {
+  const match = codigo.match(/(\d+)$/);
+  const num = match ? parseInt(match[1], 10) : 1;
+  const index = Math.max(0, num - 1) % PALETA_COLORES_LOTES.length;
+  return PALETA_COLORES_LOTES[index];
+}
+
 export interface ParcelaFormularioProps {
-  cultivos: CultivoItem[];
+  cultivos?: CultivoItem[];
   valoresIniciales?: Partial<ParcelaFormValores>;
   puntosIniciales?: CoordenadaPunto[];
   parcelasExistentes?: ParcelaItem[];
   idParcelaActual?: string;
   guardando?: boolean;
+  errorMensaje?: string | null;
   modo?: 'crear' | 'editar';
   onSubmit: (valores: ParcelaFormValores) => void;
   onCancelar: () => void;
@@ -48,6 +82,9 @@ function calcularSiguienteCodigoParcela(parcelas: ParcelaItem[] = []): string {
   return `P-${String(maxCorrelativo + 1).padStart(3, '0')}`;
 }
 
+const PUNTOS_VACIOS_DEFAULT: CoordenadaPunto[] = [];
+const PARCELAS_VACIAS_DEFAULT: ParcelaItem[] = [];
+
 /**
  * @description Formulario responsive para registro/edición de parcelas:
  * 2 columnas en Desktop (Formulario a la izquierda, Mapa satelital expandido a la derecha)
@@ -56,10 +93,11 @@ function calcularSiguienteCodigoParcela(parcelas: ParcelaItem[] = []): string {
 export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   cultivos,
   valoresIniciales,
-  puntosIniciales = [],
-  parcelasExistentes = [],
+  puntosIniciales = PUNTOS_VACIOS_DEFAULT,
+  parcelasExistentes = PARCELAS_VACIAS_DEFAULT,
   idParcelaActual,
   guardando = false,
+  errorMensaje,
   modo = 'crear',
   onSubmit,
   onCancelar,
@@ -102,7 +140,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
           nombre: p.nombre,
           codigo: p.codigo || null,
           cultivoNombre: p.cultivoNombre || null,
-          cultivoColorHex: p.cultivoColorHex || null,
+          cultivoColorHex: p.colorHex || p.cultivoColorHex || null,
           variedad: p.variedad || null,
           areaHectareas: p.areaHectareas ? Number(p.areaHectareas) : 0,
           puntos,
@@ -111,6 +149,15 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     }
     return lista;
   }, [parcelasExistentes, idParcelaActual]);
+
+  // Color distintivo asignado incrementalmente según el código correlativo del área
+  const colorDistintivoPorDefecto = useMemo(() => {
+    if (valoresIniciales?.colorHex) return valoresIniciales.colorHex;
+    return calcularColorDistintivoPorCodigo(codigoAutoincrementable);
+  }, [valoresIniciales?.colorHex, codigoAutoincrementable]);
+
+  const [colorSeleccionado, setColorSeleccionado] = useState<string>(colorDistintivoPorDefecto);
+  const colorModificadoManualmenteRef = useRef(false);
 
   // En primera instancia al crear una parcela, centrar el mapa en la ubicación actual
   useEffect(() => {
@@ -143,7 +190,8 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
       codigo: valoresIniciales?.codigo || codigoAutoincrementable,
       nombre: valoresIniciales?.nombre || '',
       areaHectareas: valoresIniciales?.areaHectareas || 0,
-      cultivoId: valoresIniciales?.cultivoId || (cultivos[0]?.id ?? ''),
+      colorHex: valoresIniciales?.colorHex || colorDistintivoPorDefecto,
+      cultivoId: valoresIniciales?.cultivoId || '',
       variedad: valoresIniciales?.variedad || '',
       ubicacion: valoresIniciales?.ubicacion || '',
       departamento: valoresIniciales?.departamento || '',
@@ -155,6 +203,14 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
       longitudCentro: valoresIniciales?.longitudCentro,
     },
   });
+
+  // Mantener actualizado el color por defecto en modo creación si el usuario no ha seleccionado uno manualmente
+  useEffect(() => {
+    if (modo === 'crear' && !colorModificadoManualmenteRef.current) {
+      setColorSeleccionado(colorDistintivoPorDefecto);
+      setValue('colorHex', colorDistintivoPorDefecto);
+    }
+  }, [colorDistintivoPorDefecto, modo, setValue]);
 
   // Mantener actualizado el código correlativo autoincrementado en modo creación
   useEffect(() => {
@@ -231,25 +287,41 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     }
   };
 
+  const manejarErroresValidacion = (errores: FieldErrors<ParcelaFormValores>) => {
+    const listaErrores: string[] = [];
+    if (errores.nombre?.message) listaErrores.push(`• Nombre del lote: ${errores.nombre.message}`);
+    if (errores.areaHectareas?.message) listaErrores.push(`• Delimitación / Área: ${errores.areaHectareas.message}`);
+    if (errores.codigo?.message) listaErrores.push(`• Código: ${errores.codigo.message}`);
+    if (errores.departamento?.message) listaErrores.push(`• Departamento: ${errores.departamento.message}`);
+    if (errores.provincia?.message) listaErrores.push(`• Provincia: ${errores.provincia.message}`);
+    if (errores.distrito?.message) listaErrores.push(`• Distrito: ${errores.distrito.message}`);
+
+    const detalle = listaErrores.length > 0
+      ? listaErrores.join('\n')
+      : 'Por favor complete todos los datos requeridos antes de registrar la parcela.';
+
+    mostrarAlerta('Datos requeridos incompletos', detalle);
+  };
+
   const manejarSubmit = (valores: ParcelaFormValores) => {
     if (!valores.areaHectareas || valores.areaHectareas <= 0) {
-      Alert.alert(
+      mostrarAlerta(
         'Área no delimitada',
-        'Debe delimitar el área de la parcela en el mapa satelital marcando al menos 3 vértices para calcular su superficie.',
+        'Debe delimitar el área de la parcela en el mapa satelital marcando al menos 3 vértices para calcular su superficie en hectáreas.',
       );
       return;
     }
 
     if (poligonoTieneSuperposicion) {
-      Alert.alert(
+      mostrarAlerta(
         'Superposición de Lotes Detectada',
-        `El área seleccionada invade el espacio de la parcela "${parcelaConflicto}". Las parcelas contiguas pueden compartir el mismo lindero perimetral, pero sus superficies no deben superponerse. Ajuste los vértices antes de registrar.`,
+        `El área seleccionada invade el espacio de la parcela "${parcelaConflicto || 'vecina'}". Las parcelas contiguas pueden compartir el mismo lindero perimetral, pero sus superficies no deben superponerse. Ajuste los vértices antes de registrar.`,
       );
       return;
     }
 
     if (poligonoTieneCruce) {
-      Alert.alert(
+      mostrarAlerta(
         'Contorno del Lote no Válido',
         'El polígono delimitado tiene líneas cruzadas sobre sí mismas (dimensión irregular). Por favor mueva los puntos o presione "Corregir contorno" en la barra del mapa antes de guardar.',
       );
@@ -319,28 +391,50 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
         </View>
       </View>
 
-      <ParcelaFormularioCultivo
-        cultivos={cultivos}
-        cultivoSeleccionadoId={cultivoIdActual}
-        variedadSeleccionada={variedadActual}
-        errorCultivo={errors.cultivoId?.message}
-        onSeleccionarCultivo={(id) => setValue('cultivoId', id, { shouldValidate: true })}
-        onSeleccionarVariedad={(v) => setValue('variedad', v, { shouldValidate: true })}
-      />
+      {/* Color distintivo del área / lote */}
+      <View style={styles.contenedorColorLote}>
+        <View style={styles.cabeceraColorLote}>
+          <Text style={styles.etiquetaColorLote}>COLOR DISTINTIVO DEL ÁREA</Text>
+          <View
+            style={[
+              styles.badgeColorActivo,
+              { backgroundColor: colorSeleccionado + '20', borderColor: colorSeleccionado },
+            ]}
+          >
+            <View style={[styles.puntoColorActivo, { backgroundColor: colorSeleccionado }]} />
+            <Text style={[styles.textoColorActivo, { color: colorSeleccionado }]}>
+              {codigoAutoincrementable}
+            </Text>
+          </View>
+        </View>
 
-      <Controller
-        control={control}
-        name="variedad"
-        render={({ field: { onChange, value } }) => (
-          <Input
-            label="Variedad Específica (Opcional)"
-            placeholder="Ej. Hass, Red Globe, etc."
-            value={value || ''}
-            onChangeText={onChange}
-            error={errors.variedad?.message}
-          />
-        )}
-      />
+        <View style={styles.paletaFila}>
+          {PALETA_COLORES_LOTES.map((hex) => {
+            const esSeleccionado = colorSeleccionado.toLowerCase() === hex.toLowerCase();
+            return (
+              <Pressable
+                key={hex}
+                onPress={() => {
+                  colorModificadoManualmenteRef.current = true;
+                  setColorSeleccionado(hex);
+                  setValue('colorHex', hex, { shouldValidate: true });
+                }}
+                style={[
+                  styles.swatchColor,
+                  { backgroundColor: hex },
+                  esSeleccionado && styles.swatchColorSeleccionado,
+                ]}
+                accessibilityLabel={`Color ${hex}`}
+              >
+                {esSeleccionado && <View style={styles.swatchPuntoBlanco} />}
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.textoAyudaColor}>
+          Asignado automáticamente según el correlativo del lote para diferenciar cada área en el mapa satelital.
+        </Text>
+      </View>
     </View>
   );
 
@@ -440,6 +534,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
         puntosIniciales={puntosIniciales}
         centroInicial={centroMapa}
         zoomInicial={zoomMapa}
+        colorPoligono={colorSeleccionado}
         parcelasOcupadas={parcelasOcupadas}
         onCambioPoligono={manejarCambioPoligono}
         altura={alturaMapa}
@@ -454,6 +549,12 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
         contentContainerStyle={styles.contenedorScroll}
         showsVerticalScrollIndicator={false}
       >
+        {errorMensaje && (
+          <View style={styles.bannerErrorGlobal}>
+            <AlertCircle size={18} color="#DC2626" />
+            <Text style={styles.textoErrorGlobal}>{errorMensaje}</Text>
+          </View>
+        )}
         {esEscritorio ? (
           <View style={styles.layoutDosColumnas}>
             <View style={styles.columnaIzquierda}>
@@ -475,19 +576,27 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
 
       {/* Barra de Acciones Flotante Fija que Acompaña el Scroll */}
       <View style={styles.barraAccionesFlotanteWrapper}>
-        <View style={styles.barraAccionesCard}>
-          <Boton
-            titulo="Cancelar"
-            variante="secundario"
-            onPress={onCancelar}
-            disabled={guardando}
-          />
-          <Boton
-            titulo={modo === 'crear' ? 'Registrar Parcela' : 'Actualizar Parcela'}
-            variante="primario"
-            onPress={handleSubmit(manejarSubmit)}
-            cargando={guardando}
-          />
+        <View style={[styles.barraAccionesCard, Boolean(errorMensaje) && styles.barraAccionesCardConError]}>
+          {errorMensaje && (
+            <View style={styles.bannerErrorGlobal}>
+              <AlertCircle size={16} color="#DC2626" />
+              <Text style={styles.textoErrorGlobal}>{errorMensaje}</Text>
+            </View>
+          )}
+          <View style={styles.filaBotonesAcciones}>
+            <Boton
+              titulo="Cancelar"
+              variante="secundario"
+              onPress={onCancelar}
+              disabled={guardando}
+            />
+            <Boton
+              titulo={modo === 'crear' ? 'Registrar Parcela' : 'Actualizar Parcela'}
+              variante="primario"
+              onPress={handleSubmit(manejarSubmit, manejarErroresValidacion)}
+              cargando={guardando}
+            />
+          </View>
         </View>
       </View>
     </View>

@@ -10,9 +10,10 @@ export interface ParcelaItem {
   codigo: string;
   nombre: string;
   areaHectareas: number;
-  cultivoId: string;
-  cultivoNombre?: string;
+  cultivoId?: string | null;
+  cultivoNombre?: string | null;
   cultivoColorHex?: string | null;
+  colorHex?: string | null;
   variedad?: string | null;
   usuarioResponsableId?: string | null;
   usuarioResponsableNombre?: string | null;
@@ -49,7 +50,8 @@ export interface CrearParcelaInput {
   codigo?: string;
   nombre: string;
   areaHectareas: number;
-  cultivoId: string;
+  cultivoId?: string;
+  colorHex?: string;
   variedad?: string;
   usuarioResponsableId?: string;
   ubicacion?: string;
@@ -66,6 +68,7 @@ export interface ActualizarParcelaInput {
   nombre?: string;
   areaHectareas?: number;
   cultivoId?: string;
+  colorHex?: string;
   variedad?: string;
   usuarioResponsableId?: string;
   ubicacion?: string;
