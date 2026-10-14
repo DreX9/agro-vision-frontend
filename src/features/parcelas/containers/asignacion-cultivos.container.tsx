@@ -381,433 +381,440 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
         ) : undefined
       }
     >
-      <View style={styles.contenedor}>
-        {/* Selector de Parcela y Barra de Ocupación Agronómica */}
-        <View style={styles.tarjetaSelector}>
-          <View style={styles.filaSelectorParcela}>
-            <View style={styles.bloqueSelectParcela}>
-              <Text style={styles.etiquetaSelect}>Seleccionar Parcela Matriz:</Text>
-              <Select
-                placeholder="Elija una parcela para subdividir..."
-                opciones={opcionesParcelas}
-                valor={parcelaSeleccionadaId}
-                onChange={(val) => {
-                  setParcelaSeleccionadaId(val);
-                  handleLimpiarTrazo();
-                }}
-              />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContenido}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.contenedor}>
+          {/* Selector de Parcela y Barra de Ocupación Agronómica */}
+          <View style={styles.tarjetaSelector}>
+            <View style={styles.filaSelectorParcela}>
+              <View style={styles.bloqueSelectParcela}>
+                <Text style={styles.etiquetaSelect}>Seleccionar Parcela Matriz:</Text>
+                <Select
+                  placeholder="Elija una parcela para subdividir..."
+                  opciones={opcionesParcelas}
+                  valor={parcelaSeleccionadaId}
+                  onChange={(val) => {
+                    setParcelaSeleccionadaId(val);
+                    handleLimpiarTrazo();
+                  }}
+                />
+              </View>
+
+              {parcelaActual && (
+                <View style={styles.resumenChipLote}>
+                  <MapPin size={16} color={Palette.forestGreen} />
+                  <Text style={styles.textoChipLote}>
+                    {parcelaActual.distrito || parcelaActual.departamento || 'Predio registrado'}
+                  </Text>
+                </View>
+              )}
             </View>
 
-            {parcelaActual && (
-              <View style={styles.resumenChipLote}>
-                <MapPin size={16} color={Palette.forestGreen} />
-                <Text style={styles.textoChipLote}>
-                  {parcelaActual.distrito || parcelaActual.departamento || 'Predio registrado'}
-                </Text>
+            {/* Advertencia si la parcela no tiene polígono trazado */}
+            {parcelaActual && !tieneDelimitacionMatriz && (
+              <View style={styles.alertaSinPoligono}>
+                <AlertTriangle size={20} color="#D97706" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tituloAlertaSinPoligono}>
+                    La parcela "{parcelaActual.nombre}" no tiene delimitación satelital
+                  </Text>
+                  <Text style={styles.textoAlertaSinPoligono}>
+                    Para poder delimitar cuarteles y sectores en su interior, primero debe registrar el
+                    perímetro georreferenciado de la parcela matriz.
+                  </Text>
+                </View>
+                <Boton
+                  titulo="Trazar Perímetro"
+                  variante="primario"
+                  estilo={{ alignSelf: 'flex-start' }}
+                  onPress={() => router.push(`/parcelas/${parcelaActual.id}/editar` as Href)}
+                />
+              </View>
+            )}
+
+            {/* Barra de Balance de Superficies */}
+            {parcelaActual && tieneDelimitacionMatriz && (
+              <View style={styles.bloqueMetricas}>
+                <View style={styles.grillaMetricas}>
+                  <View style={styles.cajaMetrica}>
+                    <Text style={styles.etiquetaMetrica}>Superficie Matriz</Text>
+                    <Text style={styles.valorMetrica}>{areaTotal.toFixed(2)} ha</Text>
+                  </View>
+
+                  <View style={styles.cajaMetrica}>
+                    <Text style={styles.etiquetaMetrica}>Superficie Asignada</Text>
+                    <Text style={[styles.valorMetrica, { color: Palette.forestGreen }]}>
+                      {areaAsignada.toFixed(2)} ha
+                    </Text>
+                    <Text style={styles.subtextoMetrica}>
+                      {sectoresExistentes.length} {sectoresExistentes.length === 1 ? 'sector' : 'sectores'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.cajaMetrica}>
+                    <Text style={styles.etiquetaMetrica}>Superficie Disponible</Text>
+                    <Text
+                      style={[
+                        styles.valorMetrica,
+                        { color: areaDisponible <= 0.05 ? '#DC2626' : '#2563EB' },
+                      ]}
+                    >
+                      {areaDisponible.toFixed(2)} ha
+                    </Text>
+                    <Text style={styles.subtextoMetrica}>
+                      {(100 - porcentajeOcupado).toFixed(1)}% libre
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Barra de progreso de ocupación */}
+                <View style={styles.barraProgresoContenedor}>
+                  <View style={styles.barraProgresoFondo}>
+                    <View
+                      style={[
+                        styles.barraProgresoRelleno,
+                        {
+                          width: `${Math.min(100, Math.max(0, porcentajeOcupado))}%`,
+                          backgroundColor:
+                            porcentajeOcupado > 98
+                              ? '#DC2626'
+                              : porcentajeOcupado > 80
+                              ? '#D97706'
+                              : Palette.forestGreen,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.textoPorcentajeProgreso}>
+                    {porcentajeOcupado.toFixed(1)}% de la parcela asignado a cultivos
+                  </Text>
+                </View>
               </View>
             )}
           </View>
 
-          {/* Advertencia si la parcela no tiene polígono trazado */}
-          {parcelaActual && !tieneDelimitacionMatriz && (
-            <View style={styles.alertaSinPoligono}>
-              <AlertTriangle size={20} color="#D97706" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tituloAlertaSinPoligono}>
-                  La parcela "{parcelaActual.nombre}" no tiene delimitación satelital
-                </Text>
-                <Text style={styles.textoAlertaSinPoligono}>
-                  Para poder delimitar cuarteles y sectores en su interior, primero debe registrar el
-                  perímetro georreferenciado de la parcela matriz.
-                </Text>
-              </View>
-              <Boton
-                titulo="Trazar Perímetro"
-                variante="primario"
-                estilo={{ alignSelf: 'flex-start' }}
-                onPress={() => router.push(`/parcelas/${parcelaActual.id}/editar` as Href)}
-              />
-            </View>
-          )}
-
-          {/* Barra de Balance de Superficies */}
-          {parcelaActual && tieneDelimitacionMatriz && (
-            <View style={styles.bloqueMetricas}>
-              <View style={styles.grillaMetricas}>
-                <View style={styles.cajaMetrica}>
-                  <Text style={styles.etiquetaMetrica}>Superficie Matriz</Text>
-                  <Text style={styles.valorMetrica}>{areaTotal.toFixed(2)} ha</Text>
-                </View>
-
-                <View style={styles.cajaMetrica}>
-                  <Text style={styles.etiquetaMetrica}>Superficie Asignada</Text>
-                  <Text style={[styles.valorMetrica, { color: Palette.forestGreen }]}>
-                    {areaAsignada.toFixed(2)} ha
-                  </Text>
-                  <Text style={styles.subtextoMetrica}>
-                    {sectoresExistentes.length} {sectoresExistentes.length === 1 ? 'sector' : 'sectores'}
-                  </Text>
-                </View>
-
-                <View style={styles.cajaMetrica}>
-                  <Text style={styles.etiquetaMetrica}>Superficie Disponible</Text>
+          {/* Layout Principal: 2 columnas en Desktop */}
+          <View style={[styles.layoutPrincipal, esDesktop ? styles.layoutDesktop : styles.layoutMovil]}>
+            {/* COLUMNA IZQUIERDA: Formulario o Lista de Sectores */}
+            <View style={esDesktop ? styles.columnaIzquierda : styles.columnaCompleta}>
+              {/* Pestañas Trazar vs Lista */}
+              <View style={styles.tabsColumna}>
+                <Pressable
+                  onPress={() => setPestaniaActiva('trazar')}
+                  style={[styles.botonTab, pestaniaActiva === 'trazar' && styles.botonTabActivo]}
+                >
+                  <PlusCircle
+                    size={16}
+                    color={pestaniaActiva === 'trazar' ? Palette.forestGreen : '#6B7280'}
+                  />
                   <Text
-                    style={[
-                      styles.valorMetrica,
-                      { color: areaDisponible <= 0.05 ? '#DC2626' : '#2563EB' },
-                    ]}
+                    style={[styles.textoTab, pestaniaActiva === 'trazar' && styles.textoTabActivo]}
                   >
-                    {areaDisponible.toFixed(2)} ha
+                    Nuevo Sector
                   </Text>
-                  <Text style={styles.subtextoMetrica}>
-                    {(100 - porcentajeOcupado).toFixed(1)}% libre
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setPestaniaActiva('lista')}
+                  style={[styles.botonTab, pestaniaActiva === 'lista' && styles.botonTabActivo]}
+                >
+                  <Layers
+                    size={16}
+                    color={pestaniaActiva === 'lista' ? Palette.forestGreen : '#6B7280'}
+                  />
+                  <Text
+                    style={[styles.textoTab, pestaniaActiva === 'lista' && styles.textoTabActivo]}
+                  >
+                    Sectores ({sectoresExistentes.length})
                   </Text>
-                </View>
+                </Pressable>
               </View>
 
-              {/* Barra de progreso de ocupación */}
-              <View style={styles.barraProgresoContenedor}>
-                <View style={styles.barraProgresoFondo}>
-                  <View
-                    style={[
-                      styles.barraProgresoRelleno,
-                      {
-                        width: `${Math.min(100, Math.max(0, porcentajeOcupado))}%`,
-                        backgroundColor:
-                          porcentajeOcupado > 98
-                            ? '#DC2626'
-                            : porcentajeOcupado > 80
-                            ? '#D97706'
-                            : Palette.forestGreen,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.textoPorcentajeProgreso}>
-                  {porcentajeOcupado.toFixed(1)}% de la parcela asignado a cultivos
-                </Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Layout Principal: 2 columnas en Desktop */}
-        <View style={[styles.layoutPrincipal, esDesktop ? styles.layoutDesktop : styles.layoutMovil]}>
-          {/* COLUMNA IZQUIERDA: Formulario o Lista de Sectores */}
-          <View style={esDesktop ? styles.columnaIzquierda : styles.columnaCompleta}>
-            {/* Pestañas Trazar vs Lista */}
-            <View style={styles.tabsColumna}>
-              <Pressable
-                onPress={() => setPestaniaActiva('trazar')}
-                style={[styles.botonTab, pestaniaActiva === 'trazar' && styles.botonTabActivo]}
-              >
-                <PlusCircle
-                  size={16}
-                  color={pestaniaActiva === 'trazar' ? Palette.forestGreen : '#6B7280'}
-                />
-                <Text
-                  style={[styles.textoTab, pestaniaActiva === 'trazar' && styles.textoTabActivo]}
-                >
-                  Nuevo Sector
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => setPestaniaActiva('lista')}
-                style={[styles.botonTab, pestaniaActiva === 'lista' && styles.botonTabActivo]}
-              >
-                <Layers
-                  size={16}
-                  color={pestaniaActiva === 'lista' ? Palette.forestGreen : '#6B7280'}
-                />
-                <Text
-                  style={[styles.textoTab, pestaniaActiva === 'lista' && styles.textoTabActivo]}
-                >
-                  Sectores ({sectoresExistentes.length})
-                </Text>
-              </Pressable>
-            </View>
-
-            {pestaniaActiva === 'trazar' ? (
-              <View style={styles.tarjetaFormulario}>
-                <View style={styles.cabeceraFormulario}>
-                  <Sprout size={20} color={Palette.forestGreen} />
-                  <View>
-                    <Text style={styles.tituloFormulario}>Especificaciones del Sector</Text>
-                    <Text style={styles.subtituloFormulario}>
-                      Asigne el cultivo y trace el polígono en el satélite
-                    </Text>
-                  </View>
-                </View>
-
-                {errorValidacion && (
-                  <View style={styles.cajaError}>
-                    <AlertTriangle size={16} color="#DC2626" />
-                    <Text style={styles.textoError}>{errorValidacion}</Text>
-                  </View>
-                )}
-
-                <View style={styles.cuerpoFormulario}>
-                  {/* Código correlativo */}
-                  <Input
-                    label="Código de Sector / Cuartel:"
-                    placeholder="Ej. P-001-S01"
-                    value={codigoSector}
-                    onChangeText={setCodigoSector}
-                  />
-
-                  {/* Cultivo a sembrar */}
-                  <View style={styles.grupoCampo}>
-                    <Text style={styles.etiquetaCampo}>Tipo de Cultivo:</Text>
-                    <Select
-                      placeholder="Seleccionar cultivo..."
-                      opciones={opcionesCultivos}
-                      valor={cultivoId}
-                      onChange={handleCambioCultivo}
-                    />
-                  </View>
-
-                  {/* Nombre del sector */}
-                  <Input
-                    label="Nombre del Sector:"
-                    placeholder="Ej. Sector Norte - Palto Hass"
-                    value={nombreSector}
-                    onChangeText={setNombreSector}
-                  />
-
-                  {/* Variedad específica */}
-                  <Input
-                    label="Variedad de Cultivo (Opcional):"
-                    placeholder="Ej. Hass, Fuerte, Maluma..."
-                    value={variedad}
-                    onChangeText={setVariedad}
-                  />
-
-                  {/* Paleta rápida de colores del sector */}
-                  <View style={styles.grupoCampo}>
-                    <Text style={styles.etiquetaCampo}>Color Distintivo del Sector:</Text>
-                    <View style={styles.filaPaletaColores}>
-                      {PALETA_COLORES_LOTES.map((color) => {
-                        const esSeleccionado = colorSector.toLowerCase() === color.toLowerCase();
-                        return (
-                          <Pressable
-                            key={color}
-                            onPress={() => setColorSector(color)}
-                            style={[
-                              styles.chipColor,
-                              { backgroundColor: color },
-                              esSeleccionado && styles.chipColorSeleccionado,
-                            ]}
-                          >
-                            {esSeleccionado && <CheckCircle2 size={14} color="#FFFFFF" />}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Fechas de siembra y cosecha */}
-                  <View style={styles.filaFechas}>
-                    <View style={{ flex: 1 }}>
-                      <SelectorFecha
-                        label="Fecha de Siembra:"
-                        placeholder="AAAA-MM-DD"
-                        valor={fechaSiembra}
-                        onChange={setFechaSiembra}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <SelectorFecha
-                        label="Cosecha Estimada:"
-                        placeholder="AAAA-MM-DD"
-                        valor={fechaCosechaEstimada}
-                        onChange={setFechaCosechaEstimada}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Monitor en tiempo real de área trazada */}
-                  <View style={styles.tarjetaAreaEnVivo}>
-                    <View style={styles.filaAreaEnVivo}>
-                      <View>
-                        <Text style={styles.etiquetaAreaEnVivo}>Área Delimitada en Mapa:</Text>
-                        <Text style={styles.valorAreaEnVivo}>
-                          {areaTrazadaHa > 0 ? `${areaTrazadaHa.toFixed(2)} ha` : '0.00 ha'}
-                        </Text>
-                      </View>
-                      <Badge
-                        texto={
-                          puntosTrazados.length >= 3
-                            ? `${puntosTrazados.length} vértices trazados`
-                            : 'Trazando...'
-                        }
-                        variante={puntosTrazados.length >= 3 ? 'exito' : 'neutro'}
-                      />
-                    </View>
-
-                    {areaTrazadaHa > areaDisponible && (
-                      <Text style={styles.advertenciaExcesoArea}>
-                        ⚠️ Excede el área disponible ({areaDisponible.toFixed(2)} ha)
+              {pestaniaActiva === 'trazar' ? (
+                <View style={styles.tarjetaFormulario}>
+                  <View style={styles.cabeceraFormulario}>
+                    <Sprout size={20} color={Palette.forestGreen} />
+                    <View>
+                      <Text style={styles.tituloFormulario}>Especificaciones del Sector</Text>
+                      <Text style={styles.subtituloFormulario}>
+                        Asigne el cultivo y trace el polígono en el satélite
                       </Text>
-                    )}
+                    </View>
                   </View>
 
-                  {/* Acciones de guardado y limpieza */}
-                  <View style={styles.filaAccionesFormulario}>
-                    <Boton
-                      titulo="Limpiar Trazo"
-                      variante="outline"
-                      onPress={handleLimpiarTrazo}
-                      disabled={puntosTrazados.length === 0}
+                  {errorValidacion && (
+                    <View style={styles.cajaError}>
+                      <AlertTriangle size={16} color="#DC2626" />
+                      <Text style={styles.textoError}>{errorValidacion}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.cuerpoFormulario}>
+                    {/* Código correlativo */}
+                    <Input
+                      label="Código de Sector / Cuartel:"
+                      placeholder="Ej. P-001-S01"
+                      value={codigoSector}
+                      onChangeText={setCodigoSector}
                     />
-                    <Boton
-                      titulo="Guardar y Asignar Sector"
-                      variante="primario"
-                      cargando={crearMutation.isPending}
-                      onPress={validarYConfirmarCreacion}
-                      disabled={puntosTrazados.length < 3 || !cultivoId || !nombreSector.trim()}
+
+                    {/* Cultivo a sembrar */}
+                    <View style={styles.grupoCampo}>
+                      <Text style={styles.etiquetaCampo}>Tipo de Cultivo:</Text>
+                      <Select
+                        placeholder="Seleccionar cultivo..."
+                        opciones={opcionesCultivos}
+                        valor={cultivoId}
+                        onChange={handleCambioCultivo}
+                      />
+                    </View>
+
+                    {/* Nombre del sector */}
+                    <Input
+                      label="Nombre del Sector:"
+                      placeholder="Ej. Sector Norte - Palto Hass"
+                      value={nombreSector}
+                      onChangeText={setNombreSector}
                     />
-                  </View>
-                </View>
-              </View>
-            ) : (
-              /* PESTAÑA: LISTA DE SECTORES EXISTENTES */
-              <View style={styles.tarjetaFormulario}>
-                <View style={styles.cabeceraFormulario}>
-                  <Layers size={20} color={Palette.forestGreen} />
-                  <View>
-                    <Text style={styles.tituloFormulario}>Sectores Registrados</Text>
-                    <Text style={styles.subtituloFormulario}>
-                      {sectoresExistentes.length} {sectoresExistentes.length === 1 ? 'cuartel' : 'cuarteles'} distribuidos en este predio
-                    </Text>
-                  </View>
-                </View>
 
-                {sectoresExistentes.length === 0 ? (
-                  <View style={styles.contenedorListaVacia}>
-                    <Sprout size={32} color="#9CA3AF" />
-                    <Text style={styles.textoListaVacia}>
-                      No hay sectores delimitados en esta parcela todavía.
-                    </Text>
-                    <Boton
-                      titulo="Trazar el Primer Sector"
-                      variante="secundario"
-                      onPress={() => setPestaniaActiva('trazar')}
+                    {/* Variedad específica */}
+                    <Input
+                      label="Variedad de Cultivo (Opcional):"
+                      placeholder="Ej. Hass, Fuerte, Maluma..."
+                      value={variedad}
+                      onChangeText={setVariedad}
                     />
-                  </View>
-                ) : (
-                  <ScrollView
-                    style={{ maxHeight: 650 }}
-                    contentContainerStyle={styles.listaSectoresContainer}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {sectoresExistentes.map((sector) => {
-                      const colorBadge = sector.colorHex || sector.cultivoColorHex || Palette.forestGreen;
-                      const porcentajeSector =
-                        areaTotal > 0 ? ((sector.areaHectareas / areaTotal) * 100).toFixed(1) : 0;
 
-                      return (
-                        <View key={sector.id} style={styles.itemTarjetaSector}>
-                          <View style={styles.cabeceraItemSector}>
-                            <View style={styles.ladoIzquierdoItemSector}>
-                              <View
-                                style={[
-                                  styles.indicadorColorItem,
-                                  { backgroundColor: colorBadge },
-                                ]}
-                              />
-                              <View>
-                                <View style={styles.filaCodigoSector}>
-                                  <Text style={styles.codigoItemSector}>{sector.codigo}</Text>
-                                  <Badge texto={`${sector.areaHectareas.toFixed(2)} ha`} variante="info" />
-                                </View>
-                                <Text style={styles.nombreItemSector}>{sector.nombre}</Text>
-                              </View>
-                            </View>
-
+                    {/* Paleta rápida de colores del sector */}
+                    <View style={styles.grupoCampo}>
+                      <Text style={styles.etiquetaCampo}>Color Distintivo del Sector:</Text>
+                      <View style={styles.filaPaletaColores}>
+                        {PALETA_COLORES_LOTES.map((color) => {
+                          const esSeleccionado = colorSector.toLowerCase() === color.toLowerCase();
+                          return (
                             <Pressable
-                              onPress={() => setSectorAEliminar(sector)}
-                              style={({ pressed }) => [
-                                styles.botonEliminarSector,
-                                pressed && styles.botonEliminarPresionado,
+                              key={color}
+                              onPress={() => setColorSector(color)}
+                              style={[
+                                styles.chipColor,
+                                { backgroundColor: color },
+                                esSeleccionado && styles.chipColorSeleccionado,
                               ]}
                             >
-                              <Trash2 size={16} color="#DC2626" />
+                              {esSeleccionado && <CheckCircle2 size={14} color="#FFFFFF" />}
                             </Pressable>
-                          </View>
+                          );
+                        })}
+                      </View>
+                    </View>
 
-                          <View style={styles.detallesItemSector}>
-                            <View style={styles.filaDetalleSector}>
-                              <Sprout size={14} color="#6B7280" />
-                              <Text style={styles.textoDetalleSector}>
-                                Cultivo: <Text style={{ fontWeight: '600', color: '#1F2937' }}>{sector.cultivoNombre || 'Cultivo'}</Text>
-                                {sector.variedad ? ` (${sector.variedad})` : ''}
-                              </Text>
-                            </View>
+                    {/* Fechas de siembra y cosecha */}
+                    <View style={styles.filaFechas}>
+                      <View style={{ flex: 1 }}>
+                        <SelectorFecha
+                          label="Fecha de Siembra:"
+                          placeholder="AAAA-MM-DD"
+                          valor={fechaSiembra}
+                          onChange={setFechaSiembra}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <SelectorFecha
+                          label="Cosecha Estimada:"
+                          placeholder="AAAA-MM-DD"
+                          valor={fechaCosechaEstimada}
+                          onChange={setFechaCosechaEstimada}
+                        />
+                      </View>
+                    </View>
 
-                            <View style={styles.filaDetalleSector}>
-                              <Layers size={14} color="#6B7280" />
-                              <Text style={styles.textoDetalleSector}>
-                                Ocupación: {porcentajeSector}% de la parcela matriz
-                              </Text>
-                            </View>
-
-                            {(sector.fechaSiembra || sector.fechaCosechaEstimada) && (
-                              <View style={styles.filaDetalleSector}>
-                                <Calendar size={14} color="#6B7280" />
-                                <Text style={styles.textoDetalleSector}>
-                                  {sector.fechaSiembra ? `Siembra: ${sector.fechaSiembra}` : ''}
-                                  {sector.fechaSiembra && sector.fechaCosechaEstimada ? ' • ' : ''}
-                                  {sector.fechaCosechaEstimada ? `Cosecha: ${sector.fechaCosechaEstimada}` : ''}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
+                    {/* Monitor en tiempo real de área trazada */}
+                    <View style={styles.tarjetaAreaEnVivo}>
+                      <View style={styles.filaAreaEnVivo}>
+                        <View>
+                          <Text style={styles.etiquetaAreaEnVivo}>Área Delimitada en Mapa:</Text>
+                          <Text style={styles.valorAreaEnVivo}>
+                            {areaTrazadaHa > 0 ? `${areaTrazadaHa.toFixed(2)} ha` : '0.00 ha'}
+                          </Text>
                         </View>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </View>
-            )}
-          </View>
+                        <Badge
+                          texto={
+                            puntosTrazados.length >= 3
+                              ? `${puntosTrazados.length} vértices trazados`
+                              : 'Trazando...'
+                          }
+                          variante={puntosTrazados.length >= 3 ? 'exito' : 'neutro'}
+                        />
+                      </View>
 
-          {/* COLUMNA DERECHA: Visor y Delimitador Satelital con Snapping */}
-          <View style={esDesktop ? styles.columnaDerecha : styles.columnaCompleta}>
-            <View style={styles.tarjetaMapa}>
-              <View style={styles.cabeceraMapa}>
-                <View>
-                  <View style={styles.filaTituloMapa}>
-                    <Text style={styles.tituloMapa}>Delimitador Satelital con Imán Magnético</Text>
-                    <View style={styles.badgeSnappingActivo}>
-                      <Sparkles size={13} color="#059669" />
-                      <Text style={styles.textoSnappingActivo}>Imán perimetral activo</Text>
+                      {areaTrazadaHa > areaDisponible && (
+                        <Text style={styles.advertenciaExcesoArea}>
+                          ⚠️ Excede el área disponible ({areaDisponible.toFixed(2)} ha)
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Acciones de guardado y limpieza */}
+                    <View style={styles.filaAccionesFormulario}>
+                      <Boton
+                        titulo="Limpiar Trazo"
+                        variante="outline"
+                        onPress={handleLimpiarTrazo}
+                        disabled={puntosTrazados.length === 0}
+                      />
+                      <Boton
+                        titulo="Guardar y Asignar Sector"
+                        variante="primario"
+                        cargando={crearMutation.isPending}
+                        onPress={validarYConfirmarCreacion}
+                        disabled={puntosTrazados.length < 3 || !cultivoId || !nombreSector.trim()}
+                      />
                     </View>
                   </View>
-                  <Text style={styles.subtituloMapa}>
-                    {tieneDelimitacionMatriz
-                      ? 'Haga clic para colocar vértices dentro del lote matriz. Los puntos se imantarán a los límites.'
-                      : 'Seleccione una parcela con delimitación perimetral para comenzar.'}
-                  </Text>
                 </View>
-              </View>
+              ) : (
+                /* PESTAÑA: LISTA DE SECTORES EXISTENTES */
+                <View style={styles.tarjetaFormulario}>
+                  <View style={styles.cabeceraFormulario}>
+                    <Layers size={20} color={Palette.forestGreen} />
+                    <View>
+                      <Text style={styles.tituloFormulario}>Sectores Registrados</Text>
+                      <Text style={styles.subtituloFormulario}>
+                        {sectoresExistentes.length} {sectoresExistentes.length === 1 ? 'cuartel' : 'cuarteles'} distribuidos en este predio
+                      </Text>
+                    </View>
+                  </View>
 
-              <MapaSectoresDelimitador
-                poligonoParcelaMatriz={poligonoMatriz}
-                sectoresExistentes={sectoresExistentes}
-                colorPoligonoNuevo={colorSector}
-                puntosInicialesNuevo={puntosTrazados}
-                nombreParcela={parcelaActual?.nombre || 'Parcela'}
-                codigoParcela={parcelaActual?.codigo || 'P-001'}
-                areaMatrizHectareas={Number(parcelaActual?.areaHectareas || 0)}
-                altura={esDesktop ? 680 : 440}
-                soloLectura={!tieneDelimitacionMatriz}
-                onCambioPoligono={handleCambioPoligono}
-              />
+                  {sectoresExistentes.length === 0 ? (
+                    <View style={styles.contenedorListaVacia}>
+                      <Sprout size={32} color="#9CA3AF" />
+                      <Text style={styles.textoListaVacia}>
+                        No hay sectores delimitados en esta parcela todavía.
+                      </Text>
+                      <Boton
+                        titulo="Trazar el Primer Sector"
+                        variante="secundario"
+                        onPress={() => setPestaniaActiva('trazar')}
+                      />
+                    </View>
+                  ) : (
+                    <ScrollView
+                      style={{ maxHeight: 650 }}
+                      contentContainerStyle={styles.listaSectoresContainer}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {sectoresExistentes.map((sector) => {
+                        const colorBadge = sector.colorHex || sector.cultivoColorHex || Palette.forestGreen;
+                        const porcentajeSector =
+                          areaTotal > 0 ? ((sector.areaHectareas / areaTotal) * 100).toFixed(1) : 0;
+
+                        return (
+                          <View key={sector.id} style={styles.itemTarjetaSector}>
+                            <View style={styles.cabeceraItemSector}>
+                              <View style={styles.ladoIzquierdoItemSector}>
+                                <View
+                                  style={[
+                                    styles.indicadorColorItem,
+                                    { backgroundColor: colorBadge },
+                                  ]}
+                                />
+                                <View>
+                                  <View style={styles.filaCodigoSector}>
+                                    <Text style={styles.codigoItemSector}>{sector.codigo}</Text>
+                                    <Badge texto={`${sector.areaHectareas.toFixed(2)} ha`} variante="info" />
+                                  </View>
+                                  <Text style={styles.nombreItemSector}>{sector.nombre}</Text>
+                                </View>
+                              </View>
+
+                              <Pressable
+                                onPress={() => setSectorAEliminar(sector)}
+                                style={({ pressed }) => [
+                                  styles.botonEliminarSector,
+                                  pressed && styles.botonEliminarPresionado,
+                                ]}
+                              >
+                                <Trash2 size={16} color="#DC2626" />
+                              </Pressable>
+                            </View>
+
+                            <View style={styles.detallesItemSector}>
+                              <View style={styles.filaDetalleSector}>
+                                <Sprout size={14} color="#6B7280" />
+                                <Text style={styles.textoDetalleSector}>
+                                  Cultivo: <Text style={{ fontWeight: '600', color: '#1F2937' }}>{sector.cultivoNombre || 'Cultivo'}</Text>
+                                  {sector.variedad ? ` (${sector.variedad})` : ''}
+                                </Text>
+                              </View>
+
+                              <View style={styles.filaDetalleSector}>
+                                <Layers size={14} color="#6B7280" />
+                                <Text style={styles.textoDetalleSector}>
+                                  Ocupación: {porcentajeSector}% de la parcela matriz
+                                </Text>
+                              </View>
+
+                              {(sector.fechaSiembra || sector.fechaCosechaEstimada) && (
+                                <View style={styles.filaDetalleSector}>
+                                  <Calendar size={14} color="#6B7280" />
+                                  <Text style={styles.textoDetalleSector}>
+                                    {sector.fechaSiembra ? `Siembra: ${sector.fechaSiembra}` : ''}
+                                    {sector.fechaSiembra && sector.fechaCosechaEstimada ? ' • ' : ''}
+                                    {sector.fechaCosechaEstimada ? `Cosecha: ${sector.fechaCosechaEstimada}` : ''}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* COLUMNA DERECHA: Visor y Delimitador Satelital con Snapping */}
+            <View style={esDesktop ? styles.columnaDerecha : styles.columnaCompleta}>
+              <View style={styles.tarjetaMapa}>
+                <View style={styles.cabeceraMapa}>
+                  <View>
+                    <View style={styles.filaTituloMapa}>
+                      <Text style={styles.tituloMapa}>Delimitador Satelital</Text>
+                      <View style={styles.badgeSnappingActivo}>
+                        <Sparkles size={12} color="#059669" />
+                        <Text style={styles.textoSnappingActivo}>Imán activo</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.subtituloMapa}>
+                      {tieneDelimitacionMatriz
+                        ? 'Haga clic para colocar vértices dentro del lote matriz.'
+                        : 'Seleccione una parcela con delimitación perimetral para comenzar.'}
+                    </Text>
+                  </View>
+                </View>
+
+                <MapaSectoresDelimitador
+                  poligonoParcelaMatriz={poligonoMatriz}
+                  sectoresExistentes={sectoresExistentes}
+                  colorPoligonoNuevo={colorSector}
+                  puntosInicialesNuevo={puntosTrazados}
+                  nombreParcela={parcelaActual?.nombre || 'Parcela'}
+                  codigoParcela={parcelaActual?.codigo || 'P-001'}
+                  areaMatrizHectareas={Number(parcelaActual?.areaHectareas || 0)}
+                  altura={esDesktop ? 480 : 380}
+                  soloLectura={!tieneDelimitacionMatriz}
+                  onCambioPoligono={handleCambioPoligono}
+                />
+              </View>
             </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
 
       {/* Modal de Confirmación Previa al Registro del Sector */}
       <ModalConfirmacion
@@ -850,12 +857,25 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
 };
 
 const styles = StyleSheet.create({
-  contenedor: { flex: 1, paddingBottom: 30 },
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContenido: {
+    width: '100%',
+    alignItems: 'center',
+    paddingBottom: 40,
+    paddingHorizontal: 8,
+  },
+  contenedor: {
+    width: '100%',
+    maxWidth: 1200,
+  },
   tarjetaSelector: {
     backgroundColor: Palette.white,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     ...Platform.select({
@@ -869,29 +889,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   bloqueSelectParcela: {
     flex: 1,
-    minWidth: 280,
+    minWidth: 260,
   },
   etiquetaSelect: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#374151',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   resumenChipLote: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 8,
     backgroundColor: '#F3F4F6',
   },
   textoChipLote: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#4B5563',
     fontWeight: '500',
   },
@@ -899,78 +919,78 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    padding: 14,
+    padding: 12,
     backgroundColor: '#FEF3C7',
-    borderRadius: 10,
-    marginTop: 14,
+    borderRadius: 8,
+    marginTop: 10,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
   tituloAlertaSinPoligono: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#92400E',
     marginBottom: 2,
   },
   textoAlertaSinPoligono: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#B45309',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   bloqueMetricas: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
   grillaMetricas: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 8,
   },
   cajaMetrica: {
     flex: 1,
-    minWidth: 140,
+    minWidth: 120,
     backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 8,
+    padding: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
   etiquetaMetrica: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   valorMetrica: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#111827',
   },
   subtextoMetrica: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#9CA3AF',
-    marginTop: 2,
+    marginTop: 1,
   },
   barraProgresoContenedor: {
-    marginTop: 4,
+    marginTop: 2,
   },
   barraProgresoFondo: {
-    height: 8,
+    height: 5,
     backgroundColor: '#E5E7EB',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   barraProgresoRelleno: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   textoPorcentajeProgreso: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
-    marginTop: 6,
+    marginTop: 4,
     textAlign: 'right',
   },
   layoutPrincipal: {
@@ -978,20 +998,23 @@ const styles = StyleSheet.create({
   },
   layoutDesktop: {
     flexDirection: 'row',
-    gap: 18,
+    gap: 16,
     alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   layoutMovil: {
     flexDirection: 'column',
-    gap: 18,
+    gap: 16,
   },
   columnaIzquierda: {
-    width: 440,
-    flexShrink: 0,
+    flex: 1,
+    minWidth: 360,
+    maxWidth: 460,
   },
   columnaDerecha: {
-    flex: 1,
-    minWidth: 0,
+    flex: 1.15,
+    minWidth: 380,
+    maxWidth: 620,
   },
   columnaCompleta: {
     width: '100%',
