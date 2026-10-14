@@ -33,8 +33,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const sidebarColapsado = useUIStore((s) => s.sidebarColapsado);
   const toggleSidebarColapsado = useUIStore((s) => s.toggleSidebarColapsado);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
-
   const esPantallaAmplia = width >= 840;
+  const esMovil = width < 768;
 
   return (
     <SafeAreaView style={styles.contenedorRaiz}>
@@ -66,25 +66,31 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         {/* Contenido Principal */}
         <View style={styles.areaContenido}>
           {/* Barra Superior / Header */}
-          <View style={styles.barraSuperior}>
+          <View style={[styles.barraSuperior, esMovil && styles.barraSuperiorMovil]}>
             <View style={styles.cabeceraIzquierda}>
               {!esPantallaAmplia && (
                 <Pressable
                   onPress={() => setMenuMovilAbierto(true)}
                   style={styles.botonMenuMovil}
                 >
-                  <Menu size={22} color={Palette.forestGreen} />
+                  <Menu size={20} color={Palette.forestGreen} />
                 </Pressable>
               )}
 
               {titulo ? (
-                <View>
-                  <Text style={styles.tituloHeader}>{titulo}</Text>
-                  {subtitulo && <Text style={styles.subtituloHeader}>{subtitulo}</Text>}
+                <View style={styles.titulosWrapper}>
+                  <Text style={[styles.tituloHeader, esMovil && styles.tituloHeaderMovil]}>
+                    {titulo}
+                  </Text>
+                  {subtitulo && (
+                    <Text style={[styles.subtituloHeader, esMovil && styles.subtituloHeaderMovil]}>
+                      {subtitulo}
+                    </Text>
+                  )}
                 </View>
               ) : (
                 <View style={styles.marcaHeaderMovil}>
-                  <Sprout size={20} color={Palette.forestGreen} />
+                  <Sprout size={18} color={Palette.forestGreen} />
                   <Text style={styles.textoMarcaMovil}>AgroSanta Elena</Text>
                 </View>
               )}
@@ -94,7 +100,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </View>
 
           {/* Cuerpo de la Página */}
-          <View style={styles.cuerpoPagina}>{children}</View>
+          <View style={[styles.cuerpoPagina, esMovil && styles.cuerpoPaginaMovil]}>
+            {children}
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -109,25 +117,42 @@ const styles = StyleSheet.create({
   layoutPrincipal: {
     flex: 1,
     flexDirection: 'row',
+    width: '100%',
+    overflow: 'hidden',
   },
   areaContenido: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: Palette.cream,
+    overflow: 'hidden',
   },
   barraSuperior: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     backgroundColor: Palette.white,
     borderBottomWidth: 1,
     borderBottomColor: Palette.border,
+    flexWrap: 'wrap',
+    gap: 10,
+    minHeight: 60,
+  },
+  barraSuperiorMovil: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   cabeceraIzquierda: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  titulosWrapper: {
+    flex: 1,
+    minWidth: 0,
   },
   botonMenuMovil: {
     padding: 6,
@@ -135,34 +160,45 @@ const styles = StyleSheet.create({
     backgroundColor: '#EBF2E5',
   },
   tituloHeader: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: Palette.text,
     letterSpacing: -0.3,
   },
+  tituloHeaderMovil: {
+    fontSize: 17,
+  },
   subtituloHeader: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: Palette.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
+  },
+  subtituloHeaderMovil: {
+    fontSize: 11,
   },
   marcaHeaderMovil: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   textoMarcaMovil: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: Palette.forestGreen,
   },
   accionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   cuerpoPagina: {
     flex: 1,
-    padding: 24,
+    minWidth: 0,
+    padding: 20,
+    overflow: 'hidden',
+  },
+  cuerpoPaginaMovil: {
+    padding: 12,
   },
   overlayMovil: {
     position: 'absolute',

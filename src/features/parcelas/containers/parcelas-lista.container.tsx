@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { Plus, Search, ListTree, PlusCircle, Sprout } from 'lucide-react-native';
+import { Plus, Search, ListTree, PlusCircle, Sprout, Map as MapIcon } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
-import { Boton, Input, Card } from '@/shared/components/ui';
+import { Boton, Input, Card, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
 import { Paginacion } from '@/shared/components/ui/paginacion';
 import { ParcelasTabla } from '../components/parcelas-tabla';
 import { ParcelasSkeleton } from '../components/parcelas-skeleton';
+import { MapaGeneralParcelas } from '@/shared/components/mapa';
 import {
   useParcelasQuery,
   useCambiarEstadoParcelaMutation,
@@ -16,18 +17,26 @@ import {
 import { ParcelaItem, EstadoParcelaTipo } from '../types/parcela.types';
 
 /**
- * @description Contenedor orquestador del listado de parcelas con submódulos, diseño fluido al 100% y paginación.
+ * @description Contenedor orquestador del listado de parcelas con soporte para vista en tabla y vista satelital GIS multicapa.
  */
 export const ParcelasListaContainer: React.FC = () => {
   const router = useRouter();
+  const [vistaModo, setVistaModo] = useState<'tabla' | 'mapa'>('tabla');
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
+  const [parcelaAEliminar, setParcelaAEliminar] = useState<ParcelaItem | null>(null);
+  const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
 
   const { data, isLoading, isFetching } = useParcelasQuery({
     busqueda: busqueda.trim() || undefined,
     pagina,
     limite,
+  });
+
+  // Consulta para el visor satelital general (carga hasta 100 parcelas georreferenciadas)
+  const { data: todasLasParcelasData } = useParcelasQuery({
+    limite: 100,
   });
 
   const cambiarEstadoMutation = useCambiarEstadoParcelaMutation();
@@ -50,12 +59,30 @@ export const ParcelasListaContainer: React.FC = () => {
     });
   };
 
+  const handleVerDetalle = (parcela: ParcelaItem) => {
+    router.push(`/parcelas/${parcela.id}` as Href);
+  };
+
   const handleEditar = (parcela: ParcelaItem) => {
     router.push(`/parcelas/${parcela.id}/editar` as Href);
   };
 
   const handleEliminar = (parcela: ParcelaItem) => {
-    eliminarMutation.mutate(parcela.id);
+    setParcelaAEliminar(parcela);
+  };
+
+  const confirmarEliminar = () => {
+    if (!parcelaAEliminar) return;
+    const parcelaActual = parcelaAEliminar;
+
+    eliminarMutation.mutate(parcelaActual.id, {
+      onSuccess: () => {
+        setParcelaAEliminar(null);
+        setModalExitoEliminacion(
+          `La parcela "${parcelaActual.nombre}" (${parcelaActual.codigo}) fue eliminada exitosamente y su delimitación perimetral ha sido liberada.`,
+        );
+      },
+    });
   };
 
   return (
@@ -75,12 +102,35 @@ export const ParcelasListaContainer: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Barra de Submódulos de Parcelas */}
+        {/* Barra de Submódulos y Vistas */}
         <View style={styles.barraSubmodulos}>
-          <Pressable style={[styles.tabSubmodulo, styles.tabSubmoduloActivo]}>
-            <ListTree size={16} color={Palette.forestGreen} />
-            <Text style={[styles.textoTabSubmodulo, styles.textoTabSubmoduloActivo]}>
-              Lista de parcelas
+          <Pressable
+            onPress={() => setVistaModo('tabla')}
+            style={[styles.tabSubmodulo, vistaModo === 'tabla' && styles.tabSubmoduloActivo]}
+          >
+            <ListTree size={16} color={vistaModo === 'tabla' ? Palette.forestGreen : '#6B7280'} />
+            <Text
+              style={[
+                styles.textoTabSubmodulo,
+                vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
+              ]}
+            >
+              Vista Tabla ({data?.total ?? 0})
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setVistaModo('mapa')}
+            style={[styles.tabSubmodulo, vistaModo === 'mapa' && styles.tabSubmoduloActivo]}
+          >
+            <MapIcon size={16} color={vistaModo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
+            <Text
+              style={[
+                styles.textoTabSubmodulo,
+                vistaModo === 'mapa' && styles.textoTabSubmoduloActivo,
+              ]}
+            >
+              Mapa Satelital Completo
             </Text>
           </Pressable>
 
@@ -101,52 +151,110 @@ export const ParcelasListaContainer: React.FC = () => {
           </Pressable>
         </View>
 
-        {/* Barra de Búsqueda y Filtros con Ancho Completo */}
-        <Card estilo={styles.tarjetaFiltros}>
-          <View style={styles.buscadorWrapper}>
-            <Input
-              placeholder="Buscar por código, nombre de lote o valle..."
-              value={busqueda}
-              onChangeText={(texto) => {
-                setBusqueda(texto);
-                setPagina(1);
-              }}
-              iconoIzquierda={<Search size={18} color="#6B7280" />}
-              contenedorEstilo={styles.inputBuscador}
-            />
-          </View>
-        </Card>
-
-        {/* Tabla de Parcelas con Ancho Completo y Paginación */}
-        {isLoading ? (
-          <ParcelasSkeleton />
+        {/* Vista Alternada: Modo Mapa Satelital o Modo Tabla */}
+        {vistaModo === 'mapa' ? (
+          <MapaGeneralParcelas
+            parcelas={todasLasParcelasData?.items || data?.items || []}
+            altura={620}
+            titulo="Catastro Geoespacial Integral de Predios"
+            subtitulo="Visualización simultánea de todas las parcelas con código, área, cultivo y delimitación perimetral"
+          />
         ) : (
-          <View style={styles.contenedorTabla}>
-            <ParcelasTabla
-              parcelas={data?.items || []}
-              cargando={isFetching}
-              onEditar={handleEditar}
-              onCambiarEstado={handleCambiarEstado}
-              onEliminar={handleEliminar}
-            />
+          <>
+            {/* Barra de Búsqueda y Filtros con Ancho Completo */}
+            <Card estilo={styles.tarjetaFiltros}>
+              <View style={styles.buscadorWrapper}>
+                <Input
+                  placeholder="Buscar por código, nombre de lote o valle..."
+                  value={busqueda}
+                  onChangeText={(texto) => {
+                    setBusqueda(texto);
+                    setPagina(1);
+                  }}
+                  iconoIzquierda={<Search size={18} color="#6B7280" />}
+                  contenedorEstilo={styles.inputBuscador}
+                />
+              </View>
+            </Card>
 
-            {data && data.total > 0 && (
-              <Paginacion
-                paginaActual={data.pagina}
-                totalPaginas={data.totalPaginas}
-                totalElementos={data.total}
-                elementosPorPagina={limite}
-                opcionesLimite={[10, 20, 30]}
-                onCambiarPagina={(nuevaPagina: number) => setPagina(nuevaPagina)}
-                onCambiarLimite={(nuevoLimite: number) => {
-                  setLimite(nuevoLimite);
-                  setPagina(1);
-                }}
-              />
+            {/* Tabla de Parcelas con Ancho Completo y Paginación */}
+            {isLoading ? (
+              <ParcelasSkeleton />
+            ) : (
+              <View style={styles.contenedorTabla}>
+                <ParcelasTabla
+                  parcelas={data?.items || []}
+                  cargando={isFetching}
+                  onVerDetalle={handleVerDetalle}
+                  onEditar={handleEditar}
+                  onCambiarEstado={handleCambiarEstado}
+                  onEliminar={handleEliminar}
+                />
+
+                {data && data.total > 0 && (
+                  <Paginacion
+                    paginaActual={data.pagina}
+                    totalPaginas={data.totalPaginas}
+                    totalElementos={data.total}
+                    elementosPorPagina={limite}
+                    opcionesLimite={[10, 20, 30]}
+                    onCambiarPagina={(nuevaPagina: number) => setPagina(nuevaPagina)}
+                    onCambiarLimite={(nuevoLimite: number) => {
+                      setLimite(nuevoLimite);
+                      setPagina(1);
+                    }}
+                  />
+                )}
+              </View>
             )}
-          </View>
+          </>
         )}
       </ScrollView>
+
+      {/* Modal de Confirmación para Eliminar Parcela */}
+      <ModalConfirmacion
+        visible={Boolean(parcelaAEliminar)}
+        tipo="peligro"
+        titulo="¿Eliminar Parcela Agrícola?"
+        mensaje={`Está a punto de dar de baja la parcela "${parcelaAEliminar?.nombre}". Esta acción liberará su delimitación geoespacial y su código identificador.`}
+        detalles={
+          parcelaAEliminar
+            ? [
+                {
+                  etiqueta: 'Código del Lote',
+                  valor: parcelaAEliminar.codigo || '-',
+                },
+                {
+                  etiqueta: 'Nombre de Parcela',
+                  valor: parcelaAEliminar.nombre,
+                },
+                {
+                  etiqueta: 'Superficie',
+                  valor: `${parcelaAEliminar.areaHectareas} ha`,
+                },
+                {
+                  etiqueta: 'Cultivo Asociado',
+                  valor: parcelaAEliminar.cultivoNombre || 'Sin cultivo',
+                },
+              ]
+            : undefined
+        }
+        textoConfirmar="Eliminar Parcela"
+        textoCancelar="Cancelar"
+        cargando={eliminarMutation.isPending}
+        onConfirmar={confirmarEliminar}
+        onCancelar={() => setParcelaAEliminar(null)}
+      />
+
+      {/* Modal de Éxito al Eliminar Parcela */}
+      <ModalConfirmacion
+        visible={Boolean(modalExitoEliminacion)}
+        tipo="exito"
+        titulo="Parcela Eliminada"
+        mensaje={modalExitoEliminacion || ''}
+        textoConfirmar="Aceptar"
+        onConfirmar={() => setModalExitoEliminacion(null)}
+      />
     </AppLayout>
   );
 };

@@ -10,6 +10,7 @@ export interface ParcelasTablaProps {
   parcelas: ParcelaItem[];
   cargando?: boolean;
   onEditar?: (parcela: ParcelaItem) => void;
+  onVerDetalle?: (parcela: ParcelaItem) => void;
   onCambiarEstado?: (parcela: ParcelaItem) => void;
   onEliminar?: (parcela: ParcelaItem) => void;
 }
@@ -21,6 +22,7 @@ export const ParcelasTabla: React.FC<ParcelasTablaProps> = ({
   parcelas,
   cargando = false,
   onEditar,
+  onVerDetalle,
   onCambiarEstado,
   onEliminar,
 }) => {
@@ -96,17 +98,21 @@ export const ParcelasTabla: React.FC<ParcelasTablaProps> = ({
       id: 'codigo',
       encabezado: 'Código',
       anchoMinimo: 95,
-      render: (p: ParcelaItem) => <Text style={styles.textoCodigo}>{p.codigo}</Text>,
+      render: (p: ParcelaItem) => (
+        <Pressable onPress={() => (onVerDetalle || onEditar)?.(p)}>
+          <Text style={styles.textoCodigo}>{p.codigo}</Text>
+        </Pressable>
+      ),
     },
     {
       id: 'nombre',
       encabezado: 'Nombre del Lote',
       anchoMinimo: 170,
       render: (p: ParcelaItem) => (
-        <View>
+        <Pressable onPress={() => (onVerDetalle || onEditar)?.(p)}>
           <Text style={styles.textoNombre}>{p.nombre}</Text>
           {p.ubicacion ? <Text style={styles.textoSub}>{p.ubicacion}</Text> : null}
-        </View>
+        </Pressable>
       ),
     },
     {
@@ -192,6 +198,7 @@ export const ParcelasTabla: React.FC<ParcelasTablaProps> = ({
         posicion={posicion}
         visible={Boolean(parcelaActiva)}
         onCerrar={() => setParcelaActiva(null)}
+        onVerDetalle={onVerDetalle || onEditar}
         onEditar={onEditar}
         onCambiarEstado={onCambiarEstado}
         onEliminar={onEliminar}

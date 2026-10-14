@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Search, Plus } from 'lucide-react-native';
 import { AppLayout } from '@/shared/components/layout/app-layout';
-import { Input, Card, Boton } from '@/shared/components/ui';
+import { Input, Card, Boton, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
 import { CultivosTabla } from '../components/cultivos-tabla';
 import { CultivosSkeleton } from '../components/cultivos-skeleton';
 import {
@@ -19,9 +19,16 @@ import { CultivoItem } from '../types/cultivo.types';
 export const CultivosListaContainer: React.FC = () => {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState('');
+  const [cultivoAEliminar, setCultivoAEliminar] = useState<CultivoItem | null>(null);
+  const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
+
   const { data: cultivos = [], isLoading, isFetching } = useCultivosQuery();
   const cambiarEstadoMutation = useCambiarEstadoCultivoMutation();
   const eliminarMutation = useEliminarCultivoMutation();
+
+  const handleVerDetalle = (c: CultivoItem) => {
+    router.push(`/cultivos/${c.id}` as Href);
+  };
 
   const handleEditar = (c: CultivoItem) => {
     router.push(`/cultivos/${c.id}/editar` as Href);
@@ -35,7 +42,21 @@ export const CultivosListaContainer: React.FC = () => {
   };
 
   const handleEliminar = (c: CultivoItem) => {
-    eliminarMutation.mutate(c.id);
+    setCultivoAEliminar(c);
+  };
+
+  const confirmarEliminar = () => {
+    if (!cultivoAEliminar) return;
+    const cultivoActual = cultivoAEliminar;
+
+    eliminarMutation.mutate(cultivoActual.id, {
+      onSuccess: () => {
+        setCultivoAEliminar(null);
+        setModalExitoEliminacion(
+          `El cultivo "${cultivoActual.nombre}" fue eliminado exitosamente del catálogo.`,
+        );
+      },
+    });
   };
 
   const cultivosFiltrados = cultivos.filter((c) => {
@@ -78,6 +99,7 @@ export const CultivosListaContainer: React.FC = () => {
             <CultivosTabla
               cultivos={cultivosFiltrados}
               cargando={isFetching}
+              onVerDetalle={handleVerDetalle}
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
               onEliminar={handleEliminar}
@@ -85,6 +107,55 @@ export const CultivosListaContainer: React.FC = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* Modal de Confirmación para Eliminar Cultivo */}
+      <ModalConfirmacion
+        visible={Boolean(cultivoAEliminar)}
+        tipo="peligro"
+        titulo="¿Eliminar Cultivo del Catálogo?"
+        mensaje={`¿Está seguro de que desea eliminar "${cultivoAEliminar?.nombre}"? Solo podrá eliminarse si no se encuentra asignado a parcelas existentes.`}
+        detalles={
+          cultivoAEliminar
+            ? [
+                {
+                  etiqueta: 'Cultivo',
+                  valor: cultivoAEliminar.nombre,
+                },
+                {
+                  etiqueta: 'Nombre Científico',
+                  valor: cultivoAEliminar.nombreCientifico || 'No especificado',
+                },
+                {
+                  etiqueta: 'Variedades',
+                  valor:
+                    cultivoAEliminar.variedadesDefault && cultivoAEliminar.variedadesDefault.length > 0
+                      ? cultivoAEliminar.variedadesDefault.join(', ')
+                      : 'Ninguna',
+                },
+                {
+                  etiqueta: 'Color Representativo',
+                  valor: cultivoAEliminar.colorHex || '#546B41',
+                  colorIndicador: cultivoAEliminar.colorHex || '#546B41',
+                },
+              ]
+            : undefined
+        }
+        textoConfirmar="Eliminar Cultivo"
+        textoCancelar="Cancelar"
+        cargando={eliminarMutation.isPending}
+        onConfirmar={confirmarEliminar}
+        onCancelar={() => setCultivoAEliminar(null)}
+      />
+
+      {/* Modal Informativo de Éxito */}
+      <ModalConfirmacion
+        visible={Boolean(modalExitoEliminacion)}
+        tipo="exito"
+        titulo="Cultivo Eliminado"
+        mensaje={modalExitoEliminacion || ''}
+        textoConfirmar="Aceptar"
+        onConfirmar={() => setModalExitoEliminacion(null)}
+      />
     </AppLayout>
   );
 };

@@ -1,5 +1,13 @@
 export type RolUsuarioTipo = 'ADMINISTRADOR' | 'AGRONOMO' | 'SUPERVISOR' | 'OPERADOR';
 export type SexoUsuarioTipo = 'MASCULINO' | 'FEMENINO' | 'OTRO';
+export type EspecialidadAgricolaTipo =
+  | 'GENERAL'
+  | 'PODADOR'
+  | 'FUMIGADOR_APLICADOR'
+  | 'REGADOR'
+  | 'TRACTORISTA_MAQUINISTA'
+  | 'COSECHADOR'
+  | 'INJERTADOR';
 
 export interface Usuario {
   id: string;
@@ -12,6 +20,10 @@ export interface Usuario {
   sexo?: SexoUsuarioTipo | null;
   fechaNacimiento?: string | null;
   direccion?: string | null;
+  codigoEmpleado?: string | null;
+  numeroDocumento?: string | null;
+  especialidad?: EspecialidadAgricolaTipo | null;
+  cuadrilla?: string | null;
   departamento?: string | null;
   provincia?: string | null;
   activo: boolean;
@@ -28,6 +40,10 @@ export interface CrearUsuarioPeticion {
   fechaNacimiento?: string;
   telefono?: string;
   direccion?: string;
+  codigoEmpleado?: string;
+  numeroDocumento?: string;
+  especialidad?: EspecialidadAgricolaTipo;
+  cuadrilla?: string;
   departamento?: string;
   provincia?: string;
 }
@@ -42,6 +58,10 @@ export interface ActualizarUsuarioPeticion {
   fechaNacimiento?: string;
   telefono?: string;
   direccion?: string;
+  codigoEmpleado?: string;
+  numeroDocumento?: string;
+  especialidad?: EspecialidadAgricolaTipo;
+  cuadrilla?: string;
   departamento?: string;
   provincia?: string;
 }

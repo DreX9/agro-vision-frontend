@@ -41,6 +41,7 @@ export const Input: React.FC<InputProps> = ({
       <View
         style={[
           styles.inputWrapper,
+          props.editable === false && styles.inputWrapperDeshabilitado,
           estaEnfocado && styles.inputWrapperEnfocado,
           !!error && styles.inputWrapperError,
         ]}
@@ -48,7 +49,7 @@ export const Input: React.FC<InputProps> = ({
         {iconoIzquierda && <View style={styles.iconoIzquierda}>{iconoIzquierda}</View>}
 
         <TextInput
-          style={[styles.input, style]}
+          style={[styles.input, props.editable === false && styles.inputDeshabilitado, style]}
           placeholderTextColor="#9CA3AF"
           secureTextEntry={esPassword && !mostrarPassword}
           onFocus={() => setEstaEnfocado(true)}
@@ -99,6 +100,10 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: 14,
   },
+  inputWrapperDeshabilitado: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
   inputWrapperEnfocado: {
     borderColor: Palette.forestGreen,
     borderWidth: 1.8,
@@ -113,6 +118,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: 'transparent',
     borderWidth: 0,
+  },
+  inputDeshabilitado: {
+    color: '#4B5563',
+    fontWeight: '600',
   },
   iconoIzquierda: {
     marginRight: 10,

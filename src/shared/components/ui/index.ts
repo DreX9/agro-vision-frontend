@@ -5,3 +5,6 @@ export * from './badge';
 export * from './tabla';
 export * from './paginacion';
 export * from './select';
+export * from './selector-fecha';
+export * from './selector-hora';
+export * from './modal-confirmacion';

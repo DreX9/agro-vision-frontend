@@ -9,6 +9,7 @@ import { CultivosMenuAcciones, PosicionMenu } from './cultivos-menu-acciones';
 export interface CultivosTablaProps {
   cultivos: CultivoItem[];
   cargando?: boolean;
+  onVerDetalle?: (cultivo: CultivoItem) => void;
   onEditar?: (cultivo: CultivoItem) => void;
   onCambiarEstado?: (cultivo: CultivoItem) => void;
   onEliminar?: (cultivo: CultivoItem) => void;
@@ -20,6 +21,7 @@ export interface CultivosTablaProps {
 export const CultivosTabla: React.FC<CultivosTablaProps> = ({
   cultivos,
   cargando = false,
+  onVerDetalle,
   onEditar,
   onCambiarEstado,
   onEliminar,
@@ -56,7 +58,10 @@ export const CultivosTabla: React.FC<CultivosTablaProps> = ({
       encabezado: 'Cultivo',
       anchoMinimo: 180,
       render: (c: CultivoItem) => (
-        <View style={styles.filaNombre}>
+        <Pressable
+          style={styles.filaNombre}
+          onPress={() => (onVerDetalle || onEditar)?.(c)}
+        >
           <View
             style={[
               styles.puntoColor,
@@ -64,7 +69,7 @@ export const CultivosTabla: React.FC<CultivosTablaProps> = ({
             ]}
           />
           <Text style={styles.textoNombre}>{c.nombre}</Text>
-        </View>
+        </Pressable>
       ),
     },
     {
@@ -149,6 +154,7 @@ export const CultivosTabla: React.FC<CultivosTablaProps> = ({
         posicion={posicionMenu}
         visible={menuVisible}
         onCerrar={() => setMenuVisible(false)}
+        onVerDetalle={onVerDetalle || onEditar}
         onEditar={onEditar}
         onCambiarEstado={onCambiarEstado}
         onEliminar={onEliminar}

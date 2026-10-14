@@ -33,10 +33,20 @@ export const MapaVisor: React.FC<MapaVisorProps> = ({
       <div id="map"></div>
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script>
-        const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+        const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          noWrap: true
+        });
+        const limitesPeru = L.latLngBounds(
+          L.latLng(-19.5, -83.0),
+          L.latLng(1.0, -67.0)
+        );
         const map = L.map('map', {
           center: [${centroLat}, ${centroLng}],
           zoom: 15,
+          minZoom: 5,
+          maxZoom: 21,
+          maxBounds: limitesPeru,
+          maxBoundsViscosity: 1.0,
           layers: [satelite]
         });
 
