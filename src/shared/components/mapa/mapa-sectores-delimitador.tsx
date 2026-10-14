@@ -74,6 +74,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
   onCambioPoligonoRef.current = onCambioPoligono;
   const colorPoligonoRef = useRef(colorPoligonoNuevo);
   colorPoligonoRef.current = colorPoligonoNuevo;
+  const prevPuntosInicialesRef = useRef<string>(JSON.stringify(puntosInicialesNuevo || []));
 
   const enviarAccionAMapa = (accion: string, carga?: unknown) => {
     if (mapaListoRef.current && iframeRef.current && iframeRef.current.contentWindow) {
@@ -102,6 +103,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
       if (evento.data.tipo === 'MAPA_SECTOR_VERTICES_ACTUALIZADOS') {
         const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
+        prevPuntosInicialesRef.current = JSON.stringify(nuevosPuntos);
         const cruceDetectado = Boolean(evento.data.tieneCruce);
         const superposicionDetectada = Boolean(evento.data.tieneSuperposicion);
         const conflictoDetectado = evento.data.sectorConflicto || null;
@@ -183,7 +185,23 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
     });
   }, [adherenciaActiva]);
 
+  // Sincronizar puntos iniciales del nuevo sector si se vacían o actualizan desde el contenedor padre
+  useEffect(() => {
+    const puntosStr = JSON.stringify(puntosInicialesNuevo || []);
+    if (puntosStr !== prevPuntosInicialesRef.current) {
+      prevPuntosInicialesRef.current = puntosStr;
+      if (!puntosInicialesNuevo || puntosInicialesNuevo.length === 0) {
+        limpiar();
+      } else {
+        setPuntos(puntosInicialesNuevo);
+        setAreaHa(calcularAreaHectareas(puntosInicialesNuevo));
+        enviarAccionAMapa('ESTABLECER_VERTICES', { puntos: puntosInicialesNuevo });
+      }
+    }
+  }, [puntosInicialesNuevo]);
+
   const limpiar = () => {
+    prevPuntosInicialesRef.current = '[]';
     setPuntos([]);
     setAreaHa(0);
     setTieneCruce(false);
@@ -800,6 +818,9 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
           if (e.data.accion === 'LIMPIAR') {
             vertices = [];
+            actualizarPoligono();
+          } else if (e.data.accion === 'ESTABLECER_VERTICES' && e.data.carga) {
+            vertices = (e.data.carga.puntos || []).map(function(p) { return [p.latitude, p.longitude]; });
             actualizarPoligono();
           } else if (e.data.accion === 'DESHACER') {
             vertices.pop();

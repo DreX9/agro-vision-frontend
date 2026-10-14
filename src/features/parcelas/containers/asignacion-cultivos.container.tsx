@@ -24,6 +24,7 @@ import {
   MapPin,
   RefreshCw,
   Sparkles,
+  Lock,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
@@ -31,6 +32,7 @@ import {
   Boton,
   Input,
   Select,
+  type SelectOpcion,
   SelectorFecha,
   ModalConfirmacion,
   type DetalleConfirmacion,
@@ -52,6 +54,33 @@ import { PALETA_COLORES_LOTES } from '../components/parcela-formulario';
 export interface AsignacionCultivosContainerProps {
   initialParcelaId?: string;
 }
+
+/**
+ * @description Calcula de forma estricta y consecutiva el siguiente código de sector/cuartel
+ * basado en los sectores existentes de la parcela matriz (ej. P-001-S01, P-001-S02...).
+ */
+export const calcularSiguienteCodigoSector = (
+  codigoParcela: string = 'P',
+  sectores: Array<{ codigo?: string }> = [],
+): string => {
+  let maxNumero = 0;
+
+  for (const s of sectores) {
+    if (!s.codigo) continue;
+    // Buscar patrón -S01, -S1, S01 o simplemente número correlativo final
+    const match = s.codigo.match(/S(\d+)$/i) || s.codigo.match(/(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxNumero) {
+        maxNumero = num;
+      }
+    }
+  }
+
+  const siguienteNumero = maxNumero + 1;
+  const prefijo = codigoParcela || 'P';
+  return `${prefijo}-S${String(siguienteNumero).padStart(2, '0')}`;
+};
 
 export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerProps> = ({
   initialParcelaId,
@@ -106,7 +135,8 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
   const [codigoSector, setCodigoSector] = useState<string>('');
   const [nombreSector, setNombreSector] = useState<string>('');
   const [cultivoId, setCultivoId] = useState<string>('');
-  const [variedad, setVariedad] = useState<string>('');
+  const [variedadSeleccionada, setVariedadSeleccionada] = useState<string>('');
+  const [variedadOtroTexto, setVariedadOtroTexto] = useState<string>('');
   const [colorSector, setColorSector] = useState<string>('#15803D');
   const [fechaSiembra, setFechaSiembra] = useState<string>('');
   const [fechaCosechaEstimada, setFechaCosechaEstimada] = useState<string>('');
@@ -127,14 +157,16 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
   const crearMutation = useCrearSectorParcelaMutation();
   const eliminarMutation = useEliminarSectorParcelaMutation();
 
-  // Autogenerar código sugerido cuando cambia la parcela o el número de sectores
+  // Autogenerar código correlativo consecutivo cuando cambia la parcela o el listado de sectores
   useEffect(() => {
     if (parcelaActual) {
-      const correlativo = sectoresExistentes.length + 1;
-      const codSugerido = `${parcelaActual.codigo || 'P'}-S${String(correlativo).padStart(2, '0')}`;
+      const codSugerido = calcularSiguienteCodigoSector(
+        parcelaActual.codigo,
+        sectoresExistentes,
+      );
       setCodigoSector(codSugerido);
     }
-  }, [parcelaActual?.id, sectoresExistentes.length]);
+  }, [parcelaActual?.id, parcelaActual?.codigo, sectoresExistentes]);
 
   // Al seleccionar un cultivo, sugerir su color y variedades por defecto
   const handleCambioCultivo = (idCultivo: string) => {
@@ -145,9 +177,11 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
         setColorSector(cultivo.colorHex);
       }
       if (cultivo.variedadesDefault && cultivo.variedadesDefault.length > 0) {
-        setVariedad(cultivo.variedadesDefault[0]);
+        setVariedadSeleccionada(cultivo.variedadesDefault[0]);
+        setVariedadOtroTexto('');
       } else {
-        setVariedad('');
+        setVariedadSeleccionada('');
+        setVariedadOtroTexto('');
       }
       if (!nombreSector || nombreSector.startsWith('Sector')) {
         setNombreSector(`Sector ${cultivo.nombre}`);
@@ -239,7 +273,7 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
           codigo: codigoSector.trim(),
           nombre: nombreSector.trim(),
           cultivoId,
-          variedad: variedad.trim() || undefined,
+          variedad: variedadFinal || undefined,
           areaHectareas: areaTrazadaHa,
           colorHex: colorSector,
           delimitacionGeoJson: puntosTrazados,
@@ -258,7 +292,8 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
           // Limpiar trazado y formulario para el siguiente sector
           handleLimpiarTrazo();
           setNombreSector('');
-          setVariedad('');
+          setVariedadSeleccionada(cultivoSeleccionado?.variedadesDefault?.[0] || '');
+          setVariedadOtroTexto('');
           setFechaSiembra('');
           setFechaCosechaEstimada('');
         },
@@ -306,7 +341,35 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
     );
   };
 
-  const cultivoSeleccionado = cultivos.find((c) => c.id === cultivoId);
+  const cultivoSeleccionado = useMemo(
+    () => cultivos.find((c) => c.id === cultivoId),
+    [cultivos, cultivoId],
+  );
+
+  const variedadesDisponibles = useMemo(
+    () => cultivoSeleccionado?.variedadesDefault || [],
+    [cultivoSeleccionado],
+  );
+
+  const opcionesVariedades: SelectOpcion[] = useMemo(() => {
+    if (!cultivoSeleccionado) return [];
+    const lista: SelectOpcion[] = [
+      { label: '— Sin especificar variedad —', valor: '' },
+      ...variedadesDisponibles.map((v) => ({ label: v, valor: v })),
+      { label: 'Otro (Especificar variedad...)', valor: '__OTRO__' },
+    ];
+    return lista;
+  }, [cultivoSeleccionado, variedadesDisponibles]);
+
+  const variedadFinal = useMemo(() => {
+    if (variedadesDisponibles.length === 0) {
+      return variedadOtroTexto.trim();
+    }
+    if (variedadSeleccionada === '__OTRO__') {
+      return variedadOtroTexto.trim();
+    }
+    return variedadSeleccionada.trim();
+  }, [variedadesDisponibles.length, variedadSeleccionada, variedadOtroTexto]);
 
   // Resumen numérico
   const areaTotal = resumenSectores?.areaTotalHectareas ?? Number(parcelaActual?.areaHectareas || 0);
@@ -339,7 +402,7 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
     { etiqueta: 'Código del Sector', valor: codigoSector },
     { etiqueta: 'Nombre del Sector', valor: nombreSector },
     { etiqueta: 'Cultivo Asignado', valor: cultivoSeleccionado?.nombre || 'Cultivo' },
-    ...(variedad ? [{ etiqueta: 'Variedad', valor: variedad }] : []),
+    ...(variedadFinal ? [{ etiqueta: 'Variedad', valor: variedadFinal }] : []),
     {
       etiqueta: 'Superficie Sector',
       valor: `${areaTrazadaHa.toFixed(2)} ha (${areaTotal > 0 ? ((areaTrazadaHa / areaTotal) * 100).toFixed(1) : 0}% del predio)`,
@@ -554,13 +617,23 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
                   )}
 
                   <View style={styles.cuerpoFormulario}>
-                    {/* Código correlativo */}
-                    <Input
-                      label="Código de Sector / Cuartel:"
-                      placeholder="Ej. P-001-S01"
-                      value={codigoSector}
-                      onChangeText={setCodigoSector}
-                    />
+                    {/* Código correlativo consecutivo no modificable */}
+                    <View style={styles.grupoCampo}>
+                      <View style={styles.filaLabelConIcono}>
+                        <Text style={styles.etiquetaCampo}>Código de Sector / Cuartel:</Text>
+                        <View style={styles.badgeSoloLectura}>
+                          <Lock size={11} color="#4B5563" />
+                          <Text style={styles.textoBadgeSoloLectura}>Consecutivo automático</Text>
+                        </View>
+                      </View>
+                      <Input
+                        placeholder="Generando código correlativo..."
+                        value={codigoSector}
+                        editable={false}
+                        iconoIzquierda={<Lock size={16} color="#6B7280" />}
+                        contenedorEstilo={{ marginBottom: 0 }}
+                      />
+                    </View>
 
                     {/* Cultivo a sembrar */}
                     <View style={styles.grupoCampo}>
@@ -581,13 +654,46 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
                       onChangeText={setNombreSector}
                     />
 
-                    {/* Variedad específica */}
-                    <Input
-                      label="Variedad de Cultivo (Opcional):"
-                      placeholder="Ej. Hass, Fuerte, Maluma..."
-                      value={variedad}
-                      onChangeText={setVariedad}
-                    />
+                    {/* Variedad de cultivo dinámica con opción 'Otro' */}
+                    <View style={styles.grupoCampo}>
+                      <Text style={styles.etiquetaCampo}>Variedad de Cultivo (Opcional):</Text>
+                      {variedadesDisponibles.length > 0 ? (
+                        <View style={{ gap: 10 }}>
+                          <Select
+                            placeholder="Seleccionar variedad..."
+                            opciones={opcionesVariedades}
+                            valor={variedadSeleccionada}
+                            onChange={(val) => {
+                              setVariedadSeleccionada(val);
+                              if (val !== '__OTRO__') {
+                                setVariedadOtroTexto('');
+                              }
+                            }}
+                          />
+                          {variedadSeleccionada === '__OTRO__' && (
+                            <Input
+                              placeholder="Escriba el nombre de la variedad..."
+                              value={variedadOtroTexto}
+                              onChangeText={setVariedadOtroTexto}
+                              autoFocus={Platform.OS === 'web'}
+                              contenedorEstilo={{ marginBottom: 0 }}
+                            />
+                          )}
+                        </View>
+                      ) : (
+                        <Input
+                          placeholder={
+                            cultivoId
+                              ? 'Ej. Criollo, Del País, Híbrido...'
+                              : 'Seleccione primero un cultivo...'
+                          }
+                          value={variedadOtroTexto}
+                          onChangeText={setVariedadOtroTexto}
+                          editable={Boolean(cultivoId)}
+                          contenedorEstilo={{ marginBottom: 0 }}
+                        />
+                      )}
+                    </View>
 
                     {/* Paleta rápida de colores del sector */}
                     <View style={styles.grupoCampo}>
@@ -1112,6 +1218,28 @@ const styles = StyleSheet.create({
   grupoCampo: {
     gap: 6,
     width: '100%',
+  },
+  filaLabelConIcono: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  badgeSoloLectura: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  textoBadgeSoloLectura: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#4B5563',
   },
   etiquetaCampo: {
     fontSize: 13,
