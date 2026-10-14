@@ -384,6 +384,32 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           zIndexOffset: 1500
         });
 
+        function manejarClickEnMapa(e) {
+          if (esSoloLectura) return;
+          const puntoFinal = puntoSnapActivo
+            ? [puntoSnapActivo.lat, puntoSnapActivo.lng]
+            : [e.latlng.lat, e.latlng.lng];
+
+          vertices.push(puntoFinal);
+          actualizarPoligono();
+        }
+
+        function manejarMouseMoveEnMapa(e) {
+          if (esSoloLectura || !snappingHabilitado) {
+            if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
+            puntoSnapActivo = null;
+            return;
+          }
+          const snap = buscarPuntoSnap(e.latlng);
+          puntoSnapActivo = snap;
+          if (snap) {
+            snapMarker.setLatLng([snap.lat, snap.lng]);
+            if (!map.hasLayer(snapMarker)) snapMarker.addTo(map);
+          } else {
+            if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
+          }
+        }
+
         function renderizarParcelaMatriz() {
           if (capaParcelaMatriz) {
             map.removeLayer(capaParcelaMatriz);
@@ -397,17 +423,21 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
             fillOpacity: 0.08,
             weight: 3,
             dashArray: '8, 6',
-            interactive: true
+            interactive: true,
+            bubblingMouseEvents: false
           }).addTo(map);
+
+          capaParcelaMatriz.on('click', manejarClickEnMapa);
+          capaParcelaMatriz.on('mousemove', manejarMouseMoveEnMapa);
 
           capaParcelaMatriz.bindTooltip(
             '<div style="font-weight:700; color:#FBBF24;">PARCELA MATRIZ: ${codigoParcela}</div>' +
-            '<div style="color:#F3F4F6;">${nombreParcela} (${Number(areaMatrizHectareas).toFixed(2)} ha)</div>' +
-            '<div style="color:#94A3B8; font-size:10px; margin-top:2px;">Límite exterior contenedor</div>',
-            { className: 'tooltip-parcela-matriz', sticky: true, opacity: 0.95 }
+            '<div style="color:#F3F4F6;">${nombreParcela} (${Number(areaMatrizHectareas).toFixed(2)} ha)</div>',
+            { className: 'tooltip-parcela-matriz', sticky: false, direction: 'top', opacity: 0.95 }
           );
 
           try {
+            map.invalidateSize();
             map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [45, 45], maxZoom: 18 });
           } catch (e) {}
         }
@@ -430,8 +460,12 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
               fillColor: col,
               fillOpacity: 0.35,
               weight: 2,
-              interactive: true
+              interactive: true,
+              bubblingMouseEvents: false
             }).addTo(map);
+
+            poly.on('click', manejarClickEnMapa);
+            poly.on('mousemove', manejarMouseMoveEnMapa);
 
             const tooltipHtml = [
               '<div style="font-weight:700; color:#F8FAFC;">' + (sec.nombre || 'Sector') + ' (' + (sec.codigo || 'S/C') + ')</div>',
@@ -442,7 +476,8 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
             poly.bindTooltip(tooltipHtml, {
               className: 'tooltip-sector-ocupado',
-              sticky: true,
+              sticky: false,
+              direction: 'top',
               opacity: 0.95
             });
 
@@ -663,56 +698,73 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
               color: colorTrazado,
               fillColor: fillTrazado,
               fillOpacity: hayError ? 0.45 : 0.28,
-              weight: 3
+              weight: 3,
+              interactive: true,
+              bubblingMouseEvents: false
             }).addTo(map);
 
-            if (!esSoloLectura) {
-              for (let i = 0; i < vertices.length; i++) {
-                (function(idx) {
-                  const m = L.marker(vertices[idx], {
-                    draggable: true,
-                    icon: L.divIcon({
-                      className: 'vertice-wrapper',
-                      html: '<div class="vertice-pin' + (hayError ? ' error' : '') + '"></div>',
-                      iconSize: [14, 14],
-                      iconAnchor: [7, 7]
-                    }),
-                    title: 'Vértice ' + (idx + 1) + ' (Haga clic para eliminar, arrastre para mover)'
-                  }).addTo(map);
+            capaPoligonoNuevo.on('click', manejarClickEnMapa);
+            capaPoligonoNuevo.on('mousemove', manejarMouseMoveEnMapa);
+          } else if (vertices.length === 2) {
+            capaPoligonoNuevo = L.polyline(vertices, {
+              color: colorTrazado,
+              weight: 3,
+              dashArray: '5, 5',
+              interactive: true,
+              bubblingMouseEvents: false
+            }).addTo(map);
 
-                  m.on('drag', function(ev) {
-                    let pos = ev.target.getLatLng();
-                    const snap = buscarPuntoSnap(pos);
-                    if (snap) {
-                      pos = L.latLng(snap.lat, snap.lng);
-                      ev.target.setLatLng(pos);
-                      snapMarker.setLatLng([snap.lat, snap.lng]);
-                      if (!map.hasLayer(snapMarker)) snapMarker.addTo(map);
-                    } else if (map.hasLayer(snapMarker)) {
-                      map.removeLayer(snapMarker);
-                    }
-                    vertices[idx] = [pos.lat, pos.lng];
-                    redibujarEnArrastre();
-                  });
+            capaPoligonoNuevo.on('click', manejarClickEnMapa);
+            capaPoligonoNuevo.on('mousemove', manejarMouseMoveEnMapa);
+          }
 
-                  m.on('dragend', function() {
-                    if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
-                    actualizarPoligono();
-                  });
+          // Crear marcadores de vértices SIEMPRE para cualquier cantidad de puntos (1, 2, 3...)
+          if (!esSoloLectura) {
+            for (let i = 0; i < vertices.length; i++) {
+              (function(idx) {
+                const m = L.marker(vertices[idx], {
+                  draggable: true,
+                  icon: L.divIcon({
+                    className: 'vertice-wrapper',
+                    html: '<div class="vertice-pin' + (hayError ? ' error' : '') + '"></div>',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                  }),
+                  title: 'Vértice ' + (idx + 1) + ' (Haga clic para eliminar, arrastre para mover)'
+                }).addTo(map);
 
-                  m.on('click', function(ev) {
-                    L.DomEvent.stopPropagation(ev);
-                    if (vertices.length > 3) {
-                      vertices.splice(idx, 1);
-                      actualizarPoligono();
-                    }
-                  });
+                m.on('drag', function(ev) {
+                  let pos = ev.target.getLatLng();
+                  const snap = buscarPuntoSnap(pos);
+                  if (snap) {
+                    pos = L.latLng(snap.lat, snap.lng);
+                    ev.target.setLatLng(pos);
+                    snapMarker.setLatLng([snap.lat, snap.lng]);
+                    if (!map.hasLayer(snapMarker)) snapMarker.addTo(map);
+                  } else if (map.hasLayer(snapMarker)) {
+                    map.removeLayer(snapMarker);
+                  }
+                  vertices[idx] = [pos.lat, pos.lng];
+                  redibujarEnArrastre();
+                });
 
-                  marcadoresNuevo.push(m);
-                })(i);
-              }
+                m.on('dragend', function() {
+                  if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
+                  actualizarPoligono();
+                });
 
-              // Puntos medios para insertar vértices
+                m.on('click', function(ev) {
+                  L.DomEvent.stopPropagation(ev);
+                  vertices.splice(idx, 1);
+                  actualizarPoligono();
+                });
+
+                marcadoresNuevo.push(m);
+              })(i);
+            }
+
+            // Puntos medios para insertar vértices solo si ya tiene 3 o más
+            if (vertices.length >= 3) {
               for (let i = 0; i < vertices.length; i++) {
                 (function(idx) {
                   const p1 = vertices[idx];
@@ -764,8 +816,6 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                 })(i);
               }
             }
-          } else if (vertices.length === 2) {
-            capaPoligonoNuevo = L.polyline(vertices, { color: colorTrazado, weight: 3 }).addTo(map);
           }
 
           const puntosFormateados = vertices.map(function(v) { return { latitude: v[0], longitude: v[1] }; });
@@ -780,38 +830,24 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
         actualizarPoligono();
 
-        // Proximidad de cursor para snap
-        map.on('mousemove', function(e) {
-          if (esSoloLectura || !snappingHabilitado) {
-            if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
-            puntoSnapActivo = null;
-            return;
-          }
-          const snap = buscarPuntoSnap(e.latlng);
-          puntoSnapActivo = snap;
-          if (snap) {
-            snapMarker.setLatLng([snap.lat, snap.lng]);
-            if (!map.hasLayer(snapMarker)) snapMarker.addTo(map);
-          } else {
-            if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
-          }
-        });
+        // Listeners del mapa base
+        map.on('mousemove', manejarMouseMoveEnMapa);
+        map.on('click', manejarClickEnMapa);
 
         map.on('mouseout', function() {
           if (map.hasLayer(snapMarker)) map.removeLayer(snapMarker);
           puntoSnapActivo = null;
         });
 
-        // Click para registrar vértice en nuevo sector
-        map.on('click', function(e) {
-          if (esSoloLectura) return;
-          const puntoFinal = puntoSnapActivo
-            ? [puntoSnapActivo.lat, puntoSnapActivo.lng]
-            : [e.latlng.lat, e.latlng.lng];
-
-          vertices.push(puntoFinal);
-          actualizarPoligono();
-        });
+        // Asegurar que Leaflet calcule correctamente las dimensiones y centre la parcela
+        setTimeout(function() {
+          try {
+            map.invalidateSize();
+            if (capaParcelaMatriz) {
+              map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [45, 45], maxZoom: 18 });
+            }
+          } catch (err) {}
+        }, 200);
 
         window.addEventListener('message', function(e) {
           if (!e.data) return;
@@ -826,8 +862,9 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
             vertices.pop();
             actualizarPoligono();
           } else if (e.data.accion === 'AJUSTAR_A_PARCELA') {
+            map.invalidateSize();
             if (capaParcelaMatriz) {
-              map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [40, 40] });
+              map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [45, 45], maxZoom: 18 });
             }
           } else if (e.data.accion === 'CAMBIAR_COLOR' && e.data.carga) {
             if (e.data.carga.color) {
