@@ -16,6 +16,7 @@ import {
 import {
   DiagnosticoRespuesta,
   DespliegueDronConfig,
+  CoordenadasHallazgo,
 } from '../types/diagnostico.types';
 import { obtenerCoordenadasDispositivo } from '../utils/geolocalizacion';
 import { VisorCamaraEscaneo } from '../components/VisorCamaraEscaneo';
@@ -26,7 +27,7 @@ import { HistorialDiagnosticosCampo } from '../components/HistorialDiagnosticosC
 
 /**
  * @description Contenedor que orquesta la selección de área/sector para despliegue de dron,
- * captura de video en vivo (Irium Cam), diagnóstico con IA, solicitud de GPS del dispositivo y guardado con Google Maps.
+ * captura de video en vivo (Irium Cam), diagnóstico con IA, fijación de coordenadas del hallazgo y guardado con Google Maps.
  */
 export function DiagnosticoEscaneoContainer() {
   const { width } = useWindowDimensions();
@@ -34,6 +35,7 @@ export function DiagnosticoEscaneoContainer() {
 
   const [diagnosticoActual, setDiagnosticoActual] = useState<DiagnosticoRespuesta | null>(null);
   const [despliegueActual, setDespliegueActual] = useState<DespliegueDronConfig | null>(null);
+  const [coordenadasHallazgo, setCoordenadasHallazgo] = useState<CoordenadasHallazgo | null>(null);
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
   const [errorConexion, setErrorConexion] = useState<string | null>(null);
   const [solicitandoGps, setSolicitandoGps] = useState(false);
@@ -46,13 +48,12 @@ export function DiagnosticoEscaneoContainer() {
     try {
       const coords = await obtenerCoordenadasDispositivo();
       if (coords) {
-        setDespliegueActual((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            latitud: coords.latitud,
-            longitud: coords.longitud,
-          };
+        setCoordenadasHallazgo({
+          latitud: coords.latitud,
+          longitud: coords.longitud,
+          origen: 'GPS_DISPOSITIVO',
+          precision: coords.precision,
+          timestamp: Date.now(),
         });
       } else {
         alert(
@@ -74,17 +75,36 @@ export function DiagnosticoEscaneoContainer() {
     try {
       const coords = await obtenerCoordenadasDispositivo();
       if (coords) {
-        setDespliegueActual((prev) => {
-          if (!prev) return prev;
+        setCoordenadasHallazgo({
+          latitud: coords.latitud,
+          longitud: coords.longitud,
+          origen: 'GPS_DISPOSITIVO',
+          precision: coords.precision,
+          timestamp: Date.now(),
+        });
+      } else if (despliegueActual) {
+        setCoordenadasHallazgo((prev) => {
+          if (prev?.origen === 'GPS_DISPOSITIVO') return prev;
           return {
-            ...prev,
-            latitud: coords.latitud,
-            longitud: coords.longitud,
+            latitud: despliegueActual.latitud,
+            longitud: despliegueActual.longitud,
+            origen: 'PARCELA_REFERENCIA',
+            timestamp: Date.now(),
           };
         });
       }
     } catch {
-      // Si el navegador no otorga GPS, se mantienen las coordenadas de la parcela
+      if (despliegueActual) {
+        setCoordenadasHallazgo((prev) => {
+          if (prev?.origen === 'GPS_DISPOSITIVO') return prev;
+          return {
+            latitud: despliegueActual.latitud,
+            longitud: despliegueActual.longitud,
+            origen: 'PARCELA_REFERENCIA',
+            timestamp: Date.now(),
+          };
+        });
+      }
     }
 
     const formData = new FormData();
@@ -116,19 +136,27 @@ export function DiagnosticoEscaneoContainer() {
   const handleGuardarDiagnostico = () => {
     if (!diagnosticoActual || !despliegueActual) return;
 
+    // Coordenadas a guardar: prioridad absoluta a las coordenadas fijadas en el momento del hallazgo
+    const latitudGuardar = coordenadasHallazgo?.latitud ?? despliegueActual.latitud;
+    const longitudGuardar = coordenadasHallazgo?.longitud ?? despliegueActual.longitud;
+    const origenGuardar =
+      coordenadasHallazgo?.origen === 'GPS_DISPOSITIVO'
+        ? 'CAMARA_DISPOSITIVO'
+        : 'SISTEMA_PARCELA';
+
     guardarMutacion.mutate(
       {
         parcelaId: despliegueActual.parcelaId,
         sectorId: despliegueActual.sectorId,
-        latitud: despliegueActual.latitud,
-        longitud: despliegueActual.longitud,
+        latitud: latitudGuardar,
+        longitud: longitudGuardar,
         estadoGeneral: diagnosticoActual.estado_general,
         saludPorcentaje: Math.round(diagnosticoActual.salud_porcentaje),
         totalPlagasDetectadas: diagnosticoActual.total_plagas_detectadas,
         detecciones: diagnosticoActual.detecciones,
         recomendaciones: diagnosticoActual.recomendaciones,
         tiempoProcesamientoMs: diagnosticoActual.tiempo_procesamiento_ms,
-        origenCaptura: 'CAMARA_DISPOSITIVO',
+        origenCaptura: origenGuardar,
       },
       {
         onSuccess: () => {
@@ -144,6 +172,7 @@ export function DiagnosticoEscaneoContainer() {
 
   const handleLimpiar = () => {
     setDiagnosticoActual(null);
+    setCoordenadasHallazgo(null);
     setGuardadoExitoso(false);
     setErrorConexion(null);
   };
@@ -216,6 +245,7 @@ export function DiagnosticoEscaneoContainer() {
                 <TarjetaDiagnosticoResultado
                   resultado={diagnosticoActual}
                   despliegue={despliegueActual}
+                  coordenadasHallazgo={coordenadasHallazgo}
                   onGuardarDiagnostico={handleGuardarDiagnostico}
                   guardando={guardarMutacion.isPending}
                   guardadoExitoso={guardadoExitoso}

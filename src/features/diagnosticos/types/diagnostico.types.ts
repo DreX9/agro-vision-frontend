@@ -46,6 +46,14 @@ export interface DespliegueDronConfig {
   longitud: number;
 }
 
+export interface CoordenadasHallazgo {
+  latitud: number;
+  longitud: number;
+  origen: 'GPS_DISPOSITIVO' | 'PARCELA_REFERENCIA';
+  precision?: number | null;
+  timestamp?: number;
+}
+
 export interface DiagnosticoCampoItem {
   id: string;
   codigo: string;

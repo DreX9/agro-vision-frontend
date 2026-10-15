@@ -18,12 +18,13 @@ import { Palette } from '@/constants/theme';
 import { Card } from '@/shared/components/ui/card';
 import { Badge, VarianteBadge } from '@/shared/components/ui/badge';
 import { Boton } from '@/shared/components/ui/boton';
-import { DiagnosticoRespuesta, DespliegueDronConfig } from '../types/diagnostico.types';
+import { DiagnosticoRespuesta, DespliegueDronConfig, CoordenadasHallazgo } from '../types/diagnostico.types';
 import { abrirGoogleMaps } from '../utils/geolocalizacion';
 
 export interface TarjetaDiagnosticoResultadoProps {
   resultado: DiagnosticoRespuesta | null;
   despliegue?: DespliegueDronConfig | null;
+  coordenadasHallazgo?: CoordenadasHallazgo | null;
   onGuardarDiagnostico?: () => void;
   guardando?: boolean;
   guardadoExitoso?: boolean;
@@ -33,11 +34,12 @@ export interface TarjetaDiagnosticoResultadoProps {
 
 /**
  * @description Presenta el informe fitosanitario con estado, detecciones, recomendaciones,
- * coordenadas geográficas con enlace directo a Google Maps y guardado persistente.
+ * coordenadas geográficas fijadas al momento del hallazgo con enlace directo a Google Maps y guardado.
  */
 export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoProps> = ({
   resultado,
   despliegue,
+  coordenadasHallazgo,
   onGuardarDiagnostico,
   guardando = false,
   guardadoExitoso = false,
@@ -133,78 +135,101 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
       </View>
 
       {/* Bloque de Geolocalización de la Detección */}
-      <View style={styles.cajaGeolocalizacion}>
-        <View style={styles.filaTituloGeo}>
-          <MapPin size={16} color={Palette.forestGreen} />
-          <Text style={styles.tituloSeccion}>Geolocalización del Hallazgo</Text>
-        </View>
+      {(() => {
+        const coordsEfectivas = coordenadasHallazgo
+          ? { latitud: coordenadasHallazgo.latitud, longitud: coordenadasHallazgo.longitud }
+          : despliegue
+          ? { latitud: despliegue.latitud, longitud: despliegue.longitud }
+          : null;
 
-        {despliegue ? (
-          <View style={styles.grillaGeoDetalles}>
-            <View style={styles.itemGeo}>
-              <Text style={styles.labelGeo}>Área / Parcela:</Text>
-              <Text style={styles.valorGeo}>{despliegue.parcelaNombre}</Text>
-            </View>
-
-            {despliegue.sectorNombre && (
-              <View style={styles.itemGeo}>
-                <Text style={styles.labelGeo}>Zona de Cultivo:</Text>
-                <Text style={styles.valorGeo}>{despliegue.sectorNombre}</Text>
+        return (
+          <View style={styles.cajaGeolocalizacion}>
+            <View style={styles.filaTituloGeo}>
+              <View style={styles.filaTituloConIcono}>
+                <MapPin size={16} color={Palette.forestGreen} />
+                <Text style={styles.tituloSeccion}>Geolocalización del Hallazgo</Text>
               </View>
-            )}
-
-            <View style={styles.itemGeo}>
-              <Text style={styles.labelGeo}>Cultivo:</Text>
-              <Text style={styles.valorGeo}>
-                {despliegue.cultivoNombre}
-                {despliegue.cultivoVariedad ? ` (${despliegue.cultivoVariedad})` : ''}
-              </Text>
-            </View>
-
-            <View style={styles.itemGeo}>
-              <Text style={styles.labelGeo}>Coordenadas GPS:</Text>
-              <Text style={styles.valorGeoCoordenadas}>
-                Lat: {despliegue.latitud.toFixed(6)}°, Lon: {despliegue.longitud.toFixed(6)}°
-              </Text>
-            </View>
-
-            {/* Enlace para abrir en Google Maps y solicitar GPS */}
-            <View style={styles.filaBotonesGeo}>
-              <Pressable
-                onPress={() => abrirGoogleMaps(despliegue.latitud, despliegue.longitud)}
-                style={({ pressed }) => [styles.botonGoogleMaps, pressed && styles.presionado]}
-              >
-                <ExternalLink size={14} color="#0284C7" />
-                <Text style={styles.textoBotonGoogleMaps}>Ver ubicación en Google Maps</Text>
-              </Pressable>
-
-              {onSolicitarGps && (
-                <Pressable
-                  onPress={onSolicitarGps}
-                  disabled={solicitandoGps}
-                  style={({ pressed }) => [
-                    styles.botonSolicitarGps,
-                    solicitandoGps && styles.botonDeshabilitado,
-                    pressed && styles.presionado,
-                  ]}
-                >
-                  <Navigation size={13} color={Palette.forestGreen} />
-                  <Text style={styles.textoBotonSolicitarGps}>
-                    {solicitandoGps ? 'Obteniendo GPS...' : 'Solicitar GPS en vivo'}
-                  </Text>
-                </Pressable>
+              {coordenadasHallazgo?.origen === 'GPS_DISPOSITIVO' && (
+                <Badge texto="GPS EN VIVO FIJADO AL DETECTAR" variante="exito" />
               )}
             </View>
+
+            {despliegue || coordsEfectivas ? (
+              <View style={styles.grillaGeoDetalles}>
+                {despliegue && (
+                  <>
+                    <View style={styles.itemGeo}>
+                      <Text style={styles.labelGeo}>Área / Parcela:</Text>
+                      <Text style={styles.valorGeo}>{despliegue.parcelaNombre}</Text>
+                    </View>
+
+                    {despliegue.sectorNombre && (
+                      <View style={styles.itemGeo}>
+                        <Text style={styles.labelGeo}>Zona de Cultivo:</Text>
+                        <Text style={styles.valorGeo}>{despliegue.sectorNombre}</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.itemGeo}>
+                      <Text style={styles.labelGeo}>Cultivo:</Text>
+                      <Text style={styles.valorGeo}>
+                        {despliegue.cultivoNombre}
+                        {despliegue.cultivoVariedad ? ` (${despliegue.cultivoVariedad})` : ''}
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {coordsEfectivas && (
+                  <View style={styles.itemGeo}>
+                    <Text style={styles.labelGeo}>Coordenadas GPS de Detección:</Text>
+                    <Text style={styles.valorGeoCoordenadas}>
+                      Lat: {coordsEfectivas.latitud.toFixed(6)}°, Lon: {coordsEfectivas.longitud.toFixed(6)}°
+                    </Text>
+                  </View>
+                )}
+
+                {/* Enlace para abrir en Google Maps y solicitar GPS */}
+                {coordsEfectivas && (
+                  <View style={styles.filaBotonesGeo}>
+                    <Pressable
+                      onPress={() => abrirGoogleMaps(coordsEfectivas.latitud, coordsEfectivas.longitud)}
+                      style={({ pressed }) => [styles.botonGoogleMaps, pressed && styles.presionado]}
+                    >
+                      <ExternalLink size={14} color="#0284C7" />
+                      <Text style={styles.textoBotonGoogleMaps}>Ver ubicación en Google Maps</Text>
+                    </Pressable>
+
+                    {onSolicitarGps && (
+                      <Pressable
+                        onPress={onSolicitarGps}
+                        disabled={solicitandoGps}
+                        style={({ pressed }) => [
+                          styles.botonSolicitarGps,
+                          solicitandoGps && styles.botonDeshabilitado,
+                          pressed && styles.presionado,
+                        ]}
+                      >
+                        <Navigation size={13} color={Palette.forestGreen} />
+                        <Text style={styles.textoBotonSolicitarGps}>
+                          {solicitandoGps ? 'Obteniendo GPS...' : 'Solicitar GPS en vivo'}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.avisoSinUbicacion}>
+                <AlertTriangle size={16} color="#D97706" />
+                <Text style={styles.textoAvisoSinUbicacion}>
+                  Seleccione una parcela en el panel superior para asociar las coordenadas GPS y guardar.
+                </Text>
+              </View>
+            )}
           </View>
-        ) : (
-          <View style={styles.avisoSinUbicacion}>
-            <AlertTriangle size={16} color="#D97706" />
-            <Text style={styles.textoAvisoSinUbicacion}>
-              Seleccione una parcela en el panel superior para asociar las coordenadas GPS y guardar.
-            </Text>
-          </View>
-        )}
-      </View>
+        );
+      })()}
 
       {/* Resumen de Detecciones */}
       <View style={styles.seccionDetecciones}>
@@ -316,6 +341,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   filaTituloGeo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filaTituloConIcono: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

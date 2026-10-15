@@ -25,13 +25,30 @@ export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | 
               });
             },
             (err) => {
-              console.warn('Error al obtener geolocalización web:', err.message);
-              resolve(null);
+              console.warn('GPS de alta precisión no disponible o demoró, reintentando con ubicación de red/Wi-Fi:', err.message);
+              navigator.geolocation.getCurrentPosition(
+                (posNet) => {
+                  resolve({
+                    latitud: posNet.coords.latitude,
+                    longitud: posNet.coords.longitude,
+                    precision: posNet.coords.accuracy,
+                  });
+                },
+                (errNet) => {
+                  console.warn('Error definitivo al obtener geolocalización:', errNet.message);
+                  resolve(null);
+                },
+                {
+                  enableHighAccuracy: false,
+                  timeout: 10000,
+                  maximumAge: 300000,
+                },
+              );
             },
             {
               enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0,
+              timeout: 6000,
+              maximumAge: 60000,
             },
           );
         });
