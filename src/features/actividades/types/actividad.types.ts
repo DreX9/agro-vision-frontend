@@ -76,6 +76,9 @@ export interface ActividadItem {
   tipo: TipoActividadTipo;
   parcelaId: string;
   parcelaNombre?: string;
+  sectorId?: string | null;
+  sectorNombre?: string | null;
+  sectorCodigo?: string | null;
   cultivoNombre?: string;
   usuarioResponsableId?: string | null;
   usuarioResponsableNombre?: string | null;
@@ -120,6 +123,7 @@ export interface CrearActividadInput {
   titulo: string;
   tipo: TipoActividadTipo;
   parcelaId: string;
+  sectorId?: string;
   fechaInicio: string;
   fechaFin?: string;
   usuarioResponsableId?: string;
@@ -134,6 +138,7 @@ export interface ActualizarActividadInput {
   titulo?: string;
   tipo?: TipoActividadTipo;
   parcelaId?: string;
+  sectorId?: string;
   fechaInicio?: string;
   fechaFin?: string;
   usuarioResponsableId?: string;

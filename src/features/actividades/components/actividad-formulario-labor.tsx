@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Controller, Control, FieldErrors } from 'react-hook-form';
 import { Boton, Input, Select, SelectOpcion, SelectorFecha, SelectorHora } from '@/shared/components/ui';
+import { Palette } from '@/constants/theme';
+import { SectorParcelaItem } from '@/features/parcelas/types/sector-parcela.types';
 import { esLaborCampo, TipoActividadTipo } from '../types/actividad.types';
 import { ActividadFormValores } from '../schemas/actividad.schema';
 import { styles } from './actividad-formulario.styles';
@@ -30,6 +32,11 @@ export interface ActividadFormularioLaborProps {
   errors: FieldErrors<ActividadFormValores>;
   tipoActual: TipoActividadTipo;
   parcelaIdActual: string;
+  sectorIdActual?: string;
+  opcionesSectores: SelectOpcion[];
+  cargandoSectores?: boolean;
+  sectoresDisponibles?: SectorParcelaItem[];
+  onCambiarSector?: (sectorId: string) => void;
   responsableIdActual?: string;
   opcionesParcelas: SelectOpcion[];
   opcionesResponsables: SelectOpcion[];
@@ -48,6 +55,11 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   errors,
   tipoActual,
   parcelaIdActual,
+  sectorIdActual,
+  opcionesSectores,
+  cargandoSectores = false,
+  sectoresDisponibles = [],
+  onCambiarSector,
   responsableIdActual,
   opcionesParcelas,
   opcionesResponsables,
@@ -163,6 +175,72 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
           />
         )}
       />
+
+      {/* Campo: Área de Cultivo / Sector según la parcela seleccionada */}
+      <View style={styles.bloqueSectorCultivo}>
+        <Controller
+          control={control}
+          name="sectorId"
+          render={({ field: { onChange, value } }) => (
+            <Select
+              label="Área de Cultivo / Sector"
+              placeholder={
+                cargandoSectores
+                  ? 'Cargando áreas de cultivo...'
+                  : 'Seleccione un sector o toda la parcela...'
+              }
+              valor={value || ''}
+              opciones={opcionesSectores}
+              onChange={(val) => {
+                onChange(val);
+                onCambiarSector?.(val);
+              }}
+              error={errors.sectorId?.message}
+            />
+          )}
+        />
+
+        {/* Resumen agronómico del sector o aviso si la parcela no tiene sectores */}
+        {sectorIdActual && sectoresDisponibles.find((s) => s.id === sectorIdActual) ? (
+          (() => {
+            const sec = sectoresDisponibles.find((s) => s.id === sectorIdActual)!;
+            return (
+              <View style={styles.tarjetaResumenSector}>
+                <View style={styles.indicadorSectorColorWrapper}>
+                  <View
+                    style={[
+                      styles.circuloColorSector,
+                      { backgroundColor: sec.colorHex || Palette.forestGreen },
+                    ]}
+                  />
+                  <Text style={styles.textoNombreSectorResumen}>
+                    {sec.nombre} ({sec.codigo})
+                  </Text>
+                </View>
+                <View style={styles.etiquetasDetalleSector}>
+                  <View style={styles.chipSectorDetalle}>
+                    <Text style={styles.textoChipSectorDetalle}>
+                      🌱 {sec.cultivoNombre || 'Cultivo'}
+                      {sec.variedad ? ` • ${sec.variedad}` : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.chipSectorDetalle}>
+                    <Text style={styles.textoChipSectorDetalle}>
+                      📐 {Number(sec.areaHectareas).toFixed(2)} ha asignadas
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })()
+        ) : sectoresDisponibles.length === 0 && !cargandoSectores && Boolean(parcelaIdActual) ? (
+          <View style={styles.avisoSinSectores}>
+            <Text style={styles.textoAvisoSinSectores}>
+              ℹ️ Esta parcela aún no tiene subdivisiones de cultivo. La labor se programará para toda la parcela.
+            </Text>
+          </View>
+        ) : null}
+      </View>
 
       {/* Selector interactivo de Fechas (Calendario) */}
       <View style={styles.filaDosColumnas}>

@@ -120,7 +120,11 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
           <MapPin size={13} color={Palette.forestGreen} />
           <View>
             <Text style={styles.textoParcela}>{a.parcelaNombre || 'Parcela'}</Text>
-            {a.cultivoNombre ? <Text style={styles.textoCultivo}>({a.cultivoNombre})</Text> : null}
+            {a.sectorNombre ? (
+              <Text style={styles.textoCultivo}>{a.sectorNombre}{a.cultivoNombre ? ` (${a.cultivoNombre})` : ''}</Text>
+            ) : a.cultivoNombre ? (
+              <Text style={styles.textoCultivo}>({a.cultivoNombre})</Text>
+            ) : null}
           </View>
         </View>
       ),

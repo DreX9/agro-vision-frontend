@@ -53,6 +53,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           titulo: valores.titulo,
           tipo: valores.tipo,
           parcelaId: valores.parcelaId,
+          sectorId: valores.sectorId || undefined,
           fechaInicio: fechaInicioIso,
           fechaFin: fechaFinIso,
           usuarioResponsableId: valores.usuarioResponsableId || undefined,
@@ -109,6 +110,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
             titulo: actividad.titulo,
             tipo: actividad.tipo,
             parcelaId: actividad.parcelaId,
+            sectorId: actividad.sectorId || '',
             fechaInicio: actividad.fechaInicio.split('T')[0],
             horaInicio: (() => {
               const d = new Date(actividad.fechaInicio);
@@ -167,5 +169,5 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
 };
 
 const styles = StyleSheet.create({
-  contenedor: { flex: 1, paddingBottom: 30 },
+  contenedor: { flex: 1 },
 });

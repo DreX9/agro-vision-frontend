@@ -47,6 +47,7 @@ export const CrearActividadContainer: React.FC = () => {
         titulo: valores.titulo,
         tipo: valores.tipo,
         parcelaId: valores.parcelaId,
+        sectorId: valores.sectorId || undefined,
         fechaInicio: fechaInicioIso,
         fechaFin: fechaFinIso,
         usuarioResponsableId: valores.usuarioResponsableId || undefined,
@@ -95,5 +96,5 @@ export const CrearActividadContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  contenedor: { flex: 1, paddingBottom: 30 },
+  contenedor: { flex: 1 },
 });
