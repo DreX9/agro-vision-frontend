@@ -5,30 +5,88 @@ import {
   StyleSheet,
   ScrollView,
   useWindowDimensions,
-  Platform,
 } from 'react-native';
 import { Palette } from '@/constants/theme';
 import { AlertTriangle } from 'lucide-react-native';
 import { AppLayout } from '@/shared/components/layout/app-layout';
-import { useEscanearImagenMutation } from '../api/diagnostico.api';
-import { DiagnosticoRespuesta } from '../types/diagnostico.types';
+import {
+  useEscanearImagenMutation,
+  useGuardarDiagnosticoMutation,
+} from '../api/diagnostico.api';
+import {
+  DiagnosticoRespuesta,
+  DespliegueDronConfig,
+} from '../types/diagnostico.types';
+import { obtenerCoordenadasDispositivo } from '../utils/geolocalizacion';
 import { VisorCamaraEscaneo } from '../components/VisorCamaraEscaneo';
 import { TarjetaDiagnosticoResultado } from '../components/TarjetaDiagnosticoResultado';
 import { DiagnosticoSkeleton } from '../components/DiagnosticoSkeleton';
+import { SelectorDespliegueDron } from '../components/SelectorDespliegueDron';
+import { HistorialDiagnosticosCampo } from '../components/HistorialDiagnosticosCampo';
 
 /**
- * @description Contenedor que orquesta la captura de video/cámara y el diagnóstico fitosanitario.
+ * @description Contenedor que orquesta la selección de área/sector para despliegue de dron,
+ * captura de video en vivo (Irium Cam), diagnóstico con IA, solicitud de GPS del dispositivo y guardado con Google Maps.
  */
 export function DiagnosticoEscaneoContainer() {
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
   const [diagnosticoActual, setDiagnosticoActual] = useState<DiagnosticoRespuesta | null>(null);
+  const [despliegueActual, setDespliegueActual] = useState<DespliegueDronConfig | null>(null);
+  const [guardadoExitoso, setGuardadoExitoso] = useState(false);
   const [errorConexion, setErrorConexion] = useState<string | null>(null);
-  const escanearMutacion = useEscanearImagenMutation();
+  const [solicitandoGps, setSolicitandoGps] = useState(false);
 
-  const handleCapturarYEscanear = (archivo: Blob | File | string) => {
+  const escanearMutacion = useEscanearImagenMutation();
+  const guardarMutacion = useGuardarDiagnosticoMutation();
+
+  const handleSolicitarGps = async () => {
+    setSolicitandoGps(true);
+    try {
+      const coords = await obtenerCoordenadasDispositivo();
+      if (coords) {
+        setDespliegueActual((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            latitud: coords.latitud,
+            longitud: coords.longitud,
+          };
+        });
+      } else {
+        alert(
+          'No se pudo obtener la ubicación GPS del dispositivo. Por favor verifica los permisos de geolocalización en tu navegador o smartphone.',
+        );
+      }
+    } catch (err) {
+      console.warn('Error al solicitar GPS del dispositivo:', err);
+    } finally {
+      setSolicitandoGps(false);
+    }
+  };
+
+  const handleCapturarYEscanear = async (archivo: Blob | File | string) => {
     setErrorConexion(null);
+    setGuardadoExitoso(false);
+
+    // Solicitar automáticamente la ubicación GPS en vivo del dispositivo que usa la cámara
+    try {
+      const coords = await obtenerCoordenadasDispositivo();
+      if (coords) {
+        setDespliegueActual((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            latitud: coords.latitud,
+            longitud: coords.longitud,
+          };
+        });
+      }
+    } catch {
+      // Si el navegador no otorga GPS, se mantienen las coordenadas de la parcela
+    }
+
     const formData = new FormData();
 
     if (typeof archivo === 'string') {
@@ -55,8 +113,38 @@ export function DiagnosticoEscaneoContainer() {
     });
   };
 
+  const handleGuardarDiagnostico = () => {
+    if (!diagnosticoActual || !despliegueActual) return;
+
+    guardarMutacion.mutate(
+      {
+        parcelaId: despliegueActual.parcelaId,
+        sectorId: despliegueActual.sectorId,
+        latitud: despliegueActual.latitud,
+        longitud: despliegueActual.longitud,
+        estadoGeneral: diagnosticoActual.estado_general,
+        saludPorcentaje: Math.round(diagnosticoActual.salud_porcentaje),
+        totalPlagasDetectadas: diagnosticoActual.total_plagas_detectadas,
+        detecciones: diagnosticoActual.detecciones,
+        recomendaciones: diagnosticoActual.recomendaciones,
+        tiempoProcesamientoMs: diagnosticoActual.tiempo_procesamiento_ms,
+        origenCaptura: 'CAMARA_DISPOSITIVO',
+      },
+      {
+        onSuccess: () => {
+          setGuardadoExitoso(true);
+        },
+        onError: (err) => {
+          console.error('Error al guardar diagnóstico en base de datos:', err);
+          alert('No se pudo guardar el diagnóstico en la base de datos.');
+        },
+      },
+    );
+  };
+
   const handleLimpiar = () => {
     setDiagnosticoActual(null);
+    setGuardadoExitoso(false);
     setErrorConexion(null);
   };
 
@@ -87,6 +175,12 @@ export function DiagnosticoEscaneoContainer() {
             </View>
           )}
 
+          {/* Configuración de Misión: Parcela y Sector donde se envía el dron */}
+          <SelectorDespliegueDron
+            despliegue={despliegueActual}
+            onDespliegueChange={setDespliegueActual}
+          />
+
           {/* Distribución Responsiva (2 Columnas en PC, 1 Columna en Celular) */}
           <View
             style={[
@@ -94,7 +188,7 @@ export function DiagnosticoEscaneoContainer() {
               esEscritorio && styles.grillaPrincipalEscritorio,
             ]}
           >
-            {/* Columna Izquierda: Visor de Video / Cámara */}
+            {/* Columna Izquierda: Visor de Video / Cámara (Irium Webcam o Video Muestra) */}
             <View
               style={[
                 styles.columnaMedia,
@@ -109,7 +203,7 @@ export function DiagnosticoEscaneoContainer() {
               />
             </View>
 
-            {/* Columna Derecha: Tarjeta de Diagnóstico y Recomendaciones */}
+            {/* Columna Derecha: Tarjeta de Diagnóstico, Coordenadas con Google Maps y Botón de Guardado */}
             <View
               style={[
                 styles.columnaInforme,
@@ -119,10 +213,21 @@ export function DiagnosticoEscaneoContainer() {
               {escanearMutacion.isPending ? (
                 <DiagnosticoSkeleton />
               ) : (
-                <TarjetaDiagnosticoResultado resultado={diagnosticoActual} />
+                <TarjetaDiagnosticoResultado
+                  resultado={diagnosticoActual}
+                  despliegue={despliegueActual}
+                  onGuardarDiagnostico={handleGuardarDiagnostico}
+                  guardando={guardarMutacion.isPending}
+                  guardadoExitoso={guardadoExitoso}
+                  onSolicitarGps={handleSolicitarGps}
+                  solicitandoGps={solicitandoGps}
+                />
               )}
             </View>
           </View>
+
+          {/* Historial de Diagnósticos Registrados en Base de Datos */}
+          <HistorialDiagnosticosCampo parcelaId={despliegueActual?.parcelaId} />
         </View>
       </ScrollView>
     </AppLayout>
@@ -144,7 +249,7 @@ const styles = StyleSheet.create({
   },
   areaTrabajo: {
     width: '100%',
-    gap: 24,
+    gap: 20,
   },
   areaTrabajoEscritorio: {
     maxWidth: 1400,
@@ -166,12 +271,12 @@ const styles = StyleSheet.create({
   },
   grillaPrincipal: {
     flexDirection: 'column',
-    gap: 24,
+    gap: 20,
   },
   grillaPrincipalEscritorio: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 28,
+    gap: 24,
   },
   columnaMedia: {
     width: '100%',
@@ -203,4 +308,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

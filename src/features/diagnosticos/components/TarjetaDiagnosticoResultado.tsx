@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -8,21 +8,41 @@ import {
   Clock,
   Sparkles,
   Leaf,
+  MapPin,
+  Save,
+  CheckCircle2,
+  ExternalLink,
+  Navigation,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Card } from '@/shared/components/ui/card';
 import { Badge, VarianteBadge } from '@/shared/components/ui/badge';
-import { DiagnosticoRespuesta } from '../types/diagnostico.types';
+import { Boton } from '@/shared/components/ui/boton';
+import { DiagnosticoRespuesta, DespliegueDronConfig } from '../types/diagnostico.types';
+import { abrirGoogleMaps } from '../utils/geolocalizacion';
 
 export interface TarjetaDiagnosticoResultadoProps {
   resultado: DiagnosticoRespuesta | null;
+  despliegue?: DespliegueDronConfig | null;
+  onGuardarDiagnostico?: () => void;
+  guardando?: boolean;
+  guardadoExitoso?: boolean;
+  onSolicitarGps?: () => Promise<void> | void;
+  solicitandoGps?: boolean;
 }
 
 /**
- * @description Presenta el informe fitosanitario estructurado con estado, métricas y recomendaciones agronómicas.
+ * @description Presenta el informe fitosanitario con estado, detecciones, recomendaciones,
+ * coordenadas geográficas con enlace directo a Google Maps y guardado persistente.
  */
 export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoProps> = ({
   resultado,
+  despliegue,
+  onGuardarDiagnostico,
+  guardando = false,
+  guardadoExitoso = false,
+  onSolicitarGps,
+  solicitandoGps = false,
 }) => {
   if (!resultado) {
     return (
@@ -112,6 +132,80 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
         </View>
       </View>
 
+      {/* Bloque de Geolocalización de la Detección */}
+      <View style={styles.cajaGeolocalizacion}>
+        <View style={styles.filaTituloGeo}>
+          <MapPin size={16} color={Palette.forestGreen} />
+          <Text style={styles.tituloSeccion}>Geolocalización del Hallazgo</Text>
+        </View>
+
+        {despliegue ? (
+          <View style={styles.grillaGeoDetalles}>
+            <View style={styles.itemGeo}>
+              <Text style={styles.labelGeo}>Área / Parcela:</Text>
+              <Text style={styles.valorGeo}>{despliegue.parcelaNombre}</Text>
+            </View>
+
+            {despliegue.sectorNombre && (
+              <View style={styles.itemGeo}>
+                <Text style={styles.labelGeo}>Zona de Cultivo:</Text>
+                <Text style={styles.valorGeo}>{despliegue.sectorNombre}</Text>
+              </View>
+            )}
+
+            <View style={styles.itemGeo}>
+              <Text style={styles.labelGeo}>Cultivo:</Text>
+              <Text style={styles.valorGeo}>
+                {despliegue.cultivoNombre}
+                {despliegue.cultivoVariedad ? ` (${despliegue.cultivoVariedad})` : ''}
+              </Text>
+            </View>
+
+            <View style={styles.itemGeo}>
+              <Text style={styles.labelGeo}>Coordenadas GPS:</Text>
+              <Text style={styles.valorGeoCoordenadas}>
+                Lat: {despliegue.latitud.toFixed(6)}°, Lon: {despliegue.longitud.toFixed(6)}°
+              </Text>
+            </View>
+
+            {/* Enlace para abrir en Google Maps y solicitar GPS */}
+            <View style={styles.filaBotonesGeo}>
+              <Pressable
+                onPress={() => abrirGoogleMaps(despliegue.latitud, despliegue.longitud)}
+                style={({ pressed }) => [styles.botonGoogleMaps, pressed && styles.presionado]}
+              >
+                <ExternalLink size={14} color="#0284C7" />
+                <Text style={styles.textoBotonGoogleMaps}>Ver ubicación en Google Maps</Text>
+              </Pressable>
+
+              {onSolicitarGps && (
+                <Pressable
+                  onPress={onSolicitarGps}
+                  disabled={solicitandoGps}
+                  style={({ pressed }) => [
+                    styles.botonSolicitarGps,
+                    solicitandoGps && styles.botonDeshabilitado,
+                    pressed && styles.presionado,
+                  ]}
+                >
+                  <Navigation size={13} color={Palette.forestGreen} />
+                  <Text style={styles.textoBotonSolicitarGps}>
+                    {solicitandoGps ? 'Obteniendo GPS...' : 'Solicitar GPS en vivo'}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.avisoSinUbicacion}>
+            <AlertTriangle size={16} color="#D97706" />
+            <Text style={styles.textoAvisoSinUbicacion}>
+              Seleccione una parcela en el panel superior para asociar las coordenadas GPS y guardar.
+            </Text>
+          </View>
+        )}
+      </View>
+
       {/* Resumen de Detecciones */}
       <View style={styles.seccionDetecciones}>
         <Text style={styles.tituloSeccion}>
@@ -149,6 +243,27 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
             </View>
           ))}
         </View>
+      </View>
+
+      {/* Botón de Guardado Persistente en Base de Datos */}
+      <View style={styles.seccionAccionGuardar}>
+        {guardadoExitoso ? (
+          <View style={styles.bannerGuardadoExitoso}>
+            <CheckCircle2 size={18} color="#059669" />
+            <Text style={styles.textoGuardadoExitoso}>
+              ¡Diagnóstico guardado con éxito en la base de datos con su geolocalización!
+            </Text>
+          </View>
+        ) : (
+          <Boton
+            titulo={guardando ? 'Guardando en Base de Datos...' : 'Guardar Diagnóstico con Ubicación'}
+            variante="primario"
+            cargando={guardando}
+            disabled={!despliegue || guardando}
+            iconoIzquierda={<Save size={18} color="#FFFFFF" />}
+            onPress={onGuardarDiagnostico}
+          />
+        )}
       </View>
     </Card>
   );
@@ -192,6 +307,102 @@ const styles = StyleSheet.create({
   valorPorcentaje: { fontSize: 20, fontWeight: '800' },
   barraFondo: { height: 8, backgroundColor: '#E2E8F0', borderRadius: 4, overflow: 'hidden' },
   barraProgreso: { height: '100%', borderRadius: 4 },
+  cajaGeolocalizacion: {
+    backgroundColor: '#F8FAFC',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  filaTituloGeo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  grillaGeoDetalles: {
+    gap: 8,
+  },
+  itemGeo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  labelGeo: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  valorGeo: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  valorGeoCoordenadas: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0369A1',
+    fontFamily: 'monospace',
+  },
+  filaBotonesGeo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
+  },
+  botonGoogleMaps: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  textoBotonGoogleMaps: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  botonSolicitarGps: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  textoBotonSolicitarGps: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  botonDeshabilitado: {
+    opacity: 0.6,
+  },
+  avisoSinUbicacion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    padding: 10,
+    borderRadius: 6,
+  },
+  textoAvisoSinUbicacion: {
+    flex: 1,
+    fontSize: 12,
+    color: '#B45309',
+    lineHeight: 16,
+  },
   seccionDetecciones: { gap: 10 },
   tituloSeccion: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
   textoSinDetecciones: { fontSize: 13, color: '#64748B', fontStyle: 'italic' },
@@ -222,5 +433,28 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   textoRecomendacion: { flex: 1, fontSize: 13, color: '#334155', lineHeight: 18 },
+  seccionAccionGuardar: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 14,
+  },
+  bannerGuardadoExitoso: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 12,
+    borderRadius: 8,
+  },
+  textoGuardadoExitoso: {
+    flex: 1,
+    fontSize: 13,
+    color: '#065F46',
+    fontWeight: '700',
+  },
+  presionado: {
+    opacity: 0.8,
+  },
 });
-

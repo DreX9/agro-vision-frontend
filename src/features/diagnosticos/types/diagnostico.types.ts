@@ -32,3 +32,78 @@ export interface EscaneoCamaraEstado {
   escaneando: boolean;
   error?: string | null;
 }
+
+export interface DespliegueDronConfig {
+  parcelaId: string;
+  parcelaNombre: string;
+  parcelaCodigo?: string;
+  sectorId?: string;
+  sectorNombre?: string;
+  sectorCodigo?: string;
+  cultivoNombre?: string;
+  cultivoVariedad?: string;
+  latitud: number;
+  longitud: number;
+}
+
+export interface DiagnosticoCampoItem {
+  id: string;
+  codigo: string;
+  parcelaId: string;
+  parcelaNombre?: string | null;
+  parcelaCodigo?: string | null;
+  sectorId?: string | null;
+  sectorNombre?: string | null;
+  sectorCodigo?: string | null;
+  cultivoNombre?: string | null;
+  cultivoVariedad?: string | null;
+  usuarioId?: string | null;
+  usuarioNombre?: string | null;
+  latitud: number;
+  longitud: number;
+  estadoGeneral: EstadoSaludFoliar;
+  saludPorcentaje: number;
+  totalPlagasDetectadas: number;
+  detecciones: DeteccionPlaga[];
+  recomendaciones: string[];
+  tiempoProcesamientoMs?: number | null;
+  imagenUrl?: string | null;
+  origenCaptura?: string | null;
+  observaciones?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrearDiagnosticoPayload {
+  parcelaId: string;
+  sectorId?: string;
+  usuarioId?: string;
+  latitud: number;
+  longitud: number;
+  estadoGeneral: EstadoSaludFoliar;
+  saludPorcentaje: number;
+  totalPlagasDetectadas: number;
+  detecciones?: DeteccionPlaga[];
+  recomendaciones?: string[];
+  tiempoProcesamientoMs?: number;
+  imagenUrl?: string;
+  origenCaptura?: string;
+  observaciones?: string;
+}
+
+export interface FiltrosDiagnosticosParams {
+  parcelaId?: string;
+  sectorId?: string;
+  estadoGeneral?: string;
+  pagina?: number;
+  limite?: number;
+}
+
+export interface RespuestaPaginadaDiagnosticos {
+  items: DiagnosticoCampoItem[];
+  total: number;
+  pagina: number;
+  limite: number;
+  totalPaginas: number;
+}
+

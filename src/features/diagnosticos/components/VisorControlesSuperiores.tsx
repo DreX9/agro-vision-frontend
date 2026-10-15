@@ -1,22 +1,24 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import { Camera, Maximize2, Minimize2, Video as VideoIcon } from 'lucide-react-native';
+import { Camera, Maximize2, Minimize2, Video as VideoIcon, Upload } from 'lucide-react-native';
 
 export interface VisorControlesSuperioresProps {
   camaraActiva: boolean;
   esPantallaCompleta: boolean;
   onToggleCamara: () => void;
   onTogglePantallaCompleta: () => void;
+  onSubirFoto?: () => void;
 }
 
 /**
- * @description Barra superior de controles del visor multimedia (cámara web, video de muestra, pantalla completa).
+ * @description Barra superior de controles del visor multimedia (cámara web, video de muestra, subir foto, pantalla completa).
  */
 export const VisorControlesSuperiores: React.FC<VisorControlesSuperioresProps> = ({
   camaraActiva,
   esPantallaCompleta,
   onToggleCamara,
   onTogglePantallaCompleta,
+  onSubirFoto,
 }) => {
   return (
     <View style={styles.barraSuperior}>
@@ -28,6 +30,16 @@ export const VisorControlesSuperiores: React.FC<VisorControlesSuperioresProps> =
       </View>
 
       <View style={styles.filaAccionesSuperiores}>
+        {onSubirFoto && Platform.OS === 'web' && (
+          <Pressable
+            onPress={onSubirFoto}
+            style={({ pressed }) => [styles.botonSubirFoto, pressed && styles.presionado]}
+          >
+            <Upload size={14} color="#FFFFFF" />
+            <Text style={styles.textoBotonSubirFoto}>Subir Foto</Text>
+          </Pressable>
+        )}
+
         {Platform.OS === 'web' && (
           <Pressable
             onPress={onToggleCamara}
@@ -105,6 +117,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  botonSubirFoto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  textoBotonSubirFoto: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   botonCamaraToggle: {
     flexDirection: 'row',
