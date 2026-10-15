@@ -95,21 +95,29 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
   const { data: cultivos = [], isLoading: cargandoCultivos } = useCultivosQuery();
 
   // Parcela actualmente seleccionada
-  const [parcelaSeleccionadaId, setParcelaSeleccionadaId] = useState<string>('');
-
-  // Sincronizar parcela inicial
-  useEffect(() => {
-    if (initialParcelaId && parcelas.some((p) => p.id === initialParcelaId)) {
-      setParcelaSeleccionadaId(initialParcelaId);
-    } else if (!parcelaSeleccionadaId && parcelas.length > 0) {
-      setParcelaSeleccionadaId(parcelas[0].id);
-    }
-  }, [initialParcelaId, parcelas, parcelaSeleccionadaId]);
-
-  const parcelaActual = useMemo(
-    () => parcelas.find((p) => p.id === parcelaSeleccionadaId),
-    [parcelas, parcelaSeleccionadaId],
+  const [parcelaSeleccionadaId, setParcelaSeleccionadaId] = useState<string>(
+    initialParcelaId || '',
   );
+
+  // Parcela actual con fallback inmediato a la primera parcela disponible
+  const parcelaActual = useMemo(() => {
+    if (parcelaSeleccionadaId) {
+      const encontrada = parcelas.find((p) => p.id === parcelaSeleccionadaId);
+      if (encontrada) return encontrada;
+    }
+    if (initialParcelaId) {
+      const encontrada = parcelas.find((p) => p.id === initialParcelaId);
+      if (encontrada) return encontrada;
+    }
+    return parcelas[0] || undefined;
+  }, [parcelas, parcelaSeleccionadaId, initialParcelaId]);
+
+  // Sincronizar parcela seleccionada cuando carguen las parcelas si no hay una asignada
+  useEffect(() => {
+    if (parcelaActual && (!parcelaSeleccionadaId || parcelaSeleccionadaId !== parcelaActual.id)) {
+      setParcelaSeleccionadaId(parcelaActual.id);
+    }
+  }, [parcelaActual, parcelaSeleccionadaId]);
 
   // Consulta de balance y sectores de la parcela
   const {
@@ -146,6 +154,7 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
   const [areaTrazadaHa, setAreaTrazadaHa] = useState<number>(0);
   const [centroideTrazado, setCentroideTrazado] = useState<CoordenadaPunto | null>(null);
   const [tieneCruce, setTieneCruce] = useState<boolean>(false);
+  const [estaFueraDeMatriz, setEstaFueraDeMatriz] = useState<boolean>(false);
   const [errorValidacion, setErrorValidacion] = useState<string | null>(null);
 
   // Modales de confirmación
@@ -197,11 +206,13 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
     tieneCruce?: boolean;
     tieneSuperposicion?: boolean;
     sectorConflicto?: string | null;
+    estaFueraDeMatriz?: boolean;
   }) => {
     setPuntosTrazados(datos.puntos);
     setAreaTrazadaHa(datos.areaHectareas);
     setCentroideTrazado(datos.centroide);
     setTieneCruce(Boolean(datos.tieneCruce));
+    setEstaFueraDeMatriz(Boolean(datos.estaFueraDeMatriz));
     setErrorValidacion(null);
   };
 
@@ -210,6 +221,7 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
     setAreaTrazadaHa(0);
     setCentroideTrazado(null);
     setTieneCruce(false);
+    setEstaFueraDeMatriz(false);
     setErrorValidacion(null);
   };
 
@@ -245,6 +257,10 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
     }
     if (tieneCruce) {
       setErrorValidacion('El perímetro trazado se cruza a sí mismo. Ajuste los vértices.');
+      return;
+    }
+    if (estaFueraDeMatriz) {
+      setErrorValidacion('El sector sobrepasa los límites de la parcela matriz permitida.');
       return;
     }
     if (areaTrazadaHa <= 0) {
@@ -762,6 +778,12 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
                           ⚠️ Excede el área disponible ({areaDisponible.toFixed(2)} ha)
                         </Text>
                       )}
+
+                      {estaFueraDeMatriz && (
+                        <Text style={styles.advertenciaExcesoArea}>
+                          ⚠️ El sector sobrepasa los límites de la parcela matriz
+                        </Text>
+                      )}
                     </View>
 
                     {/* Acciones de guardado y limpieza */}
@@ -771,7 +793,13 @@ export const AsignacionCultivosContainer: React.FC<AsignacionCultivosContainerPr
                         variante="primario"
                         cargando={crearMutation.isPending}
                         onPress={validarYConfirmarCreacion}
-                        disabled={puntosTrazados.length < 3 || !cultivoId || !nombreSector.trim()}
+                        disabled={
+                          puntosTrazados.length < 3 ||
+                          !cultivoId ||
+                          !nombreSector.trim() ||
+                          tieneCruce ||
+                          estaFueraDeMatriz
+                        }
                         estilo={styles.botonGuardarSector}
                         estiloTexto={styles.textoBotonAccion}
                       />

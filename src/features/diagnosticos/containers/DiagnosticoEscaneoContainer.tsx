@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Palette } from '@/constants/theme';
 import { AlertTriangle } from 'lucide-react-native';
+import { AppLayout } from '@/shared/components/layout/app-layout';
 import { useEscanearImagenMutation } from '../api/diagnostico.api';
 import { DiagnosticoRespuesta } from '../types/diagnostico.types';
 import { VisorCamaraEscaneo } from '../components/VisorCamaraEscaneo';
@@ -60,82 +61,85 @@ export function DiagnosticoEscaneoContainer() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.scrollContenedor,
-        esEscritorio && styles.scrollEscritorio,
-      ]}
-      showsVerticalScrollIndicator={false}
+    <AppLayout
+      titulo="Escáner y Diagnóstico con IA"
+      subtitulo="Inspecciona en tiempo real el cultivo mediante video o cámara web. Detecta plagas y patógenos foliares al instante."
+      accionEncabezado={
+        <View style={styles.badgeModulo}>
+          <Text style={styles.textoBadgeModulo}>MÓDULO FITOSANITARIO CON IA</Text>
+        </View>
+      }
     >
-      <View style={[styles.areaTrabajo, esEscritorio && styles.areaTrabajoEscritorio]}>
-        {/* Cabecera del Módulo Aislado */}
-        <View style={styles.cabeceraModulo}>
-          <View style={styles.badgeModulo}>
-            <Text style={styles.textoBadgeModulo}>MÓDULO DE PRUEBA FITOSANITARIA</Text>
-          </View>
-          <Text style={styles.tituloPrincipal}>Escáner y Diagnóstico con IA</Text>
-          <Text style={styles.subtituloPrincipal}>
-            Inspecciona en tiempo real el cultivo mediante video o cámara web. Detecta plagas y patógenos foliares al instante.
-          </Text>
-        </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContenedor,
+          esEscritorio && styles.scrollEscritorio,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.areaTrabajo, esEscritorio && styles.areaTrabajoEscritorio]}>
+          {/* Alerta de Error de Conexión si el servicio de IA está apagado */}
+          {errorConexion && (
+            <View style={styles.alertaError}>
+              <AlertTriangle size={20} color="#DC2626" />
+              <Text style={styles.textoAlertaError}>{errorConexion}</Text>
+            </View>
+          )}
 
-        {/* Alerta de Error de Conexión si el servicio de IA está apagado */}
-        {errorConexion && (
-          <View style={styles.alertaError}>
-            <AlertTriangle size={20} color="#DC2626" />
-            <Text style={styles.textoAlertaError}>{errorConexion}</Text>
-          </View>
-        )}
-
-        {/* Distribución Responsiva (2 Columnas en PC, 1 Columna en Celular) */}
-        <View
-          style={[
-            styles.grillaPrincipal,
-            esEscritorio && styles.grillaPrincipalEscritorio,
-          ]}
-        >
-          {/* Columna Izquierda: Visor de Video / Cámara */}
+          {/* Distribución Responsiva (2 Columnas en PC, 1 Columna en Celular) */}
           <View
             style={[
-              styles.columnaMedia,
-              esEscritorio && styles.columnaMediaEscritorio,
+              styles.grillaPrincipal,
+              esEscritorio && styles.grillaPrincipalEscritorio,
             ]}
           >
-            <VisorCamaraEscaneo
-              detecciones={diagnosticoActual?.detecciones ?? []}
-              cargando={escanearMutacion.isPending}
-              onCapturarYEscanear={handleCapturarYEscanear}
-              onLimpiar={handleLimpiar}
-            />
-          </View>
+            {/* Columna Izquierda: Visor de Video / Cámara */}
+            <View
+              style={[
+                styles.columnaMedia,
+                esEscritorio && styles.columnaMediaEscritorio,
+              ]}
+            >
+              <VisorCamaraEscaneo
+                detecciones={diagnosticoActual?.detecciones ?? []}
+                cargando={escanearMutacion.isPending}
+                onCapturarYEscanear={handleCapturarYEscanear}
+                onLimpiar={handleLimpiar}
+              />
+            </View>
 
-          {/* Columna Derecha: Tarjeta de Diagnóstico y Recomendaciones */}
-          <View
-            style={[
-              styles.columnaInforme,
-              esEscritorio && styles.columnaInformeEscritorio,
-            ]}
-          >
-            {escanearMutacion.isPending ? (
-              <DiagnosticoSkeleton />
-            ) : (
-              <TarjetaDiagnosticoResultado resultado={diagnosticoActual} />
-            )}
+            {/* Columna Derecha: Tarjeta de Diagnóstico y Recomendaciones */}
+            <View
+              style={[
+                styles.columnaInforme,
+                esEscritorio && styles.columnaInformeEscritorio,
+              ]}
+            >
+              {escanearMutacion.isPending ? (
+                <DiagnosticoSkeleton />
+              ) : (
+                <TarjetaDiagnosticoResultado resultado={diagnosticoActual} />
+              )}
+            </View>
           </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </AppLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContenedor: {
     flexGrow: 1,
-    backgroundColor: '#F8FAFC',
-    padding: 16,
+    paddingBottom: 40,
+    width: '100%',
   },
   scrollEscritorio: {
-    padding: 32,
     alignItems: 'center',
   },
   areaTrabajo: {
@@ -145,33 +149,20 @@ const styles = StyleSheet.create({
   areaTrabajoEscritorio: {
     maxWidth: 1400,
   },
-  cabeceraModulo: {
-    gap: 8,
-  },
   badgeModulo: {
     alignSelf: 'flex-start',
     backgroundColor: '#E8F5E9',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
   },
   textoBadgeModulo: {
     color: Palette.forestGreen,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.5,
-  },
-  tituloPrincipal: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.5,
-  },
-  subtituloPrincipal: {
-    fontSize: 14,
-    color: '#64748B',
-    lineHeight: 22,
-    maxWidth: 800,
   },
   grillaPrincipal: {
     flexDirection: 'column',
