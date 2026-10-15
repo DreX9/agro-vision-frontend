@@ -3,10 +3,10 @@ import {
   View,
   StyleSheet,
   useWindowDimensions,
-  SafeAreaView,
   Text,
   Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Menu, Sprout } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Sidebar } from './sidebar';

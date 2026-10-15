@@ -4,9 +4,9 @@ import {
   ScrollView,
   StyleSheet,
   useWindowDimensions,
-  SafeAreaView,
   ImageBackground,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { Palette } from '@/constants/theme';

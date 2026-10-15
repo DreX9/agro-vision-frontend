@@ -32,6 +32,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite a Agro Vision acceder a la cámara para escanear cultivos y detectar anomalías foliares."
+        }
       ]
     ],
     "experiments": {
