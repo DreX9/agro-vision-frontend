@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, type DimensionValue } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   Undo,
   Trash2,
@@ -70,6 +71,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
   const [adherenciaActiva, setAdherenciaActiva] = useState<boolean>(true);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webViewRef = useRef<any>(null);
   const mapaListoRef = useRef<boolean>(false);
   const colaMensajesRef = useRef<Array<{ accion: string; carga?: unknown }>>([]);
   const onCambioPoligonoRef = useRef(onCambioPoligono);
@@ -79,59 +81,72 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
   const prevPuntosInicialesRef = useRef<string>(JSON.stringify(puntosInicialesNuevo || []));
 
   const enviarAccionAMapa = (accion: string, carga?: unknown) => {
-    if (mapaListoRef.current && iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ accion, carga }, '*');
+    const payload = { accion, carga };
+    if (mapaListoRef.current) {
+      if (Platform.OS === 'web' && iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(payload, '*');
+      } else if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify(payload));
+      }
     } else {
-      colaMensajesRef.current.push({ accion, carga });
+      colaMensajesRef.current.push(payload);
     }
   };
 
-  // Escuchar mensajes provenientes del mapa
+  const procesarMensajeMapa = (datos: any) => {
+    if (!datos) return;
+
+    if (datos.tipo === 'MAPA_SECTORES_LISTO') {
+      mapaListoRef.current = true;
+      while (colaMensajesRef.current.length > 0) {
+        const item = colaMensajesRef.current.shift();
+        if (item) {
+          if (Platform.OS === 'web' && iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(item, '*');
+          } else if (webViewRef.current) {
+            webViewRef.current.postMessage(JSON.stringify(item));
+          }
+        }
+      }
+      return;
+    }
+
+    if (datos.tipo === 'MAPA_SECTOR_VERTICES_ACTUALIZADOS') {
+      const nuevosPuntos: CoordenadaPunto[] = datos.puntos || [];
+      prevPuntosInicialesRef.current = JSON.stringify(nuevosPuntos);
+      const cruceDetectado = Boolean(datos.tieneCruce);
+      const superposicionDetectada = Boolean(datos.tieneSuperposicion);
+      const desbordeDetectado = Boolean(datos.estaFueraDeMatriz);
+      const conflictoDetectado = datos.sectorConflicto || null;
+      const nuevaArea = calcularAreaHectareas(nuevosPuntos);
+      const centroide = calcularCentroide(nuevosPuntos);
+
+      setPuntos(nuevosPuntos);
+      setAreaHa(nuevaArea);
+      setTieneCruce(cruceDetectado);
+      setTieneSuperposicion(superposicionDetectada);
+      setEstaFueraDeMatriz(desbordeDetectado);
+      setSectorConflicto(conflictoDetectado);
+
+      if (onCambioPoligonoRef.current) {
+        onCambioPoligonoRef.current({
+          puntos: nuevosPuntos,
+          areaHectareas: nuevaArea,
+          centroide,
+          tieneCruce: cruceDetectado,
+          tieneSuperposicion: superposicionDetectada,
+          sectorConflicto: conflictoDetectado,
+          estaFueraDeMatriz: desbordeDetectado,
+        });
+      }
+    }
+  };
+
+  // Escuchar mensajes provenientes del mapa en Web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const manejarMensaje = (evento: MessageEvent) => {
-      if (!evento.data) return;
-
-      if (evento.data.tipo === 'MAPA_SECTORES_LISTO') {
-        mapaListoRef.current = true;
-        while (colaMensajesRef.current.length > 0) {
-          const item = colaMensajesRef.current.shift();
-          if (item && iframeRef.current && iframeRef.current.contentWindow) {
-            iframeRef.current.contentWindow.postMessage(item, '*');
-          }
-        }
-        return;
-      }
-
-      if (evento.data.tipo === 'MAPA_SECTOR_VERTICES_ACTUALIZADOS') {
-        const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
-        prevPuntosInicialesRef.current = JSON.stringify(nuevosPuntos);
-        const cruceDetectado = Boolean(evento.data.tieneCruce);
-        const superposicionDetectada = Boolean(evento.data.tieneSuperposicion);
-        const desbordeDetectado = Boolean(evento.data.estaFueraDeMatriz);
-        const conflictoDetectado = evento.data.sectorConflicto || null;
-        const nuevaArea = calcularAreaHectareas(nuevosPuntos);
-        const centroide = calcularCentroide(nuevosPuntos);
-
-        setPuntos(nuevosPuntos);
-        setAreaHa(nuevaArea);
-        setTieneCruce(cruceDetectado);
-        setTieneSuperposicion(superposicionDetectada);
-        setEstaFueraDeMatriz(desbordeDetectado);
-        setSectorConflicto(conflictoDetectado);
-
-        if (onCambioPoligonoRef.current) {
-          onCambioPoligonoRef.current({
-            puntos: nuevosPuntos,
-            areaHectareas: nuevaArea,
-            centroide,
-            tieneCruce: cruceDetectado,
-            tieneSuperposicion: superposicionDetectada,
-            sectorConflicto: conflictoDetectado,
-            estaFueraDeMatriz: desbordeDetectado,
-          });
-        }
-      }
+      procesarMensajeMapa(evento.data);
     };
 
     window.addEventListener('message', manejarMensaje);
@@ -396,6 +411,16 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         let capaPoligonoNuevo = null;
         let marcadoresNuevo = [];
         let marcadoresMediosNuevo = [];
+
+        function notificarParent(datos) {
+          try {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify(datos));
+            } else if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(datos, '*');
+            }
+          } catch (err) {}
+        }
 
         // Snap marker
         let puntoSnapActivo = null;
@@ -1095,14 +1120,14 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           }
 
           const puntosFormateados = vertices.map(function(v) { return { latitude: v[0], longitude: v[1] }; });
-          window.parent.postMessage({
+          notificarParent({
             tipo: 'MAPA_SECTOR_VERTICES_ACTUALIZADOS',
             puntos: puntosFormateados,
             tieneCruce: cruce,
             tieneSuperposicion: superposicion.superpuesto,
             sectorConflicto: superposicion.conflicto,
             estaFueraDeMatriz: desborde.fuera
-          }, '*');
+          });
         }
 
         actualizarPoligono();
@@ -1126,26 +1151,30 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           } catch (err) {}
         }, 200);
 
-        window.addEventListener('message', function(e) {
-          if (!e.data) return;
+        function alRecibirMensaje(e) {
+          let d = e.data;
+          if (typeof d === 'string') {
+            try { d = JSON.parse(d); } catch (err) {}
+          }
+          if (!d) return;
 
-          if (e.data.accion === 'LIMPIAR') {
+          if (d.accion === 'LIMPIAR') {
             vertices = [];
             actualizarPoligono();
-          } else if (e.data.accion === 'ESTABLECER_VERTICES' && e.data.carga) {
-            vertices = (e.data.carga.puntos || []).map(function(p) { return [p.latitude, p.longitude]; });
+          } else if (d.accion === 'ESTABLECER_VERTICES' && d.carga) {
+            vertices = (d.carga.puntos || []).map(function(p) { return [p.latitude, p.longitude]; });
             actualizarPoligono();
-          } else if (e.data.accion === 'DESHACER') {
+          } else if (d.accion === 'DESHACER') {
             vertices.pop();
             actualizarPoligono();
-          } else if (e.data.accion === 'AJUSTAR_A_PARCELA') {
+          } else if (d.accion === 'AJUSTAR_A_PARCELA') {
             map.invalidateSize();
             if (capaParcelaMatriz) {
               map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [45, 45], maxZoom: 18 });
             }
-          } else if (e.data.accion === 'CAMBIAR_COLOR' && e.data.carga) {
-            if (e.data.carga.color) {
-              colorCultivo = e.data.carga.color;
+          } else if (d.accion === 'CAMBIAR_COLOR' && d.carga) {
+            if (d.carga.color) {
+              colorCultivo = d.carga.color;
               document.documentElement.style.setProperty('--color-cultivo', colorCultivo);
               if (capaPoligonoNuevo) {
                 const cruce = tieneAutoInterseccion(vertices);
@@ -1156,40 +1185,43 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                 capaPoligonoNuevo.setStyle({ color: colorTrazado, fillColor: fillTrazado });
               }
             }
-          } else if (e.data.accion === 'CARGAR_PARCELA_MATRIZ' && e.data.carga) {
-            if (Array.isArray(e.data.carga.puntosMatriz)) {
-              puntosMatrizData = e.data.carga.puntosMatriz.map(function(p) { return [p.latitude, p.longitude]; });
+          } else if (d.accion === 'CARGAR_PARCELA_MATRIZ' && d.carga) {
+            if (Array.isArray(d.carga.puntosMatriz)) {
+              puntosMatrizData = d.carga.puntosMatriz.map(function(p) { return [p.latitude, p.longitude]; });
               renderizarParcelaMatriz();
             }
-          } else if (e.data.accion === 'CARGAR_SECTORES_EXISTENTES' && e.data.carga) {
-            sectoresExistentesData = e.data.carga.sectores || [];
+          } else if (d.accion === 'CARGAR_SECTORES_EXISTENTES' && d.carga) {
+            sectoresExistentesData = d.carga.sectores || [];
             renderizarSectoresExistentes();
             actualizarPoligono();
-          } else if (e.data.accion === 'CONFIGURAR_SNAPPING' && e.data.carga) {
-            snappingHabilitado = Boolean(e.data.carga.activo);
+          } else if (d.accion === 'CONFIGURAR_SNAPPING' && d.carga) {
+            snappingHabilitado = Boolean(d.carga.activo);
             if (!snappingHabilitado && map.hasLayer(snapMarker)) {
               map.removeLayer(snapMarker);
               puntoSnapActivo = null;
             }
-          } else if (e.data.accion === 'CONFIGURAR_MODO' && e.data.carga) {
-            if (typeof e.data.carga.soloLectura !== 'undefined') {
-              esSoloLectura = Boolean(e.data.carga.soloLectura);
+          } else if (d.accion === 'CONFIGURAR_MODO' && d.carga) {
+            if (typeof d.carga.soloLectura !== 'undefined') {
+              esSoloLectura = Boolean(d.carga.soloLectura);
               actualizarCursor();
               actualizarPoligono();
             }
-          } else if (e.data.accion === 'REORDENAR') {
+          } else if (d.accion === 'REORDENAR') {
             if (vertices.length >= 3) {
               vertices = ordenarPerimetralmente(vertices);
               actualizarPoligono();
             }
-          } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
-            map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 16);
-          } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
+          } else if (d.accion === 'CENTRAR' && d.carga) {
+            map.setView([d.carga.lat, d.carga.lng], d.carga.zoom || 16);
+          } else if (d.accion === 'LOCALIZAR_ACTUAL') {
             map.locate({ setView: true, maxZoom: 17 });
           }
-        });
+        }
 
-        window.parent.postMessage({ tipo: 'MAPA_SECTORES_LISTO' }, '*');
+        window.addEventListener('message', alRecibirMensaje);
+        document.addEventListener('message', alRecibirMensaje);
+
+        notificarParent({ tipo: 'MAPA_SECTORES_LISTO' });
       </script>
     </body>
     </html>
@@ -1311,7 +1343,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         )}
       </View>
 
-      {/* Iframe del Mapa */}
+      {/* Iframe o WebView del Mapa */}
       <View style={[styles.marcoMapa, { height: altura }]}>
         {Platform.OS === 'web' ? (
           <iframe
@@ -1323,11 +1355,25 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
             title="Delimitador de Sectores de Parcela Agro Vision"
           />
         ) : (
-          <View style={styles.avisoNativo}>
-            <Text style={styles.textoAvisoNativo}>
-              Mapeo de sectores activo ({puntos.length} vértices)
-            </Text>
-          </View>
+          <WebView
+            ref={webViewRef}
+            originWhitelist={['*']}
+            source={{ html: htmlMapa }}
+            style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            geolocationEnabled={true}
+            scrollEnabled={false}
+            nestedScrollEnabled={true}
+            onMessage={(event) => {
+              try {
+                const datos = JSON.parse(event.nativeEvent.data);
+                procesarMensajeMapa(datos);
+              } catch (e) {
+                console.warn('[MapaSectores] Error procesando mensaje de WebView:', e);
+              }
+            }}
+          />
         )}
       </View>
     </View>

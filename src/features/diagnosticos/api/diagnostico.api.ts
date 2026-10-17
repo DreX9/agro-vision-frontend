@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useMutation, useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { Platform } from 'react-native';
-import { apiClient } from '@/shared/api/api-client';
+import { apiClient, getDynamicHost } from '@/shared/api/api-client';
 import {
   DiagnosticoRespuesta,
   DiagnosticoCampoItem,
@@ -20,14 +20,37 @@ export const DIAGNOSTICOS_KEYS = {
  * @description Obtiene la URL del microservicio de Visión Computacional (FastAPI) según la plataforma.
  */
 const getAiBaseUrl = (): string => {
-  if (Platform.OS === 'android') {
-    return process.env.EXPO_PUBLIC_AI_API_URL_ANDROID || 'http://192.168.100.134:8000/api/v1';
+  if (Platform.OS === 'web') {
+    return process.env.EXPO_PUBLIC_AI_API_URL || 'http://127.0.0.1:8000/api/v1';
   }
+
+  if (process.env.EXPO_PUBLIC_AI_API_URL_ANDROID?.startsWith('https://')) {
+    return process.env.EXPO_PUBLIC_AI_API_URL_ANDROID;
+  }
+
+  const dynamicHost = getDynamicHost();
+  if (dynamicHost) {
+    return `http://${dynamicHost}:8000/api/v1`;
+  }
+
+  if (process.env.EXPO_PUBLIC_AI_API_URL_ANDROID) {
+    return process.env.EXPO_PUBLIC_AI_API_URL_ANDROID;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:8000/api/v1';
+  }
+
   return process.env.EXPO_PUBLIC_AI_API_URL || 'http://127.0.0.1:8000/api/v1';
 };
 
+const resolvedAiBaseUrl = getAiBaseUrl();
+if (__DEV__) {
+  console.log(`[AgroVision AI] URL Base conectada: ${resolvedAiBaseUrl}`);
+}
+
 const aiApiClient = axios.create({
-  baseURL: getAiBaseUrl(),
+  baseURL: resolvedAiBaseUrl,
   timeout: 30000,
 });
 
