@@ -35,10 +35,11 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
     rol: 'AGRONOMO',
     etiqueta: 'Ingeniero Agrónomo',
     descripcion:
-      'Gestión agronómica del fundo, asignación técnica de cultivos y evaluación fitosanitaria.',
+      'Gestión agronómica del fundo, prescripción técnica de labores y evaluación fitosanitaria.',
     responsabilidades: [
       'Consulta y monitoreo de parcelas y lotes en el mapa satelital.',
       'Asignación y zonificación de cultivos y variedades por sector.',
+      'Planificación y prescripción técnica de actividades agrícolas asignando al Supervisor a cargo.',
       'Monitoreo fitosanitario y análisis de diagnósticos con visión computacional.',
       'Seguimiento de indicadores agronómicos en el Dashboard.',
     ],
@@ -48,6 +49,8 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       '/parcelas/asignacion-cultivos',
       '/cultivos',
       '/cultivos/nuevo',
+      '/actividades',
+      '/actividades/nuevo',
       '/diagnostico',
       '/diagnosticos',
     ],
@@ -56,13 +59,15 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
     rol: 'SUPERVISOR',
     etiqueta: 'Supervisor de Campo',
     descripcion:
-      'Supervisión de labores y detección fitosanitaria (funciones operativas de cuadrilla en proceso de separación).',
+      'Conformación de cuadrillas de operarios, asignación de trabajadores y control de labores en terreno.',
     responsabilidades: [
+      'Conformación de cuadrillas y asignación de operarios a labores programadas.',
+      'Supervisión en campo del cumplimiento de labores y registro de horas trabajadas.',
+      'Actualización del estado de actividades (En Progreso / Completada) y reporte de incidencias.',
       'Monitoreo del estado general del fundo desde el Dashboard.',
       'Consulta y registro de diagnósticos fitosanitarios de campo.',
-      'En espera de la habilitación de módulos específicos de asignación de cuadrillas.',
     ],
-    rutasPermitidas: ['/', '/diagnostico', '/diagnosticos'],
+    rutasPermitidas: ['/', '/actividades', '/diagnostico', '/diagnosticos'],
   },
   OPERADOR: {
     rol: 'OPERADOR',
@@ -91,6 +96,15 @@ export function tienePermisoRuta(rol: string | undefined | null, ruta: string): 
 
   // Restricción explícita: El registro de nuevas parcelas es exclusivo del Administrador
   if (ruta === '/parcelas/nuevo' && rolNormalizado !== 'ADMINISTRADOR') {
+    return false;
+  }
+
+  // Restricción explícita: La creación de nuevas actividades está reservada para Administrador y Agrónomo
+  if (
+    ruta === '/actividades/nuevo' &&
+    rolNormalizado !== 'ADMINISTRADOR' &&
+    rolNormalizado !== 'AGRONOMO'
+  ) {
     return false;
   }
 

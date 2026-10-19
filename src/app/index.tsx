@@ -10,6 +10,7 @@ import {
   ArrowRight,
   TrendingUp,
   Layers,
+  CalendarCheck,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
@@ -37,6 +38,7 @@ export default function DashboardScreen() {
   const puedeAccederCultivos = tienePermisoRuta(rolActual, '/cultivos');
   const puedeAccederUsuarios = tienePermisoRuta(rolActual, '/usuarios');
   const puedeAccederDiagnosticos = tienePermisoRuta(rolActual, '/diagnostico');
+  const puedeAccederActividades = tienePermisoRuta(rolActual, '/actividades');
 
   const { data: parcelasData, isLoading: cargandoParcelas } = useParcelasQuery({ limite: 100 });
   const { data: cultivosData } = useCultivosQuery();
@@ -81,6 +83,15 @@ export default function DashboardScreen() {
                 variante="primario"
                 iconoDerecha={<ArrowRight size={16} color={Palette.white} />}
                 onPress={() => router.push('/parcelas' as Href)}
+              />
+            </View>
+          ) : puedeAccederActividades ? (
+            <View style={styles.bannerBotonWrapper}>
+              <Boton
+                titulo="Gestionar Labores"
+                variante="primario"
+                iconoDerecha={<ArrowRight size={16} color={Palette.white} />}
+                onPress={() => router.push('/actividades' as Href)}
               />
             </View>
           ) : puedeAccederDiagnosticos ? (
@@ -292,6 +303,40 @@ export default function DashboardScreen() {
                 </Text>
                 <View style={styles.enlaceAccesoFila}>
                   <Text style={styles.textoEnlaceAcceso}>Ver listado de personal</Text>
+                  <ArrowRight size={14} color={Palette.forestGreen} />
+                </View>
+              </Card>
+            </Pressable>
+          )}
+
+          {/* Módulo: Actividades Agrícolas / Cuadrillas (Admin, Agrónomo, Supervisor) */}
+          {puedeAccederActividades && (
+            <Pressable
+              style={styles.columnaAcceso}
+              onPress={() => router.push('/actividades' as Href)}
+            >
+              <Card estilo={styles.tarjetaAcceso}>
+                <View style={styles.iconoAccesoContenedor}>
+                  <CalendarCheck size={24} color={Palette.forestGreen} />
+                </View>
+                <Text style={styles.tituloAcceso}>
+                  {rolActual === 'SUPERVISOR'
+                    ? 'Cuadrillas y Labores'
+                    : rolActual === 'AGRONOMO'
+                      ? 'Planificación de Labores'
+                      : 'Actividades Agrícolas'}
+                </Text>
+                <Text style={styles.descripcionAcceso}>
+                  {rolActual === 'SUPERVISOR'
+                    ? 'Conformación de cuadrillas de operarios, asignación de turnos y reporte en campo.'
+                    : rolActual === 'AGRONOMO'
+                      ? 'Prescripción técnica de labores (riego, poda, nutrición) asignando al Supervisor a cargo.'
+                      : 'Planificación integral de labores de campo, asignación de cuadrillas y control de insumos.'}
+                </Text>
+                <View style={styles.enlaceAccesoFila}>
+                  <Text style={styles.textoEnlaceAcceso}>
+                    {rolActual === 'SUPERVISOR' ? 'Gestionar cuadrillas y tareas' : 'Ver actividades de campo'}
+                  </Text>
                   <ArrowRight size={14} color={Palette.forestGreen} />
                 </View>
               </Card>

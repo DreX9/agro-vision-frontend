@@ -195,10 +195,24 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     label: `${p.codigo ? `[${p.codigo}] ` : ''}${p.nombre}`,
     valor: p.id,
   }));
-  const opcionesResponsables = usuarios.map((u) => ({
-    label: `${u.nombres} ${u.apellidos} (${u.rol})`,
-    valor: u.id,
-  }));
+
+  // Priorizar y ordenar para destacar Supervisores de campo como encargados
+  const opcionesResponsables = React.useMemo(() => {
+    const ordenRoles: Record<string, number> = {
+      SUPERVISOR: 1,
+      AGRONOMO: 2,
+      ADMINISTRADOR: 3,
+      OPERADOR: 4,
+    };
+
+    return [...usuarios]
+      .filter((u) => u.activo)
+      .sort((a, b) => (ordenRoles[a.rol] || 99) - (ordenRoles[b.rol] || 99))
+      .map((u) => ({
+        label: `${u.rol === 'SUPERVISOR' ? '⭐ [SUPERVISOR] ' : `[${u.rol}] `}${u.nombres} ${u.apellidos}`,
+        valor: u.id,
+      }));
+  }, [usuarios]);
 
   const responsableSeleccionado = usuarios.find((u) => u.id === responsableIdActual);
   const nombreResponsable = responsableSeleccionado
