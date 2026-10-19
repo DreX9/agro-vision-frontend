@@ -81,7 +81,11 @@ export const CultivosListaContainer: React.FC = () => {
         />
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <Card estilo={styles.tarjetaFiltros}>
           <Input
             placeholder="Buscar cultivo por nombre común o científico..."
@@ -161,6 +165,10 @@ export const CultivosListaContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContent: {
     padding: 24,
     gap: 20,

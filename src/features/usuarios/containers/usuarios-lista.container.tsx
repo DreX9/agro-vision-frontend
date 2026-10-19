@@ -81,7 +81,11 @@ export const UsuariosListaContainer: React.FC = () => {
         />
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Barra de Búsqueda y Filtros */}
         <Card estilo={styles.tarjetaFiltros}>
           <View style={styles.buscadorWrapper}>
@@ -180,6 +184,10 @@ export const UsuariosListaContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContent: {
     paddingBottom: 40,
     width: '100%',

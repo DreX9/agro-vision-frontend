@@ -17,6 +17,7 @@ import {
   ITEMS_MENU_SIDEBAR,
   ItemNavegacion,
 } from './sidebar.types';
+import { puedeVerItemMenu, RolSistema } from '@/shared/constants/roles-permisos';
 
 export interface SidebarProps {
   colapsado?: boolean;
@@ -98,9 +99,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.listaMenu}>
-          {ITEMS_MENU_SIDEBAR.map((item) => {
+          {ITEMS_MENU_SIDEBAR.filter((item) =>
+            puedeVerItemMenu((usuario?.rol || 'ADMINISTRADOR') as RolSistema, item.rolesPermitidos),
+          ).map((item) => {
             const Icono = item.icono;
-            const tieneSubitems = !!item.subitems && item.subitems.length > 0;
+            const subitemsVisibles = (item.subitems || []).filter((sub) =>
+              puedeVerItemMenu(
+                (usuario?.rol || 'ADMINISTRADOR') as RolSistema,
+                sub.rolesPermitidos,
+              ),
+            );
+            const tieneSubitems = subitemsVisibles.length > 0;
             const moduloActivo = esModuloActivo(item);
 
             return (
@@ -145,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <View style={styles.contenedorSubmenu}>
                     <View style={styles.lineaGuiaSubmenu} />
                     <View style={styles.listaSubmenu}>
-                      {item.subitems!.map((sub) => {
+                      {subitemsVisibles.map((sub) => {
                         const SubIcono = sub.icono;
                         const subActivo = esRutaActiva(sub.ruta);
 

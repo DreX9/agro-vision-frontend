@@ -11,11 +11,13 @@ import {
   ListTree,
   Layers,
 } from 'lucide-react-native';
+import { RolSistema } from '@/shared/constants/roles-permisos';
 
 export interface SubItemNavegacion {
   nombre: string;
   ruta: string;
   icono: React.ComponentType<{ size?: number; color?: string }>;
+  rolesPermitidos?: RolSistema[];
 }
 
 export interface ItemNavegacion {
@@ -23,24 +25,77 @@ export interface ItemNavegacion {
   ruta: string;
   icono: React.ComponentType<{ size?: number; color?: string }>;
   subitems?: SubItemNavegacion[];
+  rolesPermitidos?: RolSistema[];
 }
 
 export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
-  { nombre: 'Dashboard', ruta: '/', icono: LayoutDashboard },
-  { nombre: 'Usuarios', ruta: '/usuarios', icono: Users },
+  {
+    nombre: 'Dashboard',
+    ruta: '/',
+    icono: LayoutDashboard,
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+  },
+  {
+    nombre: 'Usuarios',
+    ruta: '/usuarios',
+    icono: Users,
+    rolesPermitidos: ['ADMINISTRADOR'],
+  },
   {
     nombre: 'Parcelas',
     ruta: '/parcelas',
     icono: MapPin,
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
     subitems: [
-      { nombre: 'Lista de parcelas', ruta: '/parcelas', icono: ListTree },
-      { nombre: 'Registrar parcela', ruta: '/parcelas/nuevo', icono: PlusCircle },
-      { nombre: 'Asignar cultivos', ruta: '/parcelas/asignacion-cultivos', icono: Layers },
-      { nombre: 'Registrar cultivo', ruta: '/cultivos/nuevo', icono: Sprout },
+      {
+        nombre: 'Lista de parcelas',
+        ruta: '/parcelas',
+        icono: ListTree,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
+      {
+        nombre: 'Registrar parcela',
+        ruta: '/parcelas/nuevo',
+        icono: PlusCircle,
+        rolesPermitidos: ['ADMINISTRADOR'],
+      },
+      {
+        nombre: 'Asignar cultivos',
+        ruta: '/parcelas/asignacion-cultivos',
+        icono: Layers,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
+      {
+        nombre: 'Registrar cultivo',
+        ruta: '/cultivos/nuevo',
+        icono: Sprout,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
     ],
   },
-  { nombre: 'Actividades', ruta: '/actividades', icono: CalendarCheck },
-  { nombre: 'Cultivos', ruta: '/cultivos', icono: Sprout },
-  { nombre: 'Monitoreo', ruta: '/monitoreo', icono: Activity },
-  { nombre: 'Diagnósticos', ruta: '/diagnostico', icono: ScanLine },
+  {
+    nombre: 'Actividades',
+    ruta: '/actividades',
+    icono: CalendarCheck,
+    rolesPermitidos: ['ADMINISTRADOR'],
+  },
+  {
+    nombre: 'Cultivos',
+    ruta: '/cultivos',
+    icono: Sprout,
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+  },
+  {
+    nombre: 'Monitoreo',
+    ruta: '/monitoreo',
+    icono: Activity,
+    rolesPermitidos: ['ADMINISTRADOR'],
+  },
+  {
+    nombre: 'Diagnósticos',
+    ruta: '/diagnostico',
+    icono: ScanLine,
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
+  },
 ];
+

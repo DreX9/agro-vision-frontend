@@ -22,7 +22,11 @@ export interface CultivoDetalleFichaProps {
  */
 export const CultivoDetalleFicha: React.FC<CultivoDetalleFichaProps> = ({ cultivo }) => {
   return (
-    <ScrollView contentContainerStyle={styles.contenidoScroll} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.contenidoScroll}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Tarjeta Principal de Identificación */}
       <View style={styles.tarjetaFicha}>
         <View style={styles.cabeceraFicha}>
@@ -144,6 +148,7 @@ export const CultivoDetalleFicha: React.FC<CultivoDetalleFichaProps> = ({ cultiv
 };
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, width: '100%' },
   contenidoScroll: { padding: 16, gap: 16, maxWidth: 900, width: '100%', alignSelf: 'center' },
   tarjetaFicha: {
     backgroundColor: '#FFFFFF',

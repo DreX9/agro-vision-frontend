@@ -5,6 +5,7 @@ import {
   useWindowDimensions,
   Text,
   Pressable,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Menu, Sprout } from 'lucide-react-native';
@@ -195,7 +196,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     padding: 20,
-    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        overflowY: 'auto' as any,
+      },
+      default: {
+        overflow: 'hidden',
+      },
+    }),
   },
   cuerpoPaginaMovil: {
     padding: 12,

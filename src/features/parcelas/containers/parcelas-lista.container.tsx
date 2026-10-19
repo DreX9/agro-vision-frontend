@@ -15,6 +15,7 @@ import {
   useEliminarParcelaMutation,
 } from '../api/parcelas.api';
 import { ParcelaItem, EstadoParcelaTipo } from '../types/parcela.types';
+import { useAuthStore } from '@/features/autenticacion';
 
 /**
  * @description Contenedor orquestador del listado de parcelas con soporte para vista en tabla y vista satelital GIS multicapa.
@@ -85,62 +86,70 @@ export const ParcelasListaContainer: React.FC = () => {
     });
   };
 
-  return (
-    <AppLayout
-      titulo="Gestión de Parcelas"
-      subtitulo="Delimitación geoespacial, cálculo de hectáreas y monitoreo agronómico de lotes"
-      accionEncabezado={
-        <Boton
-          titulo="Nueva Parcela"
-          variante="primario"
-          iconoIzquierda={<Plus size={18} color={Palette.white} />}
-          onPress={() => router.push('/parcelas/nuevo' as Href)}
-        />
-      }
-    >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+    const usuario = useAuthStore((s) => s.usuario);
+    const esAdmin = usuario?.rol === 'ADMINISTRADOR';
+
+    return (
+      <AppLayout
+        titulo="Gestión de Parcelas"
+        subtitulo="Delimitación geoespacial, cálculo de hectáreas y monitoreo agronómico de lotes"
+        accionEncabezado={
+          esAdmin ? (
+            <Boton
+              titulo="Nueva Parcela"
+              variante="primario"
+              iconoIzquierda={<Plus size={18} color={Palette.white} />}
+              onPress={() => router.push('/parcelas/nuevo' as Href)}
+            />
+          ) : null
+        }
       >
-        {/* Barra de Submódulos y Vistas */}
-        <View style={styles.barraSubmodulos}>
-          <Pressable
-            onPress={() => setVistaModo('tabla')}
-            style={[styles.tabSubmodulo, vistaModo === 'tabla' && styles.tabSubmoduloActivo]}
-          >
-            <ListTree size={16} color={vistaModo === 'tabla' ? Palette.forestGreen : '#6B7280'} />
-            <Text
-              style={[
-                styles.textoTabSubmodulo,
-                vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
-              ]}
+        <ScrollView
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Barra de Submódulos y Vistas */}
+          <View style={styles.barraSubmodulos}>
+            <Pressable
+              onPress={() => setVistaModo('tabla')}
+              style={[styles.tabSubmodulo, vistaModo === 'tabla' && styles.tabSubmoduloActivo]}
             >
-              Vista Tabla ({data?.total ?? 0})
-            </Text>
-          </Pressable>
+              <ListTree size={16} color={vistaModo === 'tabla' ? Palette.forestGreen : '#6B7280'} />
+              <Text
+                style={[
+                  styles.textoTabSubmodulo,
+                  vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
+                ]}
+              >
+                Vista Tabla ({data?.total ?? 0})
+              </Text>
+            </Pressable>
 
-          <Pressable
-            onPress={() => setVistaModo('mapa')}
-            style={[styles.tabSubmodulo, vistaModo === 'mapa' && styles.tabSubmoduloActivo]}
-          >
-            <MapIcon size={16} color={vistaModo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
-            <Text
-              style={[
-                styles.textoTabSubmodulo,
-                vistaModo === 'mapa' && styles.textoTabSubmoduloActivo,
-              ]}
+            <Pressable
+              onPress={() => setVistaModo('mapa')}
+              style={[styles.tabSubmodulo, vistaModo === 'mapa' && styles.tabSubmoduloActivo]}
             >
-              Mapa Satelital Completo
-            </Text>
-          </Pressable>
+              <MapIcon size={16} color={vistaModo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
+              <Text
+                style={[
+                  styles.textoTabSubmodulo,
+                  vistaModo === 'mapa' && styles.textoTabSubmoduloActivo,
+                ]}
+              >
+                Mapa Satelital Completo
+              </Text>
+            </Pressable>
 
-          <Pressable
-            onPress={() => router.push('/parcelas/nuevo' as Href)}
-            style={({ pressed }) => [styles.tabSubmodulo, pressed && styles.tabSubmoduloPresionado]}
-          >
-            <PlusCircle size={16} color="#6B7280" />
-            <Text style={styles.textoTabSubmodulo}>Registrar parcela</Text>
-          </Pressable>
+            {esAdmin && (
+              <Pressable
+                onPress={() => router.push('/parcelas/nuevo' as Href)}
+                style={({ pressed }) => [styles.tabSubmodulo, pressed && styles.tabSubmoduloPresionado]}
+              >
+                <PlusCircle size={16} color="#6B7280" />
+                <Text style={styles.textoTabSubmodulo}>Registrar parcela</Text>
+              </Pressable>
+            )}
 
           <Pressable
             onPress={() => router.push('/cultivos/nuevo' as Href)}
@@ -260,6 +269,10 @@ export const ParcelasListaContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingVertical: 18,

@@ -90,7 +90,11 @@ export const ActividadesListaContainer: React.FC = () => {
         />
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <Card estilo={styles.tarjetaFiltros}>
           <Input
             placeholder="Buscar por labor, código (ACT-001) o descripción..."
@@ -184,6 +188,10 @@ export const ActividadesListaContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContent: {
     padding: 24,
     gap: 20,

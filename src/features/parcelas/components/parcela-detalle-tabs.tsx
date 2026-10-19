@@ -131,7 +131,11 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
       </View>
 
       {/* Contenido según pestaña activa */}
-      <ScrollView contentContainerStyle={styles.contenidoScroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.contenidoScroll}
+        showsVerticalScrollIndicator={false}
+      >
         {tabActivo === 'info' ? (
           <View style={styles.bloqueTab}>
             {/* Cabecera del predio */}
@@ -432,6 +436,7 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
 
 const styles = StyleSheet.create({
   contenedor: { flex: 1 },
+  scroll: { flex: 1, width: '100%' },
   barraTabs: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
