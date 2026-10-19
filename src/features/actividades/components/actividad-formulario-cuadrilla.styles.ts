@@ -292,4 +292,21 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#92400E',
   },
+  bannerModoSupervisor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  textoBannerModoSupervisor: {
+    fontSize: 11,
+    color: '#047857',
+    fontWeight: '600',
+    flex: 1,
+  },
 });

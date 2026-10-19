@@ -305,4 +305,57 @@ export const styles = StyleSheet.create({
     color: '#64748B',
     lineHeight: 16,
   },
+  bannerSupervisor: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    gap: 4,
+    marginBottom: 6,
+  },
+  bannerSupervisorCabecera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bannerSupervisorTitulo: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  bannerSupervisorTexto: {
+    fontSize: 11,
+    color: '#78350F',
+    lineHeight: 16,
+  },
+  filaLabelConCandado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  chipSoloLectura: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  textoChipSoloLectura: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  botonDeshabilitado: {
+    opacity: 0.7,
+  },
+  chipDeshabilitadoOpaco: {
+    opacity: 0.45,
+    backgroundColor: '#F9FAFB',
+  },
 });

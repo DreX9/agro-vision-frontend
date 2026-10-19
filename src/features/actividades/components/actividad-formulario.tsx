@@ -4,7 +4,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, Wrench, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Boton, Input } from '@/shared/components/ui';
+import { Boton, Input, Select } from '@/shared/components/ui';
+import { useAuthStore } from '@/features/autenticacion';
 import { ParcelaItem } from '@/features/parcelas/types/parcela.types';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { InsumoItem } from '../types/insumo.types';
@@ -22,6 +23,7 @@ export interface ActividadFormularioProps {
   valoresIniciales?: Partial<ActividadFormValores>;
   guardando?: boolean;
   modo?: 'crear' | 'editar';
+  esSupervisor?: boolean;
   onSubmit: (valores: ActividadFormValores) => void;
   onCancelar: () => void;
 }
@@ -36,9 +38,12 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   valoresIniciales,
   guardando = false,
   modo = 'crear',
+  esSupervisor: esSupervisorProp,
   onSubmit,
   onCancelar,
 }) => {
+  const usuarioActual = useAuthStore((s) => s.usuario);
+  const esSupervisor = esSupervisorProp ?? (usuarioActual?.rol === 'SUPERVISOR');
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
@@ -236,6 +241,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       onCambiarTipo={(t) => setValue('tipo', t)}
       horaInicioActual={horaInicioActual}
       horaFinActual={horaFinActual}
+      esSupervisor={esSupervisor}
       onCambiarHorario={(ini, fin) => {
         setValue('horaInicio', ini);
         setValue('horaFin', fin);
@@ -266,6 +272,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         tipoActual={tipoActual}
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
+        esSupervisor={esSupervisor}
         turnoHorasLabor={{
           inicio: horaInicioActual,
           fin: horaFinActual,
@@ -292,7 +299,28 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
 
   const bloqueNotas = (
     <View style={styles.tarjeta}>
-      <Text style={styles.tituloSeccion}>Observaciones y Notas Técnicas</Text>
+      <Text style={styles.tituloSeccion}>Seguimiento, Estado y Observaciones</Text>
+
+      <Controller
+        control={control}
+        name="estado"
+        render={({ field: { onChange, value } }) => (
+          <Select
+            label="Estado de la Actividad *"
+            placeholder="Seleccionar estado de avance..."
+            valor={value}
+            opciones={[
+              { label: '🟡 Pendiente (Programada para inicio)', valor: 'PENDIENTE' },
+              { label: '🔵 En Progreso (Cuadrilla operando en campo)', valor: 'EN_PROGRESO' },
+              { label: '🟢 Completada (Labor finalizada en terreno)', valor: 'COMPLETADA' },
+              { label: '🔴 Cancelada', valor: 'CANCELADA' },
+            ]}
+            onChange={onChange}
+            error={errors.estado?.message}
+          />
+        )}
+      />
+
       <Controller
         control={control}
         name="descripcion"
@@ -307,6 +335,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
           />
         )}
       />
+
       <Controller
         control={control}
         name="observaciones"

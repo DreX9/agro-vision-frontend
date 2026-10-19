@@ -29,6 +29,7 @@ export interface ActividadFormularioCuadrillaProps {
   onAlternarTrabajador: (usuarioId: string) => void;
   onCambiarRol: (usuarioId: string, rol: string) => void;
   onCambiarHoras?: (usuarioId: string, horas: number) => void;
+  esSupervisor?: boolean;
 }
 
 export interface EvaluacionTrabajador {
@@ -318,6 +319,7 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   onAlternarTrabajador,
   onCambiarRol,
   onCambiarHoras,
+  esSupervisor = false,
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [rolFiltro, setRolFiltro] = useState<string>('TODOS');
@@ -433,6 +435,16 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
           <UserCheck size={14} color="#1E40AF" />
           <Text style={styles.textoBannerEncargado}>
             Encargado de la labor: <Text style={{ fontWeight: '700' }}>{nombreResponsable}</Text> (excluido de la cuadrilla operativa)
+          </Text>
+        </View>
+      )}
+
+      {/* Banner de gestión directa para el Supervisor de campo */}
+      {esSupervisor && (
+        <View style={styles.bannerModoSupervisor}>
+          <Users size={15} color="#047857" />
+          <Text style={styles.textoBannerModoSupervisor}>
+            Área de gestión para Supervisores: Selecciona y ajusta tu cuadrilla operativa para esta actividad.
           </Text>
         </View>
       )}

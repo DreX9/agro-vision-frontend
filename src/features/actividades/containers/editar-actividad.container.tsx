@@ -6,6 +6,7 @@ import { ActividadFormulario } from '../components/actividad-formulario';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
 import { useUsuariosQuery } from '@/features/usuarios/api/usuarios.api';
+import { useAuthStore } from '@/features/autenticacion';
 import { useInsumosQuery } from '../api/insumos.api';
 import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
 import { ActividadFormValores } from '../schemas/actividad.schema';
@@ -19,6 +20,8 @@ export interface EditarActividadContainerProps {
  */
 export const EditarActividadContainer: React.FC<EditarActividadContainerProps> = ({ id }) => {
   const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+  const esSupervisor = usuario?.rol === 'SUPERVISOR';
   const { data: actividad, isLoading: cargandoActividad } = useActividadPorIdQuery(id);
   const { data: datosParcelas, isLoading: cargandoParcelas } = useParcelasQuery({ limite: 100 });
   const { data: datosUsuarios, isLoading: cargandoUsuarios } = useUsuariosQuery({ limite: 100 });
@@ -46,10 +49,25 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
       };
     });
 
-    actualizarMutation.mutate(
-      {
-        id,
-        datos: {
+    // Segmentación estricta por rol:
+    // Si es Supervisor, se conservan intactos los parámetros agronómicos/técnicos asignados
+    // y se actualiza la cuadrilla, notas de campo y estado.
+    const datosPayload = esSupervisor && actividad
+      ? {
+          titulo: actividad.titulo,
+          tipo: actividad.tipo,
+          parcelaId: actividad.parcelaId,
+          sectorId: actividad.sectorId || undefined,
+          fechaInicio: actividad.fechaInicio,
+          fechaFin: actividad.fechaFin || undefined,
+          usuarioResponsableId: actividad.usuarioResponsableId || undefined,
+          descripcion: valores.descripcion || undefined,
+          observaciones: valores.observaciones || undefined,
+          estado: valores.estado,
+          trabajadores: trabajadoresFormateados,
+          recursos: valores.recursos,
+        }
+      : {
           titulo: valores.titulo,
           tipo: valores.tipo,
           parcelaId: valores.parcelaId,
@@ -62,7 +80,12 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           estado: valores.estado,
           trabajadores: trabajadoresFormateados,
           recursos: valores.recursos,
-        },
+        };
+
+    actualizarMutation.mutate(
+      {
+        id,
+        datos: datosPayload,
       },
       {
         onSuccess: () => {
@@ -97,7 +120,11 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
   return (
     <AppLayout
       titulo={`Editar Actividad: ${actividad.codigo} - ${actividad.titulo}`}
-      subtitulo="Modifique los datos, cuadrilla asignada o insumos requeridos"
+      subtitulo={
+        esSupervisor
+          ? 'Modo Supervisión: Conformación de cuadrilla de operarios y control en terreno'
+          : 'Modifique los datos, cuadrilla asignada o insumos requeridos'
+      }
     >
       <View style={styles.contenedor}>
         <ActividadFormulario
@@ -105,6 +132,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           usuarios={datosUsuarios?.elementos || []}
           insumos={insumos}
           modo="editar"
+          esSupervisor={esSupervisor}
           valoresIniciales={{
             codigo: actividad.codigo,
             titulo: actividad.titulo,
