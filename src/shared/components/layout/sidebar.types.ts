@@ -65,12 +65,6 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
         icono: Layers,
         rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
       },
-      {
-        nombre: 'Registrar cultivo',
-        ruta: '/cultivos/nuevo',
-        icono: Sprout,
-        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
-      },
     ],
   },
   {
@@ -84,6 +78,20 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
     ruta: '/cultivos',
     icono: Sprout,
     rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+    subitems: [
+      {
+        nombre: 'Lista de cultivos',
+        ruta: '/cultivos',
+        icono: ListTree,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
+      {
+        nombre: 'Registrar cultivo',
+        ruta: '/cultivos/nuevo',
+        icono: PlusCircle,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
+    ],
   },
   {
     nombre: 'Monitoreo',
