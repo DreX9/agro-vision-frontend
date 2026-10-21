@@ -133,6 +133,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           insumos={insumos}
           modo="editar"
           esSupervisor={esSupervisor}
+          actividadId={id}
           valoresIniciales={{
             codigo: actividad.codigo,
             titulo: actividad.titulo,

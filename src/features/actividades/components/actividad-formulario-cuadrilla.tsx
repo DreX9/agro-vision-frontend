@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Check, User, Users, Search, ChevronLeft, ChevronRight, UserCheck } from 'lucide-react-native';
+import { Check, User, Users, Search, ChevronLeft, ChevronRight, UserCheck, Clock, AlertTriangle } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { Input, Badge } from '@/shared/components/ui';
-import { TipoActividadTipo, esLaborCampo } from '../types/actividad.types';
+import { TipoActividadTipo, esLaborCampo, ConflictoDisponibilidad } from '../types/actividad.types';
+import { useValidarDisponibilidadQuery } from '../api/actividades.api';
 import { styles } from './actividad-formulario-cuadrilla.styles';
 
 export interface TrabajadorAsignadoInput {
@@ -30,6 +31,10 @@ export interface ActividadFormularioCuadrillaProps {
   onCambiarRol: (usuarioId: string, rol: string) => void;
   onCambiarHoras?: (usuarioId: string, horas: number) => void;
   esSupervisor?: boolean;
+  parcelaId?: string;
+  fechaLabor?: string;
+  fechaFinLabor?: string;
+  actividadId?: string;
 }
 
 export interface EvaluacionTrabajador {
@@ -320,22 +325,98 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   onCambiarRol,
   onCambiarHoras,
   esSupervisor = false,
+  parcelaId,
+  fechaLabor,
+  fechaFinLabor,
+  actividadId,
 }) => {
   const [busqueda, setBusqueda] = useState('');
   const [rolFiltro, setRolFiltro] = useState<string>('TODOS');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState<number>(10);
+  const [mostrarOcupados, setMostrarOcupados] = useState(false);
 
-  // 1. Excluir al encargado/responsable si ya fue seleccionado
-  const usuariosSinEncargado = useMemo(() => {
-    return usuariosDisponibles.filter((u) => u.id !== responsableId);
-  }, [usuariosDisponibles, responsableId]);
+  // 1. Excluir al encargado de la labor, y si es Supervisor, limitar estrictamente a Operadores
+  const usuariosCandidatos = useMemo(() => {
+    return usuariosDisponibles.filter((u) => {
+      if (u.id === responsableId) return false;
+      // Regla de jerarquía: El supervisor SOLO coordina a Operadores (no a agrónomos ni administradores)
+      if (esSupervisor) {
+        return u.rol === 'OPERADOR';
+      }
+      return true;
+    });
+  }, [usuariosDisponibles, responsableId, esSupervisor]);
 
-  // 2. Evaluar idoneidad y ordenar por relevancia
+  // Horarios de la labor para la validación de disponibilidad
+  const fechaBase = (fechaLabor || new Date().toISOString()).split('T')[0];
+  const horaIni = turnoHorasLabor?.inicio || '07:00';
+  const horaFin = turnoHorasLabor?.fin || '12:00';
+
+  const fechaInicioIso = useMemo(() => {
+    try {
+      return new Date(`${fechaBase}T${horaIni}:00`).toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }, [fechaBase, horaIni]);
+
+  const fechaFinIso = useMemo(() => {
+    try {
+      const fechaFinBase = (fechaFinLabor || fechaBase).split('T')[0];
+      return new Date(`${fechaFinBase}T${horaFin}:00`).toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }, [fechaFinLabor, fechaBase, horaFin]);
+
+  const trabajadoresAValidar = useMemo(() => {
+    return usuariosCandidatos.map((u) => ({
+      usuarioId: u.id,
+      horaInicio: fechaInicioIso,
+      horaFin: fechaFinIso,
+    }));
+  }, [usuariosCandidatos, fechaInicioIso, fechaFinIso]);
+
+  // Consulta en tiempo real de disponibilidad contra la base de datos
+  const { data: resultadoDisponibilidad } = useValidarDisponibilidadQuery({
+    parcelaId,
+    fechaInicio: fechaInicioIso,
+    fechaFin: fechaFinIso,
+    trabajadores: trabajadoresAValidar,
+    excluirActividadId: actividadId,
+    habilitado: Boolean(parcelaId && trabajadoresAValidar.length > 0),
+  });
+
+  const mapaConflictos = useMemo(() => {
+    const map = new Map<string, ConflictoDisponibilidad>();
+    if (resultadoDisponibilidad?.conflictos) {
+      resultadoDisponibilidad.conflictos.forEach((c) => {
+        map.set(c.usuarioId, c);
+      });
+    }
+    return map;
+  }, [resultadoDisponibilidad]);
+
+  // 2. Filtrado de disponibilidad horaria:
+  // Por defecto, los trabajadores ocupados en otras labores en el mismo horario NO aparecen
+  const usuariosFiltradosDisponibilidad = useMemo(() => {
+    return usuariosCandidatos.filter((u) => {
+      const estaSeleccionado = trabajadoresSeleccionados.some((t) => t.usuarioId === u.id);
+      if (estaSeleccionado) return true;
+      if (!mostrarOcupados && mapaConflictos.has(u.id)) {
+        return false; // Excluido porque no puede hacer dos trabajos a la vez
+      }
+      return true;
+    });
+  }, [usuariosCandidatos, trabajadoresSeleccionados, mapaConflictos, mostrarOcupados]);
+
+  // 3. Evaluar idoneidad y ordenar por relevancia
   const usuariosEvaluados = useMemo(() => {
-    const lista = usuariosSinEncargado.map((usuario) => ({
+    const lista = usuariosFiltradosDisponibilidad.map((usuario) => ({
       usuario,
       evaluacion: evaluarTrabajadorParaLabor(usuario.rol, tipoActual, usuario.especialidad),
+      conflicto: mapaConflictos.get(usuario.id),
     }));
 
     // Filtrar por texto de búsqueda
@@ -372,16 +453,20 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
       }
       return a.usuario.apellidos.localeCompare(b.usuario.apellidos);
     });
-  }, [usuariosSinEncargado, tipoActual, busqueda, rolFiltro, trabajadoresSeleccionados]);
+  }, [usuariosFiltradosDisponibilidad, tipoActual, busqueda, rolFiltro, trabajadoresSeleccionados, mapaConflictos]);
 
-  // Generación dinámica de tabs según los roles de usuarios registrados
+  // Generación dinámica de tabs según los roles disponibles
   const rolesDisponibles = useMemo(() => {
+    if (esSupervisor) {
+      // Para supervisores se ocultan pestañas de Agrónomos y Administradores
+      return ['TODOS', 'RECOMENDADOS'];
+    }
     const setRoles = new Set<string>();
-    usuariosSinEncargado.forEach((u) => {
+    usuariosFiltradosDisponibilidad.forEach((u) => {
       if (u.rol) setRoles.add(u.rol);
     });
     return ['TODOS', 'RECOMENDADOS', ...Array.from(setRoles)];
-  }, [usuariosSinEncargado]);
+  }, [usuariosFiltradosDisponibilidad, esSupervisor]);
 
   // Paginación
   const totalUsuarios = usuariosEvaluados.length;
@@ -426,7 +511,9 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
       </View>
 
       <Text style={styles.subtitulo}>
-        Seleccione y filtre el personal para esta labor. Los trabajadores recomendados aparecen primero y los perfiles de oficina al final.
+        {esSupervisor
+          ? 'Seleccione los operarios de campo disponibles para esta labor. Los trabajadores recomendados aparecen primero.'
+          : 'Seleccione y filtre el personal para esta labor. Los trabajadores recomendados aparecen primero y los perfiles de oficina al final.'}
       </Text>
 
       {/* Banner informativo si ya se seleccionó encargado */}
@@ -444,8 +531,28 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
         <View style={styles.bannerModoSupervisor}>
           <Users size={15} color="#047857" />
           <Text style={styles.textoBannerModoSupervisor}>
-            Área de gestión para Supervisores: Selecciona y ajusta tu cuadrilla operativa para esta actividad.
+            Área de gestión para Supervisores: Solo operarios de campo habilitados para asignación.
           </Text>
+        </View>
+      )}
+
+      {/* Banner de filtro por cruce de horario */}
+      {mapaConflictos.size > 0 && (
+        <View style={styles.bannerConflictosHorario}>
+          <View style={styles.contenidoBannerConflictos}>
+            <Clock size={15} color="#92400E" />
+            <Text style={styles.textoBannerConflictosHorario}>
+              {mapaConflictos.size} trabajador{mapaConflictos.size > 1 ? 'es' : ''} ocupado{mapaConflictos.size > 1 ? 's' : ''} en otras labores ({horaIni} - {horaFin}) {mostrarOcupados ? 'visibles' : 'ocultos automáticamente'}.
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setMostrarOcupados(!mostrarOcupados)}
+            style={styles.botonToggleOcupados}
+          >
+            <Text style={styles.textoBotonToggleOcupados}>
+              {mostrarOcupados ? 'Ocultar Ocupados' : `Ver Ocupados (${mapaConflictos.size})`}
+            </Text>
+          </Pressable>
         </View>
       )}
 
@@ -488,9 +595,10 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
           </View>
         ) : (
           <View style={styles.grillaTrabajadores}>
-            {usuariosPaginados.map(({ usuario, evaluacion }) => {
+            {usuariosPaginados.map(({ usuario, evaluacion, conflicto }) => {
               const asignado = trabajadoresSeleccionados.find((t) => t.usuarioId === usuario.id);
               const estaSeleccionado = Boolean(asignado);
+              const tieneConflicto = Boolean(conflicto && !estaSeleccionado);
 
               return (
                 <View
@@ -498,19 +606,29 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                   style={[
                     styles.tarjetaTrabajador,
                     estaSeleccionado && styles.tarjetaTrabajadorActiva,
+                    Boolean(conflicto) && styles.tarjetaTrabajadorConflicto,
                   ]}
                 >
                   <Pressable
-                    onPress={() => onAlternarTrabajador(usuario.id)}
-                    style={styles.contenidoTarjeta}
+                    disabled={tieneConflicto}
+                    onPress={() => {
+                      if (tieneConflicto) return;
+                      onAlternarTrabajador(usuario.id);
+                    }}
+                    style={[
+                      styles.contenidoTarjeta,
+                      tieneConflicto && { opacity: 0.7 },
+                    ]}
                   >
                     <View
                       style={[
                         styles.casillaVerificacion,
                         estaSeleccionado && styles.casillaVerificacionActiva,
+                        tieneConflicto && { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' },
                       ]}
                     >
                       {estaSeleccionado && <Check size={14} color="#FFFFFF" />}
+                      {tieneConflicto && <AlertTriangle size={12} color="#DC2626" />}
                     </View>
 
                     <View style={styles.avatar}>
@@ -583,6 +701,16 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                           <Text style={styles.textoTelefono}>{usuario.telefono}</Text>
                         )}
                       </View>
+
+                      {/* Notificación de conflicto de horario con otra labor */}
+                      {conflicto ? (
+                        <View style={styles.badgeConflicto}>
+                          <AlertTriangle size={12} color="#DC2626" />
+                          <Text style={styles.textoBadgeConflicto} numberOfLines={2}>
+                            {conflicto.mensaje}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </Pressable>
 

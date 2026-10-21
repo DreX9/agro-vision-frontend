@@ -24,6 +24,7 @@ export interface ActividadFormularioProps {
   guardando?: boolean;
   modo?: 'crear' | 'editar';
   esSupervisor?: boolean;
+  actividadId?: string;
   onSubmit: (valores: ActividadFormValores) => void;
   onCancelar: () => void;
 }
@@ -39,6 +40,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   guardando = false,
   modo = 'crear',
   esSupervisor: esSupervisorProp,
+  actividadId,
   onSubmit,
   onCancelar,
 }) => {
@@ -273,6 +275,10 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
         esSupervisor={esSupervisor}
+        parcelaId={parcelaIdActual}
+        fechaLabor={watch('fechaInicio')}
+        fechaFinLabor={watch('fechaFin')}
+        actividadId={actividadId}
         turnoHorasLabor={{
           inicio: horaInicioActual,
           fin: horaFinActual,

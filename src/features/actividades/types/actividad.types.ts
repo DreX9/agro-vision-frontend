@@ -148,3 +148,23 @@ export interface ActualizarActividadInput {
   trabajadores?: { usuarioId: string; rolEnActividad?: string }[];
   recursos?: { insumoId: string; cantidadEstimada: number; unidadMedida: string; notas?: string }[];
 }
+
+export interface ConflictoDisponibilidad {
+  usuarioId: string;
+  trabajadorNombre: string;
+  actividadId: string;
+  actividadTitulo: string;
+  parcelaOrigen: string;
+  parcelaDestino: string;
+  distanciaKm?: number;
+  minutosRequeridos: number;
+  minutosDisponibles: number;
+  tipoConflicto: 'SOLAPAMIENTO_HORARIO' | 'TIEMPO_TRASLADO_INSUFICIENTE';
+  mensaje: string;
+}
+
+export interface ValidacionDisponibilidadResultado {
+  esValido: boolean;
+  conflictos: ConflictoDisponibilidad[];
+}
+
