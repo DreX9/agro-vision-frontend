@@ -12,6 +12,10 @@ import { Menu, Sprout } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Sidebar } from './sidebar';
 
+import { usePathname, useRouter } from 'expo-router';
+import { useAuthStore } from '@/features/autenticacion';
+import { tienePermisoRuta } from '@/shared/constants/roles-permisos';
+import { AccesoDenegado } from './acceso-denegado';
 import { useUIStore } from '@/shared/stores/ui.store';
 
 export interface AppLayoutProps {
@@ -31,11 +35,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   accionEncabezado,
 }) => {
   const { width } = useWindowDimensions();
+  const rutaActual = usePathname();
+  const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+
   const sidebarColapsado = useUIStore((s) => s.sidebarColapsado);
   const toggleSidebarColapsado = useUIStore((s) => s.toggleSidebarColapsado);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const esPantallaAmplia = width >= 840;
   const esMovil = width < 768;
+
+  // Verificación estricta de autorización basada en roles (RBAC / Seguridad)
+  const rutaLimpia = (rutaActual?.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+  const tienePermiso = tienePermisoRuta(usuario?.rol, rutaLimpia);
 
   return (
     <SafeAreaView style={styles.contenedorRaiz}>
@@ -78,31 +90,52 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 </Pressable>
               )}
 
-              {titulo ? (
+              {tienePermiso ? (
+                titulo ? (
+                  <View style={styles.titulosWrapper}>
+                    <Text style={[styles.tituloHeader, esMovil && styles.tituloHeaderMovil]}>
+                      {titulo}
+                    </Text>
+                    {subtitulo && (
+                      <Text style={[styles.subtituloHeader, esMovil && styles.subtituloHeaderMovil]}>
+                        {subtitulo}
+                      </Text>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.marcaHeaderMovil}>
+                    <Sprout size={18} color={Palette.forestGreen} />
+                    <Text style={styles.textoMarcaMovil}>AgroSanta Elena</Text>
+                  </View>
+                )
+              ) : (
                 <View style={styles.titulosWrapper}>
                   <Text style={[styles.tituloHeader, esMovil && styles.tituloHeaderMovil]}>
-                    {titulo}
+                    Acceso Restringido
                   </Text>
-                  {subtitulo && (
-                    <Text style={[styles.subtituloHeader, esMovil && styles.subtituloHeaderMovil]}>
-                      {subtitulo}
-                    </Text>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.marcaHeaderMovil}>
-                  <Sprout size={18} color={Palette.forestGreen} />
-                  <Text style={styles.textoMarcaMovil}>AgroSanta Elena</Text>
+                  <Text style={[styles.subtituloHeader, esMovil && styles.subtituloHeaderMovil]}>
+                    Control de Seguridad por Roles (RBAC)
+                  </Text>
                 </View>
               )}
             </View>
 
-            {accionEncabezado && <View style={styles.accionHeader}>{accionEncabezado}</View>}
+            {tienePermiso && accionEncabezado && (
+              <View style={styles.accionHeader}>{accionEncabezado}</View>
+            )}
           </View>
 
           {/* Cuerpo de la Página */}
           <View style={[styles.cuerpoPagina, esMovil && styles.cuerpoPaginaMovil]}>
-            {children}
+            {tienePermiso ? (
+              children
+            ) : (
+              <AccesoDenegado
+                rol={usuario?.rol}
+                ruta={rutaActual}
+                onVolver={() => router.replace('/')}
+              />
+            )}
           </View>
         </View>
       </View>

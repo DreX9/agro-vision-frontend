@@ -94,14 +94,17 @@ export function tienePermisoRuta(rol: string | undefined | null, ruta: string): 
     return true;
   }
 
+  // Normalizar la ruta eliminando query params y barras finales redundantes
+  const rutaLimpia = (ruta.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+
   // Restricción explícita: El registro de nuevas parcelas es exclusivo del Administrador
-  if (ruta === '/parcelas/nuevo' && rolNormalizado !== 'ADMINISTRADOR') {
+  if (rutaLimpia === '/parcelas/nuevo' && rolNormalizado !== 'ADMINISTRADOR') {
     return false;
   }
 
   // Restricción explícita: La creación de nuevas actividades está reservada para Administrador y Agrónomo
   if (
-    ruta === '/actividades/nuevo' &&
+    rutaLimpia === '/actividades/nuevo' &&
     rolNormalizado !== 'ADMINISTRADOR' &&
     rolNormalizado !== 'AGRONOMO'
   ) {
@@ -111,10 +114,18 @@ export function tienePermisoRuta(rol: string | undefined | null, ruta: string): 
   // Comprobar coincidencia exacta o jerárquica
   return defRol.rutasPermitidas.some((permitida) => {
     if (permitida === '/') {
-      return ruta === '/' || ruta === '/index';
+      return rutaLimpia === '/' || rutaLimpia === '/index';
     }
-    return ruta === permitida || ruta.startsWith(`${permitida}/`);
+    return rutaLimpia === permitida || rutaLimpia.startsWith(`${permitida}/`);
   });
+}
+
+/**
+ * @description Retorna la lista de roles del sistema con autorización para acceder a una ruta.
+ */
+export function obtenerRolesPermitidosParaRuta(ruta: string): RolSistema[] {
+  const todosLosRoles: RolSistema[] = ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'];
+  return todosLosRoles.filter((rol) => tienePermisoRuta(rol, ruta));
 }
 
 /**
