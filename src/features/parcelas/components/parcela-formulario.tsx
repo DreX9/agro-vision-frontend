@@ -4,7 +4,7 @@ import { useForm, Controller, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Compass, AlertTriangle, AlertCircle } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Boton, Input } from '@/shared/components/ui';
+import { Boton, Input, Badge } from '@/shared/components/ui';
 import { MapaDelimitador, type ParcelaOcupadaGeo } from '@/shared/components/mapa/mapa-delimitador';
 import { CultivoItem } from '@/features/cultivos/types/cultivo.types';
 import { ParcelaItem } from '../types/parcela.types';
@@ -125,6 +125,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
   const [poligonoTieneCruce, setPoligonoTieneCruce] = useState<boolean>(false);
   const [poligonoTieneSuperposicion, setPoligonoTieneSuperposicion] = useState<boolean>(false);
   const [parcelaConflicto, setParcelaConflicto] = useState<string | null>(null);
+  const [puntosPoligono, setPuntosPoligono] = useState<CoordenadaPunto[]>(puntosIniciales || []);
   const timeoutGeocodificacionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mapear parcelas ocupadas con delimitaciones válidas para mostrarlas en el mapa
@@ -238,6 +239,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     setPoligonoTieneCruce(Boolean(datos.tieneCruce));
     setPoligonoTieneSuperposicion(Boolean(datos.tieneSuperposicion));
     setParcelaConflicto(datos.parcelaConflicto || null);
+    setPuntosPoligono(datos.puntos || []);
 
     const tienePuntosValidos = datos.puntos && datos.puntos.length >= 3;
     const nuevaArea = tienePuntosValidos ? (datos.areaHectareas || 0) : 0;
@@ -542,6 +544,71 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
     </View>
   );
 
+  const areaHectareasActual = watch('areaHectareas') || 0;
+
+  const seccionAcciones = (
+    <View style={styles.tarjetaAcciones}>
+      {/* Monitor en tiempo real de área trazada (estilo Asignar Cultivo) */}
+      <View style={styles.tarjetaAreaEnVivo}>
+        <View style={styles.filaAreaEnVivo}>
+          <View>
+            <Text style={styles.etiquetaAreaEnVivo}>Área Delimitada en Mapa:</Text>
+            <Text style={styles.valorAreaEnVivo}>
+              {areaHectareasActual > 0 ? `${Number(areaHectareasActual).toFixed(2)} ha` : '0.00 ha'}
+            </Text>
+          </View>
+          <Badge
+            texto={
+              puntosPoligono.length >= 3
+                ? `${puntosPoligono.length} vértices trazados`
+                : 'Trazando...'
+            }
+            variante={puntosPoligono.length >= 3 ? 'exito' : 'neutro'}
+          />
+        </View>
+
+        {poligonoTieneSuperposicion && (
+          <Text style={styles.advertenciaExcesoArea}>
+            ⚠️ El área invade la parcela "{parcelaConflicto || 'vecina'}"
+          </Text>
+        )}
+
+        {poligonoTieneCruce && (
+          <Text style={styles.advertenciaExcesoArea}>
+            ⚠️ El contorno tiene líneas cruzadas sobre sí mismas
+          </Text>
+        )}
+
+        {puntosPoligono.length < 3 && (
+          <Text style={styles.advertenciaExcesoArea}>
+            * Haga clic en el mapa satelital para marcar al menos 3 vértices
+          </Text>
+        )}
+      </View>
+
+      {/* Acciones directas de guardado y cancelar (estilo Asignar Cultivo) */}
+      <View style={styles.filaAccionesFormulario}>
+        <Boton
+          titulo={modo === 'crear' ? 'Registrar Parcela' : 'Actualizar Parcela'}
+          variante="primario"
+          cargando={guardando}
+          onPress={handleSubmit(manejarSubmit, manejarErroresValidacion)}
+          disabled={puntosPoligono.length < 3 || poligonoTieneSuperposicion || poligonoTieneCruce || guardando}
+          estilo={styles.botonGuardarParcela}
+          estiloTexto={styles.textoBotonAccion}
+        />
+        <Boton
+          titulo="Cancelar"
+          variante="outline"
+          onPress={onCancelar}
+          disabled={guardando}
+          estilo={styles.botonCancelarParcela}
+          estiloTexto={styles.textoBotonAccion}
+        />
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.contenedorPrincipal}>
       <ScrollView
@@ -560,6 +627,7 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
             <View style={styles.columnaIzquierda}>
               {seccionAgronomica}
               {seccionTerritorial}
+              {seccionAcciones}
             </View>
             <View style={styles.columnaDerecha}>
               {seccionMapa(620)}
@@ -570,35 +638,10 @@ export const ParcelaFormulario: React.FC<ParcelaFormularioProps> = ({
             {seccionAgronomica}
             {seccionTerritorial}
             {seccionMapa(360)}
+            {seccionAcciones}
           </View>
         )}
       </ScrollView>
-
-      {/* Barra de Acciones Flotante Fija que Acompaña el Scroll */}
-      <View style={styles.barraAccionesFlotanteWrapper}>
-        <View style={[styles.barraAccionesCard, Boolean(errorMensaje) && styles.barraAccionesCardConError]}>
-          {errorMensaje && (
-            <View style={styles.bannerErrorGlobal}>
-              <AlertCircle size={16} color="#DC2626" />
-              <Text style={styles.textoErrorGlobal}>{errorMensaje}</Text>
-            </View>
-          )}
-          <View style={styles.filaBotonesAcciones}>
-            <Boton
-              titulo="Cancelar"
-              variante="secundario"
-              onPress={onCancelar}
-              disabled={guardando}
-            />
-            <Boton
-              titulo={modo === 'crear' ? 'Registrar Parcela' : 'Actualizar Parcela'}
-              variante="primario"
-              onPress={handleSubmit(manejarSubmit, manejarErroresValidacion)}
-              cargando={guardando}
-            />
-          </View>
-        </View>
-      </View>
     </View>
   );
 };

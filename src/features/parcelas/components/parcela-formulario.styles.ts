@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
   },
   contenedorScroll: {
     padding: 4,
-    paddingBottom: 95,
+    paddingBottom: 24,
     gap: 16,
     maxWidth: 1440,
     alignSelf: 'center',
@@ -307,6 +307,69 @@ export const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 12,
+  },
+  tarjetaAcciones: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D0DEC8',
+    padding: 16,
+    gap: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  tarjetaAreaEnVivo: {
+    backgroundColor: '#F0FDF4',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    width: '100%',
+  },
+  filaAreaEnVivo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  etiquetaAreaEnVivo: {
+    fontSize: 12,
+    color: '#166534',
+    fontWeight: '600',
+  },
+  valorAreaEnVivo: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#15803D',
+    marginTop: 2,
+  },
+  advertenciaExcesoArea: {
+    fontSize: 12,
+    color: '#DC2626',
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  filaAccionesFormulario: {
+    flexDirection: 'column',
+    gap: 10,
+    width: '100%',
+  },
+  botonGuardarParcela: {
+    width: '100%',
+    minHeight: 46,
+    paddingVertical: 12,
+  },
+  botonCancelarParcela: {
+    width: '100%',
+    minHeight: 44,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D1D5DB',
+  },
+  textoBotonAccion: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 
