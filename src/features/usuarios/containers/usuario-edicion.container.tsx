@@ -103,7 +103,7 @@ export const UsuarioEdicionContainer: React.FC = () => {
 
 const styles = StyleSheet.create({
   contenedor: {
-    paddingBottom: 40,
+    flex: 1,
     width: '100%',
   },
 });

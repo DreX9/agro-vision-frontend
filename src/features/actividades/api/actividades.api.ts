@@ -8,6 +8,7 @@ import {
   CrearActividadInput,
   ActualizarActividadInput,
   EstadoActividadTipo,
+  ValidacionDisponibilidadResultado,
 } from '../types/actividad.types';
 
 export const ACTIVIDADES_KEYS = {
@@ -121,5 +122,49 @@ export function useEliminarActividadMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACTIVIDADES_KEYS.todas });
     },
+  });
+}
+
+/**
+ * @description Hook para verificar disponibilidad horaria y traslados de trabajadores en tiempo real.
+ */
+export function useValidarDisponibilidadQuery(params: {
+  parcelaId?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  trabajadores: { usuarioId: string; horaInicio?: string; horaFin?: string }[];
+  excluirActividadId?: string;
+  habilitado?: boolean;
+}) {
+  return useQuery({
+    queryKey: [
+      'actividades',
+      'disponibilidad',
+      params.parcelaId,
+      params.fechaInicio,
+      params.fechaFin,
+      params.excluirActividadId,
+      params.trabajadores.map((t) => t.usuarioId).sort().join(','),
+    ],
+    queryFn: async (): Promise<ValidacionDisponibilidadResultado> => {
+      const respuesta = await apiClient.post<ValidacionDisponibilidadResultado>(
+        '/actividades/validar-disponibilidad',
+        {
+          parcelaId: params.parcelaId,
+          fechaInicio: params.fechaInicio,
+          fechaFin: params.fechaFin,
+          trabajadores: params.trabajadores,
+          excluirActividadId: params.excluirActividadId,
+        },
+      );
+      return respuesta.data;
+    },
+    enabled: Boolean(
+      params.habilitado !== false &&
+      params.parcelaId &&
+      params.fechaInicio &&
+      params.trabajadores.length > 0,
+    ),
+    staleTime: 1000 * 15,
   });
 }

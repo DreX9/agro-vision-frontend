@@ -82,7 +82,11 @@ export const UsuarioDetalleFicha: React.FC<UsuarioDetalleFichaProps> = ({ usuari
   const iniciales = `${usuario.nombres.charAt(0)}${usuario.apellidos.charAt(0)}`.toUpperCase();
 
   return (
-    <ScrollView contentContainerStyle={styles.contenidoScroll} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.contenidoScroll}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Tarjeta Principal de Perfil */}
       <View style={styles.tarjetaFicha}>
         <View style={styles.cabeceraPerfil}>
@@ -253,6 +257,7 @@ export const UsuarioDetalleFicha: React.FC<UsuarioDetalleFichaProps> = ({ usuari
 };
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, width: '100%' },
   contenidoScroll: { padding: 16, gap: 16, maxWidth: 900, width: '100%', alignSelf: 'center' },
   tarjetaFicha: {
     backgroundColor: '#FFFFFF',

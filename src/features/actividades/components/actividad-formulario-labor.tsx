@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Controller, Control, FieldErrors } from 'react-hook-form';
+import { Lock, ShieldAlert } from 'lucide-react-native';
 import { Boton, Input, Select, SelectOpcion, SelectorFecha, SelectorHora } from '@/shared/components/ui';
+import { Palette } from '@/constants/theme';
+import { SectorParcelaItem } from '@/features/parcelas/types/sector-parcela.types';
 import { esLaborCampo, TipoActividadTipo } from '../types/actividad.types';
 import { ActividadFormValores } from '../schemas/actividad.schema';
 import { styles } from './actividad-formulario.styles';
@@ -30,6 +33,11 @@ export interface ActividadFormularioLaborProps {
   errors: FieldErrors<ActividadFormValores>;
   tipoActual: TipoActividadTipo;
   parcelaIdActual: string;
+  sectorIdActual?: string;
+  opcionesSectores: SelectOpcion[];
+  cargandoSectores?: boolean;
+  sectoresDisponibles?: SectorParcelaItem[];
+  onCambiarSector?: (sectorId: string) => void;
   responsableIdActual?: string;
   opcionesParcelas: SelectOpcion[];
   opcionesResponsables: SelectOpcion[];
@@ -37,6 +45,7 @@ export interface ActividadFormularioLaborProps {
   horaInicioActual?: string;
   horaFinActual?: string;
   onCambiarHorario?: (inicio: string, fin: string) => void;
+  esSupervisor?: boolean;
 }
 
 /**
@@ -48,6 +57,11 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   errors,
   tipoActual,
   parcelaIdActual,
+  sectorIdActual,
+  opcionesSectores,
+  cargandoSectores = false,
+  sectoresDisponibles = [],
+  onCambiarSector,
   responsableIdActual,
   opcionesParcelas,
   opcionesResponsables,
@@ -55,6 +69,7 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   horaInicioActual = '07:00',
   horaFinActual = '12:00',
   onCambiarHorario,
+  esSupervisor = false,
 }) => {
   const [categoriaTab, setCategoriaTab] = React.useState<'CAMPO' | 'ADMIN'>(() => {
     return esLaborCampo(tipoActual) ? 'CAMPO' : 'ADMIN';
@@ -73,31 +88,61 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
     <View style={styles.tarjeta}>
       <Text style={styles.tituloSeccion}>Información de la Labor Agrícola</Text>
 
+      {/* Banner explicativo de segmentación de rol para Supervisores */}
+      {esSupervisor && (
+        <View style={styles.bannerSupervisor}>
+          <View style={styles.bannerSupervisorCabecera}>
+            <ShieldAlert size={16} color="#B45309" />
+            <Text style={styles.bannerSupervisorTitulo}>
+              Parámetros Administrativos y Técnicos Bloqueados
+            </Text>
+          </View>
+          <Text style={styles.bannerSupervisorTexto}>
+            La parcela, sector, tipo de labor y asignación de encargado fueron definidos por Administración o Agronomía. Como Supervisor, tu función en esta labor es coordinar la cuadrilla operativa y registrar las observaciones de ejecución.
+          </Text>
+        </View>
+      )}
+
       <Controller
         control={control}
         name="titulo"
         render={({ field: { onChange, value } }) => (
           <Input
-            label="Título o Labor *"
+            label={esSupervisor ? 'Título o Labor 🔒 (Asignado por Agronomía)' : 'Título o Labor *'}
             placeholder="Ej. Fertilización foliar con Sulfato de Potasio"
             value={value}
             onChangeText={onChange}
+            editable={!esSupervisor}
+            iconoIzquierda={esSupervisor ? <Lock size={15} color="#9CA3AF" /> : undefined}
             error={errors.titulo?.message}
           />
         )}
       />
 
       <View style={styles.bloqueCampo}>
-        <Text style={styles.etiquetaCampo}>Tipo de labor y categoría *</Text>
+        <View style={styles.filaLabelConCandado}>
+          <Text style={styles.etiquetaCampo}>Tipo de labor y categoría *</Text>
+          {esSupervisor && (
+            <View style={styles.chipSoloLectura}>
+              <Lock size={11} color="#6B7280" />
+              <Text style={styles.textoChipSoloLectura}>Fijado por Agronomía</Text>
+            </View>
+          )}
+        </View>
         
         {/* Selector de categoría de labor */}
         <View style={styles.selectorCategoria}>
           <Pressable
+            disabled={esSupervisor}
             onPress={() => {
               setCategoriaTab('CAMPO');
               if (!esLaborCampo(tipoActual)) onCambiarTipo('RIEGO');
             }}
-            style={[styles.botonCategoria, categoriaTab === 'CAMPO' && styles.botonCategoriaActivo]}
+            style={[
+              styles.botonCategoria,
+              categoriaTab === 'CAMPO' && styles.botonCategoriaActivo,
+              esSupervisor && styles.botonDeshabilitado,
+            ]}
           >
             <Text
               style={[styles.textoCategoria, categoriaTab === 'CAMPO' && styles.textoCategoriaActivo]}
@@ -107,11 +152,16 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
           </Pressable>
 
           <Pressable
+            disabled={esSupervisor}
             onPress={() => {
               setCategoriaTab('ADMIN');
               if (esLaborCampo(tipoActual)) onCambiarTipo('MONITOREO_FITOSANITARIO');
             }}
-            style={[styles.botonCategoria, categoriaTab === 'ADMIN' && styles.botonCategoriaActivo]}
+            style={[
+              styles.botonCategoria,
+              categoriaTab === 'ADMIN' && styles.botonCategoriaActivo,
+              esSupervisor && styles.botonDeshabilitado,
+            ]}
           >
             <Text
               style={[styles.textoCategoria, categoriaTab === 'ADMIN' && styles.textoCategoriaActivo]}
@@ -128,8 +178,13 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             return (
               <Pressable
                 key={tl.id}
+                disabled={esSupervisor}
                 onPress={() => onCambiarTipo(tl.id)}
-                style={[styles.chipTipo, activo && styles.chipTipoActivo]}
+                style={[
+                  styles.chipTipo,
+                  activo && styles.chipTipoActivo,
+                  esSupervisor && !activo && styles.chipDeshabilitadoOpaco,
+                ]}
               >
                 <Text style={[styles.textoChipTipo, activo && styles.textoChipTipoActivo]}>
                   {tl.etiqueta}
@@ -142,7 +197,9 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
         {/* Aviso contextual de impacto en la cuadrilla */}
         <View style={styles.avisoTipoLabor}>
           <Text style={styles.textoAvisoTipoLabor}>
-            {categoriaTab === 'CAMPO'
+            {esSupervisor
+              ? '🔒 Parámetro técnico: Tipo de labor programada desde planificación agrícola.'
+              : categoriaTab === 'CAMPO'
               ? '💡 Labor de campo: La cuadrilla recomendará a Operarios y situará perfiles administrativos al final.'
               : '💡 Labor técnica/administrativa: La cuadrilla recomendará a especialistas como Agrónomos y Supervisores.'}
           </Text>
@@ -154,15 +211,83 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
         name="parcelaId"
         render={({ field: { onChange } }) => (
           <Select
-            label="Parcela Asignada *"
+            label={esSupervisor ? 'Parcela Asignada 🔒 (Solo lectura)' : 'Parcela Asignada *'}
             placeholder="Seleccione la parcela del lote..."
             valor={parcelaIdActual}
             opciones={opcionesParcelas}
+            deshabilitado={esSupervisor}
             onChange={onChange}
             error={errors.parcelaId?.message}
           />
         )}
       />
+
+      {/* Campo: Área de Cultivo / Sector según la parcela seleccionada */}
+      <View style={styles.bloqueSectorCultivo}>
+        <Controller
+          control={control}
+          name="sectorId"
+          render={({ field: { onChange, value } }) => (
+            <Select
+              label={esSupervisor ? 'Área de Cultivo / Sector 🔒 (Solo lectura)' : 'Área de Cultivo / Sector'}
+              placeholder={
+                cargandoSectores
+                  ? 'Cargando áreas de cultivo...'
+                  : 'Seleccione un sector o toda la parcela...'
+              }
+              valor={value || ''}
+              opciones={opcionesSectores}
+              deshabilitado={esSupervisor}
+              onChange={(val) => {
+                onChange(val);
+                onCambiarSector?.(val);
+              }}
+              error={errors.sectorId?.message}
+            />
+          )}
+        />
+
+        {/* Resumen agronómico del sector o aviso si la parcela no tiene sectores */}
+        {sectorIdActual && sectoresDisponibles.find((s) => s.id === sectorIdActual) ? (
+          (() => {
+            const sec = sectoresDisponibles.find((s) => s.id === sectorIdActual)!;
+            return (
+              <View style={styles.tarjetaResumenSector}>
+                <View style={styles.indicadorSectorColorWrapper}>
+                  <View
+                    style={[
+                      styles.circuloColorSector,
+                      { backgroundColor: sec.colorHex || Palette.forestGreen },
+                    ]}
+                  />
+                  <Text style={styles.textoNombreSectorResumen}>
+                    {sec.nombre} ({sec.codigo})
+                  </Text>
+                </View>
+                <View style={styles.etiquetasDetalleSector}>
+                  <View style={styles.chipSectorDetalle}>
+                    <Text style={styles.textoChipSectorDetalle}>
+                      🌱 {sec.cultivoNombre || 'Cultivo'}
+                      {sec.variedad ? ` • ${sec.variedad}` : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.chipSectorDetalle}>
+                    <Text style={styles.textoChipSectorDetalle}>
+                      📐 {Number(sec.areaHectareas).toFixed(2)} ha asignadas
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })()
+        ) : sectoresDisponibles.length === 0 && !cargandoSectores && Boolean(parcelaIdActual) ? (
+          <View style={styles.avisoSinSectores}>
+            <Text style={styles.textoAvisoSinSectores}>
+              ℹ️ Esta parcela aún no tiene subdivisiones de cultivo. La labor se programará para toda la parcela.
+            </Text>
+          </View>
+        ) : null}
+      </View>
 
       {/* Selector interactivo de Fechas (Calendario) */}
       <View style={styles.filaDosColumnas}>
@@ -172,9 +297,10 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             name="fechaInicio"
             render={({ field: { onChange, value } }) => (
               <SelectorFecha
-                label="Fecha de Inicio *"
+                label={esSupervisor ? 'Fecha de Inicio 🔒' : 'Fecha de Inicio *'}
                 placeholder="Seleccionar en calendario..."
                 valor={value}
+                deshabilitado={esSupervisor}
                 onChange={onChange}
                 error={errors.fechaInicio?.message}
               />
@@ -187,9 +313,10 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             name="fechaFin"
             render={({ field: { onChange, value } }) => (
               <SelectorFecha
-                label="Fecha Fin (Opcional)"
+                label={esSupervisor ? 'Fecha Fin 🔒' : 'Fecha Fin (Opcional)'}
                 placeholder="Seleccionar en calendario..."
                 valor={value || ''}
+                deshabilitado={esSupervisor}
                 onChange={onChange}
                 error={errors.fechaFin?.message}
               />
@@ -216,8 +343,9 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
               name="horaInicio"
               render={({ field: { onChange, value } }) => (
                 <SelectorHora
-                  label="Hora de Inicio *"
+                  label={esSupervisor ? 'Hora de Inicio 🔒' : 'Hora de Inicio *'}
                   valor={value || '07:00'}
+                  deshabilitado={esSupervisor}
                   onChange={(h) => {
                     onChange(h);
                     if (onCambiarHorario) onCambiarHorario(h, horaFinActual || '12:00');
@@ -233,8 +361,9 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
               name="horaFin"
               render={({ field: { onChange, value } }) => (
                 <SelectorHora
-                  label="Hora de Fin *"
+                  label={esSupervisor ? 'Hora de Fin 🔒' : 'Hora de Fin *'}
                   valor={value || '12:00'}
+                  deshabilitado={esSupervisor}
                   onChange={(h) => {
                     onChange(h);
                     if (onCambiarHorario) onCambiarHorario(horaInicioActual || '07:00', h);
@@ -256,10 +385,11 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
         name="usuarioResponsableId"
         render={({ field: { onChange } }) => (
           <Select
-            label="Responsable / Supervisor"
+            label={esSupervisor ? 'Supervisor de Campo Designado 🔒 (Solo lectura)' : 'Responsable / Supervisor'}
             placeholder="Seleccionar supervisor de campo..."
             valor={responsableIdActual || ''}
             opciones={opcionesResponsables}
+            deshabilitado={esSupervisor}
             onChange={onChange}
             error={errors.usuarioResponsableId?.message}
           />

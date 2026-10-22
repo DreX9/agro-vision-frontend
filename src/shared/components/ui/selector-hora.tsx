@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import { Clock, X, Check, Sun, Sunrise, Sunset } from 'lucide-react-native';
+import { Clock, X, Check, Sun, Sunrise, Sunset, Lock } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 
 export interface SelectorHoraProps {
@@ -106,6 +106,7 @@ export const SelectorHora: React.FC<SelectorHoraProps> = ({
         <Text style={[styles.textoCampo, !valor && styles.textoPlaceholder]}>
           {textoMostrar}
         </Text>
+        {deshabilitado && <Lock size={15} color="#9CA3AF" style={{ marginLeft: 'auto' }} />}
       </Pressable>
 
       {error && <Text style={styles.errorTexto}>{error}</Text>}

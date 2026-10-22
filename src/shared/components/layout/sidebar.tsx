@@ -17,6 +17,7 @@ import {
   ITEMS_MENU_SIDEBAR,
   ItemNavegacion,
 } from './sidebar.types';
+import { puedeVerItemMenu, RolSistema } from '@/shared/constants/roles-permisos';
 
 export interface SidebarProps {
   colapsado?: boolean;
@@ -35,8 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const sidebarColapsadoStore = useUIStore((s) => s.sidebarColapsado);
   const toggleSidebarStore = useUIStore((s) => s.toggleSidebarColapsado);
-  const submenuParcelasAbierto = useUIStore((s) => s.submenuParcelasAbierto);
-  const toggleSubmenuParcelas = useUIStore((s) => s.toggleSubmenuParcelas);
+  const submenusAbiertos = useUIStore((s) => s.submenusAbiertos);
+  const toggleSubmenu = useUIStore((s) => s.toggleSubmenu);
 
   const colapsado = colapsadoProp !== undefined ? colapsadoProp : sidebarColapsadoStore;
   const toggleColapsar = onToggleProp || toggleSidebarStore;
@@ -57,13 +58,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return rutaActual.startsWith(item.ruta);
   };
 
+  const estaSubmenuAbierto = (ruta: string): boolean => {
+    return submenusAbiertos[ruta] ?? true;
+  };
+
   const manejarClickPrincipal = (item: ItemNavegacion) => {
     if (colapsado) {
       router.push(item.ruta as Href);
       return;
     }
     if (item.subitems) {
-      toggleSubmenuParcelas();
+      toggleSubmenu(item.ruta);
       if (!rutaActual.startsWith(item.ruta)) {
         router.push(item.ruta as Href);
       }
@@ -98,10 +103,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.listaMenu}>
-          {ITEMS_MENU_SIDEBAR.map((item) => {
+          {ITEMS_MENU_SIDEBAR.filter((item) =>
+            puedeVerItemMenu((usuario?.rol || 'ADMINISTRADOR') as RolSistema, item.rolesPermitidos),
+          ).map((item) => {
             const Icono = item.icono;
-            const tieneSubitems = !!item.subitems && item.subitems.length > 0;
+            const subitemsVisibles = (item.subitems || []).filter((sub) =>
+              puedeVerItemMenu(
+                (usuario?.rol || 'ADMINISTRADOR') as RolSistema,
+                sub.rolesPermitidos,
+              ),
+            );
+            const tieneSubitems = subitemsVisibles.length > 0;
             const moduloActivo = esModuloActivo(item);
+            const estaAbierto = estaSubmenuAbierto(item.ruta);
 
             return (
               <View key={item.ruta} style={styles.bloqueItemMenu}>
@@ -129,8 +143,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {item.nombre}
                       </Text>
                       {tieneSubitems && (
-                        <Pressable onPress={toggleSubmenuParcelas} hitSlop={8}>
-                          {submenuParcelasAbierto ? (
+                        <Pressable onPress={() => toggleSubmenu(item.ruta)} hitSlop={8}>
+                          {estaAbierto ? (
                             <ChevronUp size={16} color="#E2EBDC" />
                           ) : (
                             <ChevronDown size={16} color="#E2EBDC" />
@@ -141,11 +155,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </Pressable>
 
-                {!colapsado && tieneSubitems && submenuParcelasAbierto && (
+                {!colapsado && tieneSubitems && estaAbierto && (
                   <View style={styles.contenedorSubmenu}>
                     <View style={styles.lineaGuiaSubmenu} />
                     <View style={styles.listaSubmenu}>
-                      {item.subitems!.map((sub) => {
+                      {subitemsVisibles.map((sub) => {
                         const SubIcono = sub.icono;
                         const subActivo = esRutaActiva(sub.ruta);
 

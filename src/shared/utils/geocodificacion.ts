@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import * as Location from 'expo-location';
 import {
   DEPARTAMENTOS_PERU,
   type DepartamentoUbigeo,
@@ -156,30 +158,53 @@ export function normalizarTexto(texto: string): string {
 
 /**
  * @description Obtiene la ubicación geográfica actual del dispositivo o navegador web.
+ * En Web utiliza navigator.geolocation y en Android/iOS solicita permisos nativos con expo-location.
  */
-export function obtenerUbicacionActual(): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          resolve({
-            lat: Number(pos.coords.latitude.toFixed(6)),
-            lng: Number(pos.coords.longitude.toFixed(6)),
-          });
-        },
-        () => {
-          resolve(null);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 6000,
-          maximumAge: 30000,
-        },
-      );
-    } else {
-      resolve(null);
+export async function obtenerUbicacionActual(): Promise<{ lat: number; lng: number } | null> {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        return new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              resolve({
+                lat: Number(pos.coords.latitude.toFixed(6)),
+                lng: Number(pos.coords.longitude.toFixed(6)),
+              });
+            },
+            () => {
+              resolve(null);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 6000,
+              maximumAge: 30000,
+            },
+          );
+        });
+      }
+      return null;
     }
-  });
+
+    // Entorno móvil nativo (Android / iOS):
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn('[Ubicación] Permiso de ubicación no concedido por el usuario');
+      return null;
+    }
+
+    const pos = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+
+    return {
+      lat: Number(pos.coords.latitude.toFixed(6)),
+      lng: Number(pos.coords.longitude.toFixed(6)),
+    };
+  } catch (error) {
+    console.warn('[Ubicación] Error al obtener posición GPS:', error);
+    return null;
+  }
 }
 
 function distanciaCuadratica(lat1: number, lng1: number, lat2: number, lng2: number): number {

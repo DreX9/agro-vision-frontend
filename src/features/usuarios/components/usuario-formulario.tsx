@@ -128,15 +128,20 @@ export const UsuarioFormulario: React.FC<UsuarioFormularioProps> = ({
   }, [rolSeleccionado, esEdicion, setValue, watch]);
 
   return (
-    <Card estilo={styles.tarjeta}>
-      {errorMensaje && (
-        <View style={styles.alertaError}>
-          <AlertCircle size={20} color={Palette.error} />
-          <Text style={styles.alertaErrorTexto}>{errorMensaje}</Text>
-        </View>
-      )}
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.scrollContenido}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Card estilo={styles.tarjeta}>
+        {errorMensaje && (
+          <View style={styles.alertaError}>
+            <AlertCircle size={20} color={Palette.error} />
+            <Text style={styles.alertaErrorTexto}>{errorMensaje}</Text>
+          </View>
+        )}
 
-      <ScrollView showsVerticalScrollIndicator={false}>
         {/* Sección: Datos de Identidad */}
         <Text style={styles.seccionTitulo}>1. Datos Personales y de Acceso</Text>
         <View style={styles.filaGrid}>
@@ -423,12 +428,21 @@ export const UsuarioFormulario: React.FC<UsuarioFormularioProps> = ({
             estilo={styles.botonGuardar}
           />
         </View>
-      </ScrollView>
-    </Card>
+      </Card>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
+  scrollContenido: {
+    paddingBottom: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
   tarjeta: {
     maxWidth: 900,
     width: '100%',

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { Plus, Search } from 'lucide-react-native';
+import { Plus, Search, UserCheck, ListFilter } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { Boton, Input, Card, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
@@ -14,20 +14,30 @@ import {
   useEliminarActividadMutation,
 } from '../api/actividades.api';
 import { ActividadItem, EstadoActividadTipo } from '../types/actividad.types';
+import { useAuthStore } from '@/features/autenticacion';
 
 /**
- * @description Contenedor orquestador de la lista de actividades agrícolas con filtros y paginación.
+ * @description Contenedor orquestador de la lista de actividades agrícolas con filtros y paginación según RBAC.
  */
 export const ActividadesListaContainer: React.FC = () => {
   const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+  const rol = usuario?.rol || 'OPERADOR';
+  const esAdmin = rol === 'ADMINISTRADOR';
+  const esAgronomo = rol === 'AGRONOMO';
+  const esSupervisor = rol === 'SUPERVISOR';
+  const puedeCrear = esAdmin || esAgronomo;
+
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
+  const [soloMisLabores, setSoloMisLabores] = useState(esSupervisor);
   const [actividadAEliminar, setActividadAEliminar] = useState<ActividadItem | null>(null);
   const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
 
   const { data, isLoading, isFetching } = useActividadesQuery({
     busqueda: busqueda.trim() || undefined,
+    usuarioResponsableId: soloMisLabores && usuario?.id ? usuario.id : undefined,
     pagina,
     limite,
   });
@@ -60,11 +70,12 @@ export const ActividadesListaContainer: React.FC = () => {
   };
 
   const handleEliminar = (actividad: ActividadItem) => {
+    if (!esAdmin) return;
     setActividadAEliminar(actividad);
   };
 
   const confirmarEliminar = () => {
-    if (!actividadAEliminar) return;
+    if (!actividadAEliminar || !esAdmin) return;
     const act = actividadAEliminar;
 
     eliminarMutation.mutate(act.id, {
@@ -77,20 +88,32 @@ export const ActividadesListaContainer: React.FC = () => {
     });
   };
 
+  const subtituloSegunRol = esSupervisor
+    ? 'Gestión de cuadrillas de operarios, asignación de turnos y control de avance en terreno'
+    : esAgronomo
+      ? 'Planificación y prescripción agronómica de riego, fertilización, poda y fitosanidad'
+      : 'Planificación integral de labores de campo, asignación de cuadrillas y control de insumos';
+
   return (
     <AppLayout
       titulo="Actividades Agrícolas"
-      subtitulo="Planificación de labores de campo, asignación de cuadrillas y control de insumos"
+      subtitulo={subtituloSegunRol}
       accionEncabezado={
-        <Boton
-          titulo="Nueva Actividad"
-          variante="primario"
-          iconoIzquierda={<Plus size={18} color={Palette.white} />}
-          onPress={() => router.push('/actividades/nuevo' as Href)}
-        />
+        puedeCrear ? (
+          <Boton
+            titulo="Nueva Actividad"
+            variante="primario"
+            iconoIzquierda={<Plus size={18} color={Palette.white} />}
+            onPress={() => router.push('/actividades/nuevo' as Href)}
+          />
+        ) : null
       }
     >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <Card estilo={styles.tarjetaFiltros}>
           <Input
             placeholder="Buscar por labor, código (ACT-001) o descripción..."
@@ -102,6 +125,47 @@ export const ActividadesListaContainer: React.FC = () => {
             iconoIzquierda={<Search size={18} color="#6B7280" />}
             contenedorEstilo={styles.inputBuscador}
           />
+
+          {/* Filtro rápido para Supervisor / Responsable */}
+          {esSupervisor && (
+            <View style={styles.filaFiltrosRoles}>
+              <Pressable
+                onPress={() => {
+                  setSoloMisLabores(true);
+                  setPagina(1);
+                }}
+                style={[styles.botonFiltroRol, soloMisLabores && styles.botonFiltroRolActivo]}
+              >
+                <UserCheck size={15} color={soloMisLabores ? Palette.white : Palette.forestGreen} />
+                <Text
+                  style={[
+                    styles.textoFiltroRol,
+                    soloMisLabores && styles.textoFiltroRolActivo,
+                  ]}
+                >
+                  Mis labores a cargo
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setSoloMisLabores(false);
+                  setPagina(1);
+                }}
+                style={[styles.botonFiltroRol, !soloMisLabores && styles.botonFiltroRolActivo]}
+              >
+                <ListFilter size={15} color={!soloMisLabores ? Palette.white : '#4B5563'} />
+                <Text
+                  style={[
+                    styles.textoFiltroRol,
+                    !soloMisLabores && styles.textoFiltroRolActivo,
+                  ]}
+                >
+                  Todas las labores
+                </Text>
+              </Pressable>
+            </View>
+          )}
         </Card>
 
         {isLoading ? (
@@ -114,7 +178,7 @@ export const ActividadesListaContainer: React.FC = () => {
               onVerDetalle={handleVerDetalle}
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
-              onEliminar={handleEliminar}
+              onEliminar={esAdmin ? handleEliminar : undefined}
             />
 
             {data && data.total > 0 && (
@@ -184,6 +248,10 @@ export const ActividadesListaContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    width: '100%',
+  },
   scrollContent: {
     padding: 24,
     gap: 20,
@@ -191,7 +259,36 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  tarjetaFiltros: { padding: 16 },
-  inputBuscador: { flex: 1 },
+  tarjetaFiltros: { padding: 16, gap: 12 },
+  inputBuscador: { width: '100%' },
+  filaFiltrosRoles: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  botonFiltroRol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F9FAFB',
+  },
+  botonFiltroRolActivo: {
+    backgroundColor: Palette.forestGreen,
+    borderColor: Palette.forestGreen,
+  },
+  textoFiltroRol: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  textoFiltroRolActivo: {
+    color: Palette.white,
+  },
   contenedorTabla: { gap: 16 },
 });

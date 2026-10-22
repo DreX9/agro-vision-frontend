@@ -4,12 +4,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Users, Wrench, ArrowRight, ArrowLeft } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Boton, Input } from '@/shared/components/ui';
+import { Boton, Input, Select } from '@/shared/components/ui';
+import { useAuthStore } from '@/features/autenticacion';
 import { ParcelaItem } from '@/features/parcelas/types/parcela.types';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { InsumoItem } from '../types/insumo.types';
-import { TipoActividadTipo } from '../types/actividad.types';
 import { actividadSchema, type ActividadFormValores } from '../schemas/actividad.schema';
+import { useSectoresPorParcelaQuery } from '@/features/parcelas/api/sectores.api';
 import { ActividadFormularioCuadrilla, TrabajadorAsignadoInput } from './actividad-formulario-cuadrilla';
 import { ActividadFormularioRecursos, RecursoAsignadoInput } from './actividad-formulario-recursos';
 import { ActividadFormularioLabor } from './actividad-formulario-labor';
@@ -22,6 +23,8 @@ export interface ActividadFormularioProps {
   valoresIniciales?: Partial<ActividadFormValores>;
   guardando?: boolean;
   modo?: 'crear' | 'editar';
+  esSupervisor?: boolean;
+  actividadId?: string;
   onSubmit: (valores: ActividadFormValores) => void;
   onCancelar: () => void;
 }
@@ -36,9 +39,13 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   valoresIniciales,
   guardando = false,
   modo = 'crear',
+  esSupervisor: esSupervisorProp,
+  actividadId,
   onSubmit,
   onCancelar,
 }) => {
+  const usuarioActual = useAuthStore((s) => s.usuario);
+  const esSupervisor = esSupervisorProp ?? (usuarioActual?.rol === 'SUPERVISOR');
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
@@ -63,6 +70,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       titulo: valoresIniciales?.titulo || '',
       tipo: valoresIniciales?.tipo || 'FERTILIZACION',
       parcelaId: valoresIniciales?.parcelaId || (parcelas[0]?.id ?? ''),
+      sectorId: valoresIniciales?.sectorId || '',
       fechaInicio: valoresIniciales?.fechaInicio || new Date().toISOString().split('T')[0],
       horaInicio: valoresIniciales?.horaInicio || '07:00',
       fechaFin: valoresIniciales?.fechaFin || '',
@@ -79,10 +87,42 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
 
   const tipoActual = watch('tipo');
   const parcelaIdActual = watch('parcelaId');
+  const sectorIdActual = watch('sectorId');
   const responsableIdActual = watch('usuarioResponsableId');
   const horaInicioActual = watch('horaInicio') || '07:00';
   const horaFinActual = watch('horaFin') || '12:00';
   const duracionHorasActual = watch('duracionHoras') || 5;
+
+  // Consulta de sectores / áreas de cultivo correspondientes a la parcela seleccionada
+  const { data: resumenSectores, isLoading: cargandoSectores } = useSectoresPorParcelaQuery(
+    parcelaIdActual || undefined,
+  );
+
+  // Si cambia la parcela, limpiar sectorId para evitar asignaciones inconsistentes
+  const parcelaIdAnteriorRef = React.useRef(parcelaIdActual);
+  React.useEffect(() => {
+    if (parcelaIdAnteriorRef.current && parcelaIdAnteriorRef.current !== parcelaIdActual) {
+      setValue('sectorId', '');
+    }
+    parcelaIdAnteriorRef.current = parcelaIdActual;
+  }, [parcelaIdActual, setValue]);
+
+  const sectoresDisponibles = resumenSectores?.sectores || [];
+  const opcionesSectores = React.useMemo(() => {
+    return [
+      {
+        label:
+          sectoresDisponibles.length > 0
+            ? 'Toda la parcela (Lote completo)'
+            : 'Toda la parcela (Sin áreas delimitadas)',
+        valor: '',
+      },
+      ...sectoresDisponibles.map((s) => ({
+        label: `[${s.codigo}] ${s.nombre} - ${s.cultivoNombre || 'Cultivo'}${s.variedad ? ` (${s.variedad})` : ''} - ${Number(s.areaHectareas).toFixed(2)} ha`,
+        valor: s.id,
+      })),
+    ];
+  }, [sectoresDisponibles]);
 
   // Si se selecciona un encargado/responsable, se excluye de la cuadrilla operativa
   React.useEffect(() => {
@@ -162,10 +202,24 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     label: `${p.codigo ? `[${p.codigo}] ` : ''}${p.nombre}`,
     valor: p.id,
   }));
-  const opcionesResponsables = usuarios.map((u) => ({
-    label: `${u.nombres} ${u.apellidos} (${u.rol})`,
-    valor: u.id,
-  }));
+
+  // Priorizar y ordenar para destacar Supervisores de campo como encargados
+  const opcionesResponsables = React.useMemo(() => {
+    const ordenRoles: Record<string, number> = {
+      SUPERVISOR: 1,
+      AGRONOMO: 2,
+      ADMINISTRADOR: 3,
+      OPERADOR: 4,
+    };
+
+    return [...usuarios]
+      .filter((u) => u.activo)
+      .sort((a, b) => (ordenRoles[a.rol] || 99) - (ordenRoles[b.rol] || 99))
+      .map((u) => ({
+        label: `${u.rol === 'SUPERVISOR' ? '⭐ [SUPERVISOR] ' : `[${u.rol}] `}${u.nombres} ${u.apellidos}`,
+        valor: u.id,
+      }));
+  }, [usuarios]);
 
   const responsableSeleccionado = usuarios.find((u) => u.id === responsableIdActual);
   const nombreResponsable = responsableSeleccionado
@@ -178,12 +232,18 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       errors={errors}
       tipoActual={tipoActual}
       parcelaIdActual={parcelaIdActual}
+      sectorIdActual={sectorIdActual}
+      opcionesSectores={opcionesSectores}
+      cargandoSectores={cargandoSectores}
+      sectoresDisponibles={sectoresDisponibles}
+      onCambiarSector={(sId) => setValue('sectorId', sId)}
       responsableIdActual={responsableIdActual}
       opcionesParcelas={opcionesParcelas}
       opcionesResponsables={opcionesResponsables}
       onCambiarTipo={(t) => setValue('tipo', t)}
       horaInicioActual={horaInicioActual}
       horaFinActual={horaFinActual}
+      esSupervisor={esSupervisor}
       onCambiarHorario={(ini, fin) => {
         setValue('horaInicio', ini);
         setValue('horaFin', fin);
@@ -214,6 +274,11 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         tipoActual={tipoActual}
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
+        esSupervisor={esSupervisor}
+        parcelaId={parcelaIdActual}
+        fechaLabor={watch('fechaInicio')}
+        fechaFinLabor={watch('fechaFin')}
+        actividadId={actividadId}
         turnoHorasLabor={{
           inicio: horaInicioActual,
           fin: horaFinActual,
@@ -240,7 +305,28 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
 
   const bloqueNotas = (
     <View style={styles.tarjeta}>
-      <Text style={styles.tituloSeccion}>Observaciones y Notas Técnicas</Text>
+      <Text style={styles.tituloSeccion}>Seguimiento, Estado y Observaciones</Text>
+
+      <Controller
+        control={control}
+        name="estado"
+        render={({ field: { onChange, value } }) => (
+          <Select
+            label="Estado de la Actividad *"
+            placeholder="Seleccionar estado de avance..."
+            valor={value}
+            opciones={[
+              { label: '🟡 Pendiente (Programada para inicio)', valor: 'PENDIENTE' },
+              { label: '🔵 En Progreso (Cuadrilla operando en campo)', valor: 'EN_PROGRESO' },
+              { label: '🟢 Completada (Labor finalizada en terreno)', valor: 'COMPLETADA' },
+              { label: '🔴 Cancelada', valor: 'CANCELADA' },
+            ]}
+            onChange={onChange}
+            error={errors.estado?.message}
+          />
+        )}
+      />
+
       <Controller
         control={control}
         name="descripcion"
@@ -255,6 +341,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
           />
         )}
       />
+
       <Controller
         control={control}
         name="observaciones"
@@ -333,24 +420,35 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       )}
       </ScrollView>
 
-      {/* Barra de Acciones Flotante Fija que Acompaña el Scroll */}
-      <View style={styles.barraAccionesFlotanteWrapper}>
-        <View style={styles.barraAccionesCard}>
-          <Boton titulo="Cancelar" variante="secundario" onPress={onCancelar} disabled={guardando} />
+      {/* Barra de Acciones Anclada al Pie (No Tapa el Contenido y es Compacta) */}
+      <View style={styles.barraAccionesFooter}>
+        <View style={styles.barraAccionesInner}>
+          <Boton
+            titulo="Cancelar"
+            variante="secundario"
+            onPress={onCancelar}
+            disabled={guardando}
+            estilo={styles.botonCompacto}
+            estiloTexto={styles.textoBotonCompacto}
+          />
 
           <View style={styles.grupoBotonesDerecha}>
             {tabActivo === 'labor_cuadrilla' ? (
               <Boton
                 titulo="Siguiente: Insumos"
-                iconoDerecha={<ArrowRight size={16} color="#FFFFFF" />}
+                iconoDerecha={<ArrowRight size={15} color="#FFFFFF" />}
                 onPress={() => setTabActivo('insumos_notas')}
+                estilo={styles.botonCompacto}
+                estiloTexto={styles.textoBotonCompacto}
               />
             ) : (
               <Boton
                 titulo="Anterior"
                 variante="outline"
-                iconoIzquierda={<ArrowLeft size={16} color={Palette.forestGreen} />}
+                iconoIzquierda={<ArrowLeft size={15} color={Palette.forestGreen} />}
                 onPress={() => setTabActivo('labor_cuadrilla')}
+                estilo={styles.botonCompacto}
+                estiloTexto={styles.textoBotonCompacto}
               />
             )}
 
@@ -359,6 +457,8 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
               variante="primario"
               onPress={handleSubmit(onSubmit)}
               cargando={guardando}
+              estilo={styles.botonCompactoPrimario}
+              estiloTexto={styles.textoBotonCompacto}
             />
           </View>
         </View>

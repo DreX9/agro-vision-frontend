@@ -42,6 +42,7 @@ export const actividadSchema = z.object({
     'OTRO',
   ] as const),
   parcelaId: z.string().min(1, 'Debe seleccionar una parcela de campo'),
+  sectorId: z.string().optional().or(z.literal('')),
   fechaInicio: z.string().min(1, 'La fecha de inicio es requerida'),
   horaInicio: z.string().optional(),
   fechaFin: z.string().optional().or(z.literal('')),

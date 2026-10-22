@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   type DimensionValue,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useRouter, type Href } from 'expo-router';
 import {
   MapPin,
@@ -68,6 +69,7 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
   const esDesktop = width >= 900;
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webViewRef = useRef<any>(null);
   const [cultivoFiltro, setCultivoFiltro] = useState<string>('TODOS');
   const [parcelaSeleccionadaId, setParcelaSeleccionadaId] = useState<string | null>(null);
 
@@ -140,8 +142,27 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
   }, [parcelasConPoligono, cultivoFiltro]);
 
   const enviarAccion = (accion: string, carga?: unknown) => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ accion, carga }, '*');
+    const payload = { accion, carga };
+    if (Platform.OS === 'web' && iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(payload, '*');
+    } else if (webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify(payload));
+    }
+  };
+
+  const procesarMensaje = (datos: any) => {
+    if (!datos) return;
+
+    if (datos.tipo === 'VER_DETALLE_PARCELA' && datos.id) {
+      router.push(`/parcelas/${datos.id}` as Href);
+    }
+
+    if (datos.tipo === 'SELECCIONAR_PARCELA' && datos.id) {
+      setParcelaSeleccionadaId(datos.id);
+      const encontrada = parcelas.find((p) => p.id === datos.id);
+      if (encontrada && onSeleccionarParcela) {
+        onSeleccionarParcela(encontrada);
+      }
     }
   };
 
@@ -152,24 +173,12 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
     });
   }, [parcelasFiltradas]);
 
-  // Escuchar mensajes provenientes del iframe
+  // Escuchar mensajes provenientes del iframe en Web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
     const manejarMensaje = (evento: MessageEvent) => {
-      if (!evento.data) return;
-
-      if (evento.data.tipo === 'VER_DETALLE_PARCELA' && evento.data.id) {
-        router.push(`/parcelas/${evento.data.id}` as Href);
-      }
-
-      if (evento.data.tipo === 'SELECCIONAR_PARCELA' && evento.data.id) {
-        setParcelaSeleccionadaId(evento.data.id);
-        const encontrada = parcelas.find((p) => p.id === evento.data.id);
-        if (encontrada && onSeleccionarParcela) {
-          onSeleccionarParcela(encontrada);
-        }
-      }
+      procesarMensaje(evento.data);
     };
 
     window.addEventListener('message', manejarMensaje);
@@ -338,6 +347,16 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
         let capaPoligonos = L.featureGroup().addTo(map);
         let capaEtiquetas = L.layerGroup().addTo(map);
 
+        function notificarParent(datos) {
+          try {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify(datos));
+            } else if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(datos, '*');
+            }
+          } catch(err) {}
+        }
+
         let todasLasParcelas = ${jsonParcelas};
 
         function renderizarParcelas(parcelas) {
@@ -435,7 +454,7 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
                     </span>
                   </div>
 
-                  <button class="popup-btn-detalle" onclick="window.parent.postMessage({ tipo: 'VER_DETALLE_PARCELA', id: '\${p.id}' }, '*')">
+                  <button class="popup-btn-detalle" onclick="notificarParent({ tipo: 'VER_DETALLE_PARCELA', id: '\${p.id}' })">
                     Ver Ficha Completa &rarr;
                   </button>
                 </div>
@@ -445,7 +464,7 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
             poli.bindPopup(popupHtml, { maxWidth: 300 });
 
             poli.on('click', function() {
-              window.parent.postMessage({ tipo: 'SELECCIONAR_PARCELA', id: p.id }, '*');
+              notificarParent({ tipo: 'SELECCIONAR_PARCELA', id: p.id });
             });
 
             capaPoligonos.addLayer(poli);
@@ -471,12 +490,16 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
 
         renderizarParcelas(todasLasParcelas);
 
-        window.addEventListener('message', function(e) {
-          if (!e.data || !e.data.accion) return;
+        function alRecibirMensaje(e) {
+          let d = e.data;
+          if (typeof d === 'string') {
+            try { d = JSON.parse(d); } catch (err) {}
+          }
+          if (!d || !d.accion) return;
 
-          switch(e.data.accion) {
+          switch(d.accion) {
             case 'ACTUALIZAR_PARCELAS':
-              renderizarParcelas(e.data.carga.parcelas || []);
+              renderizarParcelas(d.carga.parcelas || []);
               break;
             case 'ENFOCAR_TODAS':
               try {
@@ -487,14 +510,14 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
               } catch(err) {}
               break;
             case 'CENTRAR':
-              if (e.data.carga && e.data.carga.lat && e.data.carga.lng) {
-                map.flyTo([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 16, { duration: 1.1 });
+              if (d.carga && d.carga.lat && d.carga.lng) {
+                map.flyTo([d.carga.lat, d.carga.lng], d.carga.zoom || 16, { duration: 1.1 });
               }
               break;
             case 'ABRIR_POPUP':
-              if (e.data.carga && e.data.carga.id) {
+              if (d.carga && d.carga.id) {
                 capaPoligonos.eachLayer(function(layer) {
-                  if (layer._parcelaId === e.data.carga.id) {
+                  if (layer._parcelaId === d.carga.id) {
                     layer.openPopup();
                     layer.setStyle({ weight: 4.5, fillOpacity: 0.75, color: '#FFFFFF' });
                   }
@@ -502,7 +525,10 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
               }
               break;
           }
-        });
+        }
+
+        window.addEventListener('message', alRecibirMensaje);
+        document.addEventListener('message', alRecibirMensaje);
 
         setTimeout(function() {
           map.invalidateSize();
@@ -617,10 +643,25 @@ export const MapaGeneralParcelas: React.FC<MapaGeneralParcelasProps> = ({
                 title="Visor General de Parcelas Agro Vision"
               />
             ) : (
-              <View style={styles.avisoNativo}>
-                <MapPin size={32} color={Palette.forestGreen} />
-                <Text style={styles.textoAvisoNativo}>Visor satelital disponible en web</Text>
-              </View>
+              <WebView
+                ref={webViewRef}
+                originWhitelist={['*']}
+                source={{ html: htmlMapa }}
+                style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                geolocationEnabled={true}
+                scrollEnabled={false}
+                nestedScrollEnabled={true}
+                onMessage={(event) => {
+                  try {
+                    const datos = JSON.parse(event.nativeEvent.data);
+                    procesarMensaje(datos);
+                  } catch (e) {
+                    console.warn('[MapaGeneral] Error al procesar mensaje de WebView:', e);
+                  }
+                }}
+              />
             )}
           </View>
 

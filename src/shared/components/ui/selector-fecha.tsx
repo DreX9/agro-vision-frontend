@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check } from 'lucide-react-native';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X, Check, Lock } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 
 export interface SelectorFechaProps {
@@ -198,6 +198,7 @@ export const SelectorFecha: React.FC<SelectorFechaProps> = ({
         <Text style={[styles.textoCampo, !valor && styles.textoPlaceholder]}>
           {textoMostrar}
         </Text>
+        {deshabilitado && <Lock size={15} color="#9CA3AF" style={{ marginLeft: 'auto' }} />}
       </Pressable>
 
       {error && <Text style={styles.errorTexto}>{error}</Text>}

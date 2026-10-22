@@ -9,3 +9,5 @@ export * from './components/VisorCamaraEscaneo';
 export * from './components/TarjetaDiagnosticoResultado';
 export * from './components/BoundingBoxOverlay';
 export * from './components/DiagnosticoSkeleton';
+export * from './components/SelectorDespliegueDron';
+export * from './components/HistorialDiagnosticosCampo';

@@ -9,12 +9,21 @@ import { useUsuariosQuery } from '@/features/usuarios/api/usuarios.api';
 import { useInsumosQuery } from '../api/insumos.api';
 import { useCrearActividadMutation } from '../api/actividades.api';
 import { ActividadFormValores } from '../schemas/actividad.schema';
+import { useAuthStore } from '@/features/autenticacion';
 
 /**
  * @description Contenedor orquestador para el registro de una nueva actividad agrícola.
  */
 export const CrearActividadContainer: React.FC = () => {
   const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+
+  React.useEffect(() => {
+    if (usuario && usuario.rol !== 'ADMINISTRADOR' && usuario.rol !== 'AGRONOMO') {
+      router.replace('/actividades' as Href);
+    }
+  }, [usuario, router]);
+
   const { data: datosParcelas, isLoading: cargandoParcelas } = useParcelasQuery({ limite: 100 });
   const { data: datosUsuarios, isLoading: cargandoUsuarios } = useUsuariosQuery({ limite: 100 });
   const { data: insumos = [], isLoading: cargandoInsumos } = useInsumosQuery();
@@ -47,6 +56,7 @@ export const CrearActividadContainer: React.FC = () => {
         titulo: valores.titulo,
         tipo: valores.tipo,
         parcelaId: valores.parcelaId,
+        sectorId: valores.sectorId || undefined,
         fechaInicio: fechaInicioIso,
         fechaFin: fechaFinIso,
         usuarioResponsableId: valores.usuarioResponsableId || undefined,
@@ -95,5 +105,5 @@ export const CrearActividadContainer: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  contenedor: { flex: 1, paddingBottom: 30 },
+  contenedor: { flex: 1 },
 });

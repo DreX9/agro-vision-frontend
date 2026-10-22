@@ -29,6 +29,12 @@ export const CrearParcelaContainer: React.FC = () => {
   const parcelasExistentes = respuestaParcelas?.items || [];
   const crearMutation = useCrearParcelaMutation();
 
+  React.useEffect(() => {
+    if (usuarioActual && usuarioActual.rol !== 'ADMINISTRADOR') {
+      router.replace('/parcelas' as Href);
+    }
+  }, [usuarioActual, router]);
+
   const handleSolicitarGuardar = (valores: ParcelaFormValores) => {
     setErrorMensaje(null);
     setValoresAConfirmar(valores);

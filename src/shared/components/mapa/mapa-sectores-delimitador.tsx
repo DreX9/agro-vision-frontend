@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform, type DimensionValue } from 'react-native';
+import { WebView } from 'react-native-webview';
 import {
   Undo,
   Trash2,
@@ -38,6 +39,7 @@ export interface MapaSectoresDelimitadorProps {
     tieneCruce?: boolean;
     tieneSuperposicion?: boolean;
     sectorConflicto?: string | null;
+    estaFueraDeMatriz?: boolean;
   }) => void;
 }
 
@@ -65,9 +67,11 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
   const [tieneCruce, setTieneCruce] = useState<boolean>(() => esPoligonoAutoIntersecante(puntosInicialesNuevo));
   const [tieneSuperposicion, setTieneSuperposicion] = useState<boolean>(false);
   const [sectorConflicto, setSectorConflicto] = useState<string | null>(null);
+  const [estaFueraDeMatriz, setEstaFueraDeMatriz] = useState<boolean>(false);
   const [adherenciaActiva, setAdherenciaActiva] = useState<boolean>(true);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webViewRef = useRef<any>(null);
   const mapaListoRef = useRef<boolean>(false);
   const colaMensajesRef = useRef<Array<{ accion: string; carga?: unknown }>>([]);
   const onCambioPoligonoRef = useRef(onCambioPoligono);
@@ -77,56 +81,72 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
   const prevPuntosInicialesRef = useRef<string>(JSON.stringify(puntosInicialesNuevo || []));
 
   const enviarAccionAMapa = (accion: string, carga?: unknown) => {
-    if (mapaListoRef.current && iframeRef.current && iframeRef.current.contentWindow) {
-      iframeRef.current.contentWindow.postMessage({ accion, carga }, '*');
+    const payload = { accion, carga };
+    if (mapaListoRef.current) {
+      if (Platform.OS === 'web' && iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(payload, '*');
+      } else if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify(payload));
+      }
     } else {
-      colaMensajesRef.current.push({ accion, carga });
+      colaMensajesRef.current.push(payload);
     }
   };
 
-  // Escuchar mensajes provenientes del mapa
+  const procesarMensajeMapa = (datos: any) => {
+    if (!datos) return;
+
+    if (datos.tipo === 'MAPA_SECTORES_LISTO') {
+      mapaListoRef.current = true;
+      while (colaMensajesRef.current.length > 0) {
+        const item = colaMensajesRef.current.shift();
+        if (item) {
+          if (Platform.OS === 'web' && iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(item, '*');
+          } else if (webViewRef.current) {
+            webViewRef.current.postMessage(JSON.stringify(item));
+          }
+        }
+      }
+      return;
+    }
+
+    if (datos.tipo === 'MAPA_SECTOR_VERTICES_ACTUALIZADOS') {
+      const nuevosPuntos: CoordenadaPunto[] = datos.puntos || [];
+      prevPuntosInicialesRef.current = JSON.stringify(nuevosPuntos);
+      const cruceDetectado = Boolean(datos.tieneCruce);
+      const superposicionDetectada = Boolean(datos.tieneSuperposicion);
+      const desbordeDetectado = Boolean(datos.estaFueraDeMatriz);
+      const conflictoDetectado = datos.sectorConflicto || null;
+      const nuevaArea = calcularAreaHectareas(nuevosPuntos);
+      const centroide = calcularCentroide(nuevosPuntos);
+
+      setPuntos(nuevosPuntos);
+      setAreaHa(nuevaArea);
+      setTieneCruce(cruceDetectado);
+      setTieneSuperposicion(superposicionDetectada);
+      setEstaFueraDeMatriz(desbordeDetectado);
+      setSectorConflicto(conflictoDetectado);
+
+      if (onCambioPoligonoRef.current) {
+        onCambioPoligonoRef.current({
+          puntos: nuevosPuntos,
+          areaHectareas: nuevaArea,
+          centroide,
+          tieneCruce: cruceDetectado,
+          tieneSuperposicion: superposicionDetectada,
+          sectorConflicto: conflictoDetectado,
+          estaFueraDeMatriz: desbordeDetectado,
+        });
+      }
+    }
+  };
+
+  // Escuchar mensajes provenientes del mapa en Web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const manejarMensaje = (evento: MessageEvent) => {
-      if (!evento.data) return;
-
-      if (evento.data.tipo === 'MAPA_SECTORES_LISTO') {
-        mapaListoRef.current = true;
-        while (colaMensajesRef.current.length > 0) {
-          const item = colaMensajesRef.current.shift();
-          if (item && iframeRef.current && iframeRef.current.contentWindow) {
-            iframeRef.current.contentWindow.postMessage(item, '*');
-          }
-        }
-        return;
-      }
-
-      if (evento.data.tipo === 'MAPA_SECTOR_VERTICES_ACTUALIZADOS') {
-        const nuevosPuntos: CoordenadaPunto[] = evento.data.puntos || [];
-        prevPuntosInicialesRef.current = JSON.stringify(nuevosPuntos);
-        const cruceDetectado = Boolean(evento.data.tieneCruce);
-        const superposicionDetectada = Boolean(evento.data.tieneSuperposicion);
-        const conflictoDetectado = evento.data.sectorConflicto || null;
-        const nuevaArea = calcularAreaHectareas(nuevosPuntos);
-        const centroide = calcularCentroide(nuevosPuntos);
-
-        setPuntos(nuevosPuntos);
-        setAreaHa(nuevaArea);
-        setTieneCruce(cruceDetectado);
-        setTieneSuperposicion(superposicionDetectada);
-        setSectorConflicto(conflictoDetectado);
-
-        if (onCambioPoligonoRef.current) {
-          onCambioPoligonoRef.current({
-            puntos: nuevosPuntos,
-            areaHectareas: nuevaArea,
-            centroide,
-            tieneCruce: cruceDetectado,
-            tieneSuperposicion: superposicionDetectada,
-            sectorConflicto: conflictoDetectado,
-          });
-        }
-      }
+      procesarMensajeMapa(evento.data);
     };
 
     window.addEventListener('message', manejarMensaje);
@@ -185,6 +205,13 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
     });
   }, [adherenciaActiva]);
 
+  // Sincronizar estado de sólo lectura con el visor satelital interactivo
+  useEffect(() => {
+    enviarAccionAMapa('CONFIGURAR_MODO', {
+      soloLectura,
+    });
+  }, [soloLectura]);
+
   // Sincronizar puntos iniciales del nuevo sector si se vacían o actualizan desde el contenedor padre
   useEffect(() => {
     const puntosStr = JSON.stringify(puntosInicialesNuevo || []);
@@ -206,6 +233,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
     setAreaHa(0);
     setTieneCruce(false);
     setTieneSuperposicion(false);
+    setEstaFueraDeMatriz(false);
     setSectorConflicto(null);
     enviarAccionAMapa('LIMPIAR');
     if (onCambioPoligonoRef.current) {
@@ -216,6 +244,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         tieneCruce: false,
         tieneSuperposicion: false,
         sectorConflicto: null,
+        estaFueraDeMatriz: false,
       });
     }
   };
@@ -259,7 +288,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <style>
-        body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; cursor: crosshair; }
         :root {
           --color-cultivo: ${colorInicial};
         }
@@ -300,6 +329,9 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           background: #2E7D32;
           opacity: 1;
         }
+        .snap-marker-container {
+          pointer-events: none !important;
+        }
         .snap-marker-glow {
           width: 16px;
           height: 16px;
@@ -308,7 +340,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           border: 2.5px solid #0284C7;
           box-shadow: 0 0 12px #38BDF8;
           animation: snap-pulse 0.9s infinite alternate;
-          pointer-events: none;
+          pointer-events: none !important;
         }
         @keyframes snap-pulse {
           0% { transform: scale(0.85); opacity: 0.7; }
@@ -329,6 +361,15 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           color: #F8FAFC !important;
           padding: 6px 10px !important;
           font-size: 11px !important;
+        }
+        .popup-aviso-limite .leaflet-popup-content-wrapper {
+          background: #FEF2F2 !important;
+          border: 1.5px solid #EF4444 !important;
+          border-radius: 8px !important;
+          box-shadow: 0 4px 12px rgba(220,38,38,0.25) !important;
+        }
+        .popup-aviso-limite .leaflet-popup-tip {
+          background: #FEF2F2 !important;
         }
       </style>
     </head>
@@ -371,6 +412,16 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         let marcadoresNuevo = [];
         let marcadoresMediosNuevo = [];
 
+        function notificarParent(datos) {
+          try {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(JSON.stringify(datos));
+            } else if (window.parent && window.parent.postMessage) {
+              window.parent.postMessage(datos, '*');
+            }
+          } catch (err) {}
+        }
+
         // Snap marker
         let puntoSnapActivo = null;
         const snapMarker = L.marker([0, 0], {
@@ -384,13 +435,237 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           zIndexOffset: 1500
         });
 
+        function actualizarCursor() {
+          const mapEl = document.getElementById('map');
+          if (mapEl) {
+            mapEl.style.cursor = esSoloLectura ? 'default' : 'crosshair';
+          }
+        }
+        actualizarCursor();
+
+        function distEuclidea(p1, p2) {
+          return Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+        }
+
+        function ordenarPerimetralmente(pts) {
+          if (!pts || pts.length < 3) return pts;
+          let sLat = 0, sLng = 0;
+          pts.forEach(function(v) { sLat += v[0]; sLng += v[1]; });
+          const cLat = sLat / pts.length;
+          const cLng = sLng / pts.length;
+          return pts.slice().sort(function(a, b) {
+            const angA = Math.atan2(a[0] - cLat, a[1] - cLng);
+            const angB = Math.atan2(b[0] - cLat, b[1] - cLng);
+            return angA - angB;
+          });
+        }
+
+        function insertarVerticeOptimo(nuevoPunto, verticesActuales) {
+          if (verticesActuales.length < 3) {
+            return verticesActuales.concat([nuevoPunto]);
+          }
+
+          const n = verticesActuales.length;
+          let mejorCandidato = null;
+          let menorCosto = Infinity;
+
+          for (let i = 0; i < n; i++) {
+            const a = verticesActuales[i];
+            const b = verticesActuales[(i + 1) % n];
+
+            const dAB = distEuclidea(a, b);
+            const dAP = distEuclidea(a, nuevoPunto);
+            const dPB = distEuclidea(nuevoPunto, b);
+            const deltaPerimetro = dAP + dPB - dAB;
+
+            const candidato = verticesActuales.slice();
+            candidato.splice(i + 1, 0, nuevoPunto);
+
+            const cruza = tieneAutoInterseccion(candidato);
+            const costo = deltaPerimetro + (cruza ? 1000 : 0);
+
+            if (costo < menorCosto) {
+              menorCosto = costo;
+              mejorCandidato = candidato;
+            }
+          }
+
+          if (mejorCandidato && tieneAutoInterseccion(mejorCandidato)) {
+            const perimetral = ordenarPerimetralmente(mejorCandidato);
+            if (!tieneAutoInterseccion(perimetral)) {
+              return perimetral;
+            }
+          }
+
+          return mejorCandidato || verticesActuales.concat([nuevoPunto]);
+        }
+
+        function distanciaPuntoASegmentoCoord(p, a, b) {
+          const x = p[0], y = p[1];
+          const x1 = a[0], y1 = a[1];
+          const x2 = b[0], y2 = b[1];
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          const lenSq = dx * dx + dy * dy;
+          if (lenSq === 0) return Math.hypot(x - x1, y - y1);
+          let t = ((x - x1) * dx + (y - y1) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          const projX = x1 + t * dx;
+          const projY = y1 + t * dy;
+          return Math.hypot(x - projX, y - projY);
+        }
+
+        function puntoEstaDentroDeMatriz(pt, toleranciaMetros) {
+          if (!puntosMatrizData || puntosMatrizData.length < 3) return true;
+          let adentro = false;
+          const n = puntosMatrizData.length;
+          for (let i = 0, j = n - 1; i < n; j = i++) {
+            const xi = puntosMatrizData[i][1], yi = puntosMatrizData[i][0];
+            const xj = puntosMatrizData[j][1], yj = puntosMatrizData[j][0];
+            const intersecta = ((yi > pt[0]) !== (yj > pt[0])) &&
+              (pt[1] < ((xj - xi) * (pt[0] - yi)) / (yj - yi) + xi);
+            if (intersecta) adentro = !adentro;
+          }
+          if (adentro) return true;
+
+          const UMBRAL_DEG = ((toleranciaMetros || 3) / 111320);
+          for (let i = 0; i < n; i++) {
+            const a = puntosMatrizData[i];
+            const b = puntosMatrizData[(i + 1) % n];
+            if (distanciaPuntoASegmentoCoord(pt, a, b) <= UMBRAL_DEG) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        function proyectarPuntoAlContornoMatriz(pt) {
+          if (!puntosMatrizData || puntosMatrizData.length < 2) return pt;
+          const n = puntosMatrizData.length;
+          let menorDist = Infinity;
+          let mejorPunto = pt;
+
+          for (let i = 0; i < n; i++) {
+            const a = puntosMatrizData[i];
+            const b = puntosMatrizData[(i + 1) % n];
+            const dx = b[0] - a[0];
+            const dy = b[1] - a[1];
+            const lenSq = dx * dx + dy * dy;
+            if (lenSq === 0) continue;
+            let t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+            const projLat = a[0] + t * dx;
+            const projLng = a[1] + t * dy;
+            const dist = Math.hypot(pt[0] - projLat, pt[1] - projLng);
+            if (dist < menorDist) {
+              menorDist = dist;
+              mejorPunto = [projLat, projLng];
+            }
+          }
+          return mejorPunto;
+        }
+
+        function evaluarDesbordeDeMatriz(misVertices) {
+          if (!misVertices || misVertices.length === 0 || puntosMatrizData.length < 3) {
+            return { fuera: false };
+          }
+
+          for (let i = 0; i < misVertices.length; i++) {
+            if (!puntoEstaDentroDeMatriz(misVertices[i], 3)) {
+              return { fuera: true, motivo: 'Vértice fuera del límite permitido' };
+            }
+          }
+
+          if (misVertices.length >= 3 && typeof turf !== 'undefined' && turf.difference) {
+            try {
+              const coordsMi = misVertices.map(function(v) { return [v[1], v[0]]; });
+              coordsMi.push([misVertices[0][1], misVertices[0][0]]);
+              const polyMi = turf.polygon([coordsMi]);
+
+              const coordsMat = puntosMatrizData.map(function(v) { return [v[1], v[0]]; });
+              coordsMat.push([puntosMatrizData[0][1], puntosMatrizData[0][0]]);
+              const polyMat = turf.polygon([coordsMat]);
+
+              let diff = null;
+              try {
+                diff = turf.difference(turf.featureCollection([polyMi, polyMat]));
+              } catch (e1) {
+                try { diff = turf.difference(polyMi, polyMat); } catch (e2) {}
+              }
+
+              if (diff) {
+                const areaFueraM2 = turf.area(diff);
+                if (areaFueraM2 > 10) {
+                  return { fuera: true, motivo: 'Superficie fuera del perímetro', areaM2: areaFueraM2 };
+                }
+              }
+            } catch (err) {}
+          }
+
+          return { fuera: false };
+        }
+
+        let avisoPopup = null;
+        function mostrarAvisoFueraDeMatriz(latlng) {
+          if (avisoPopup) map.removeLayer(avisoPopup);
+          avisoPopup = L.popup({
+            className: 'popup-aviso-limite',
+            closeButton: false,
+            autoClose: true,
+            offset: [0, -10]
+          })
+          .setLatLng(latlng)
+          .setContent('<div style="font-weight:700; color:#DC2626; font-size:11.5px; padding:2px 4px;">⚠️ Punto fuera del área permitida de la parcela</div>')
+          .openOn(map);
+
+          setTimeout(function() {
+            if (avisoPopup && map.hasLayer(avisoPopup)) {
+              map.removeLayer(avisoPopup);
+              avisoPopup = null;
+            }
+          }, 2400);
+        }
+
         function manejarClickEnMapa(e) {
           if (esSoloLectura) return;
           const puntoFinal = puntoSnapActivo
             ? [puntoSnapActivo.lat, puntoSnapActivo.lng]
             : [e.latlng.lat, e.latlng.lng];
 
-          vertices.push(puntoFinal);
+          // Restricción estricta: No permitir registrar vértices fuera de la parcela matriz permitida
+          if (puntosMatrizData && puntosMatrizData.length >= 3) {
+            if (!puntoEstaDentroDeMatriz(puntoFinal, 3)) {
+              mostrarAvisoFueraDeMatriz(e.latlng);
+              return;
+            }
+          }
+
+          // Evitar añadir un vértice duplicado idéntico al último registrado
+          if (vertices.length > 0) {
+            const ultimo = vertices[vertices.length - 1];
+            if (Math.abs(ultimo[0] - puntoFinal[0]) < 0.000005 && Math.abs(ultimo[1] - puntoFinal[1]) < 0.000005) {
+              return;
+            }
+          }
+
+          // Si ya tiene al menos 3 vértices y el usuario hace clic cerca del primer vértice, el polígono ya está cerrado
+          if (vertices.length >= 3) {
+            const primero = vertices[0];
+            if (Math.abs(primero[0] - puntoFinal[0]) < 0.00005 && Math.abs(primero[1] - puntoFinal[1]) < 0.00005) {
+              return;
+            }
+          }
+
+          const candidato = insertarVerticeOptimo(puntoFinal, vertices);
+          if (vertices.length >= 3) {
+            const desbordeCandidato = evaluarDesbordeDeMatriz(candidato);
+            if (desbordeCandidato.fuera) {
+              mostrarAvisoFueraDeMatriz(e.latlng);
+              return;
+            }
+          }
+
+          vertices = candidato;
           actualizarPoligono();
         }
 
@@ -655,7 +930,8 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         function redibujarEnArrastre() {
           const cruce = tieneAutoInterseccion(vertices);
           const superposicion = evaluarSuperposicionConOtrosSectores(vertices);
-          const hayError = cruce || superposicion.superpuesto;
+          const desborde = evaluarDesbordeDeMatriz(vertices);
+          const hayError = cruce || superposicion.superpuesto || desborde.fuera;
           const colorTrazado = hayError ? '#DC2626' : colorCultivo;
           const fillTrazado = hayError ? '#EF4444' : colorCultivo;
 
@@ -689,7 +965,8 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
           const cruce = tieneAutoInterseccion(vertices);
           const superposicion = evaluarSuperposicionConOtrosSectores(vertices);
-          const hayError = cruce || superposicion.superpuesto;
+          const desborde = evaluarDesbordeDeMatriz(vertices);
+          const hayError = cruce || superposicion.superpuesto || desborde.fuera;
           const colorTrazado = hayError ? '#DC2626' : colorCultivo;
           const fillTrazado = hayError ? '#EF4444' : colorCultivo;
 
@@ -735,8 +1012,11 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
                 m.on('drag', function(ev) {
                   let pos = ev.target.getLatLng();
+                  let ptCoord = [pos.lat, pos.lng];
+
                   const snap = buscarPuntoSnap(pos);
                   if (snap) {
+                    ptCoord = [snap.lat, snap.lng];
                     pos = L.latLng(snap.lat, snap.lng);
                     ev.target.setLatLng(pos);
                     snapMarker.setLatLng([snap.lat, snap.lng]);
@@ -744,6 +1024,14 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                   } else if (map.hasLayer(snapMarker)) {
                     map.removeLayer(snapMarker);
                   }
+
+                  // Restringir al perímetro de la parcela matriz
+                  if (puntosMatrizData && puntosMatrizData.length >= 3 && !puntoEstaDentroDeMatriz(ptCoord, 2)) {
+                    ptCoord = proyectarPuntoAlContornoMatriz(ptCoord);
+                    pos = L.latLng(ptCoord[0], ptCoord[1]);
+                    ev.target.setLatLng(pos);
+                  }
+
                   vertices[idx] = [pos.lat, pos.lng];
                   redibujarEnArrastre();
                 });
@@ -755,8 +1043,10 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
 
                 m.on('click', function(ev) {
                   L.DomEvent.stopPropagation(ev);
-                  vertices.splice(idx, 1);
-                  actualizarPoligono();
+                  if (vertices.length > 3) {
+                    vertices.splice(idx, 1);
+                    actualizarPoligono();
+                  }
                 });
 
                 marcadoresNuevo.push(m);
@@ -792,8 +1082,11 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                   midMarker.on('drag', function(ev) {
                     if (nuevoIdx >= 0) {
                       let pos = ev.target.getLatLng();
+                      let ptCoord = [pos.lat, pos.lng];
+
                       const snap = buscarPuntoSnap(pos);
                       if (snap) {
+                        ptCoord = [snap.lat, snap.lng];
                         pos = L.latLng(snap.lat, snap.lng);
                         ev.target.setLatLng(pos);
                         snapMarker.setLatLng([snap.lat, snap.lng]);
@@ -801,6 +1094,14 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                       } else if (map.hasLayer(snapMarker)) {
                         map.removeLayer(snapMarker);
                       }
+
+                      // Restringir al perímetro de la parcela matriz
+                      if (puntosMatrizData && puntosMatrizData.length >= 3 && !puntoEstaDentroDeMatriz(ptCoord, 2)) {
+                        ptCoord = proyectarPuntoAlContornoMatriz(ptCoord);
+                        pos = L.latLng(ptCoord[0], ptCoord[1]);
+                        ev.target.setLatLng(pos);
+                      }
+
                       vertices[nuevoIdx] = [pos.lat, pos.lng];
                       redibujarEnArrastre();
                     }
@@ -819,13 +1120,14 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           }
 
           const puntosFormateados = vertices.map(function(v) { return { latitude: v[0], longitude: v[1] }; });
-          window.parent.postMessage({
+          notificarParent({
             tipo: 'MAPA_SECTOR_VERTICES_ACTUALIZADOS',
             puntos: puntosFormateados,
             tieneCruce: cruce,
             tieneSuperposicion: superposicion.superpuesto,
-            sectorConflicto: superposicion.conflicto
-          }, '*');
+            sectorConflicto: superposicion.conflicto,
+            estaFueraDeMatriz: desborde.fuera
+          });
         }
 
         actualizarPoligono();
@@ -849,26 +1151,30 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           } catch (err) {}
         }, 200);
 
-        window.addEventListener('message', function(e) {
-          if (!e.data) return;
+        function alRecibirMensaje(e) {
+          let d = e.data;
+          if (typeof d === 'string') {
+            try { d = JSON.parse(d); } catch (err) {}
+          }
+          if (!d) return;
 
-          if (e.data.accion === 'LIMPIAR') {
+          if (d.accion === 'LIMPIAR') {
             vertices = [];
             actualizarPoligono();
-          } else if (e.data.accion === 'ESTABLECER_VERTICES' && e.data.carga) {
-            vertices = (e.data.carga.puntos || []).map(function(p) { return [p.latitude, p.longitude]; });
+          } else if (d.accion === 'ESTABLECER_VERTICES' && d.carga) {
+            vertices = (d.carga.puntos || []).map(function(p) { return [p.latitude, p.longitude]; });
             actualizarPoligono();
-          } else if (e.data.accion === 'DESHACER') {
+          } else if (d.accion === 'DESHACER') {
             vertices.pop();
             actualizarPoligono();
-          } else if (e.data.accion === 'AJUSTAR_A_PARCELA') {
+          } else if (d.accion === 'AJUSTAR_A_PARCELA') {
             map.invalidateSize();
             if (capaParcelaMatriz) {
               map.fitBounds(capaParcelaMatriz.getBounds(), { padding: [45, 45], maxZoom: 18 });
             }
-          } else if (e.data.accion === 'CAMBIAR_COLOR' && e.data.carga) {
-            if (e.data.carga.color) {
-              colorCultivo = e.data.carga.color;
+          } else if (d.accion === 'CAMBIAR_COLOR' && d.carga) {
+            if (d.carga.color) {
+              colorCultivo = d.carga.color;
               document.documentElement.style.setProperty('--color-cultivo', colorCultivo);
               if (capaPoligonoNuevo) {
                 const cruce = tieneAutoInterseccion(vertices);
@@ -879,29 +1185,43 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
                 capaPoligonoNuevo.setStyle({ color: colorTrazado, fillColor: fillTrazado });
               }
             }
-          } else if (e.data.accion === 'CARGAR_PARCELA_MATRIZ' && e.data.carga) {
-            if (Array.isArray(e.data.carga.puntosMatriz)) {
-              puntosMatrizData = e.data.carga.puntosMatriz.map(function(p) { return [p.latitude, p.longitude]; });
+          } else if (d.accion === 'CARGAR_PARCELA_MATRIZ' && d.carga) {
+            if (Array.isArray(d.carga.puntosMatriz)) {
+              puntosMatrizData = d.carga.puntosMatriz.map(function(p) { return [p.latitude, p.longitude]; });
               renderizarParcelaMatriz();
             }
-          } else if (e.data.accion === 'CARGAR_SECTORES_EXISTENTES' && e.data.carga) {
-            sectoresExistentesData = e.data.carga.sectores || [];
+          } else if (d.accion === 'CARGAR_SECTORES_EXISTENTES' && d.carga) {
+            sectoresExistentesData = d.carga.sectores || [];
             renderizarSectoresExistentes();
             actualizarPoligono();
-          } else if (e.data.accion === 'CONFIGURAR_SNAPPING' && e.data.carga) {
-            snappingHabilitado = Boolean(e.data.carga.activo);
+          } else if (d.accion === 'CONFIGURAR_SNAPPING' && d.carga) {
+            snappingHabilitado = Boolean(d.carga.activo);
             if (!snappingHabilitado && map.hasLayer(snapMarker)) {
               map.removeLayer(snapMarker);
               puntoSnapActivo = null;
             }
-          } else if (e.data.accion === 'CENTRAR' && e.data.carga) {
-            map.setView([e.data.carga.lat, e.data.carga.lng], e.data.carga.zoom || 16);
-          } else if (e.data.accion === 'LOCALIZAR_ACTUAL') {
+          } else if (d.accion === 'CONFIGURAR_MODO' && d.carga) {
+            if (typeof d.carga.soloLectura !== 'undefined') {
+              esSoloLectura = Boolean(d.carga.soloLectura);
+              actualizarCursor();
+              actualizarPoligono();
+            }
+          } else if (d.accion === 'REORDENAR') {
+            if (vertices.length >= 3) {
+              vertices = ordenarPerimetralmente(vertices);
+              actualizarPoligono();
+            }
+          } else if (d.accion === 'CENTRAR' && d.carga) {
+            map.setView([d.carga.lat, d.carga.lng], d.carga.zoom || 16);
+          } else if (d.accion === 'LOCALIZAR_ACTUAL') {
             map.locate({ setView: true, maxZoom: 17 });
           }
-        });
+        }
 
-        window.parent.postMessage({ tipo: 'MAPA_SECTORES_LISTO' }, '*');
+        window.addEventListener('message', alRecibirMensaje);
+        document.addEventListener('message', alRecibirMensaje);
+
+        notificarParent({ tipo: 'MAPA_SECTORES_LISTO' });
       </script>
     </body>
     </html>
@@ -918,12 +1238,19 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
           <Text
             style={[
               styles.textoAreaValor,
-              (tieneCruce || tieneSuperposicion) && styles.textoAreaValorError,
+              (tieneCruce || tieneSuperposicion || estaFueraDeMatriz) && styles.textoAreaValorError,
             ]}
           >
             {areaHa.toFixed(4)} ha
           </Text>
           <Text style={styles.textoPuntos}>({puntos.length} vértices)</Text>
+
+          {estaFueraDeMatriz && (
+            <View style={styles.badgeFueraMatriz}>
+              <AlertTriangle size={13} color="#B91C1C" />
+              <Text style={styles.textoBadgeFueraMatriz}>Fuera de parcela</Text>
+            </View>
+          )}
 
           {tieneCruce && (
             <View style={styles.badgeCruce}>
@@ -990,11 +1317,15 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
       <View
         style={[
           styles.bannerGuia,
-          tieneSuperposicion && styles.bannerGuiaPeligro,
-          !tieneSuperposicion && tieneCruce && styles.bannerGuiaError,
+          (tieneSuperposicion || estaFueraDeMatriz) && styles.bannerGuiaPeligro,
+          !(tieneSuperposicion || estaFueraDeMatriz) && tieneCruce && styles.bannerGuiaError,
         ]}
       >
-        {tieneSuperposicion ? (
+        {estaFueraDeMatriz ? (
+          <Text style={styles.textoGuiaPeligro}>
+            ⚠️ Límite excedido: El sector no puede trazarse fuera del área permitida de la parcela matriz.
+          </Text>
+        ) : tieneSuperposicion ? (
           <Text style={styles.textoGuiaPeligro}>
             ⚠️ Superposición detectada: El área trazada invade el sector existente "{sectorConflicto}". Ajuste los puntos para compartir únicamente el lindero.
           </Text>
@@ -1012,7 +1343,7 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
         )}
       </View>
 
-      {/* Iframe del Mapa */}
+      {/* Iframe o WebView del Mapa */}
       <View style={[styles.marcoMapa, { height: altura }]}>
         {Platform.OS === 'web' ? (
           <iframe
@@ -1024,11 +1355,25 @@ export const MapaSectoresDelimitador: React.FC<MapaSectoresDelimitadorProps> = (
             title="Delimitador de Sectores de Parcela Agro Vision"
           />
         ) : (
-          <View style={styles.avisoNativo}>
-            <Text style={styles.textoAvisoNativo}>
-              Mapeo de sectores activo ({puntos.length} vértices)
-            </Text>
-          </View>
+          <WebView
+            ref={webViewRef}
+            originWhitelist={['*']}
+            source={{ html: htmlMapa }}
+            style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            geolocationEnabled={true}
+            scrollEnabled={false}
+            nestedScrollEnabled={true}
+            onMessage={(event) => {
+              try {
+                const datos = JSON.parse(event.nativeEvent.data);
+                procesarMensajeMapa(datos);
+              } catch (e) {
+                console.warn('[MapaSectores] Error procesando mensaje de WebView:', e);
+              }
+            }}
+          />
         )}
       </View>
     </View>
@@ -1074,6 +1419,18 @@ const styles = StyleSheet.create({
     borderColor: '#FCA5A5',
   },
   textoBadgeCruce: { fontSize: 11, fontWeight: '700', color: '#B91C1C' },
+  badgeFueraMatriz: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  textoBadgeFueraMatriz: { fontSize: 11, fontWeight: '700', color: '#B91C1C' },
   badgeSuperposicion: {
     flexDirection: 'row',
     alignItems: 'center',

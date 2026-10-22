@@ -1,19 +1,62 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+/**
+ * @description Obtiene el host dinámico asignado por Metro / Expo bundler (IP local o localhost)
+ */
+export const getDynamicHost = (): string | null => {
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ??
+    (Constants as any).manifest?.debuggerHost;
+
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host) return host;
+  }
+  return null;
+};
 
 /**
  * @description Obtiene la URL base adecuada según la plataforma (Web, Emulador Android, Dispositivo físico).
  */
-const getBaseUrl = (): string => {
-  if (Platform.OS === 'android') {
-    // En emulador Android 10.0.2.2 es el host localhost
-    return process.env.EXPO_PUBLIC_API_URL_ANDROID || 'http://10.0.2.2:3001/api/v1';
+export const getBaseUrl = (): string => {
+  if (Platform.OS === 'web') {
+    return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   }
+
+  // Si hay una URL HTTPS configurada explícitamente (ej. tunnel ngrok o producción)
+  if (process.env.EXPO_PUBLIC_API_URL_ANDROID?.startsWith('https://')) {
+    return process.env.EXPO_PUBLIC_API_URL_ANDROID;
+  }
+
+  // 1. Detección automática en desarrollo: IP del servidor Metro donde corre Expo Go
+  const dynamicHost = getDynamicHost();
+  if (dynamicHost) {
+    return `http://${dynamicHost}:3001/api/v1`;
+  }
+
+  // 2. Si hay variable de entorno configurada
+  if (process.env.EXPO_PUBLIC_API_URL_ANDROID) {
+    return process.env.EXPO_PUBLIC_API_URL_ANDROID;
+  }
+
+  // 3. Fallback: Emulador Android usa 10.0.2.2 para acceder al localhost del host
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3001/api/v1';
+  }
+
   return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 };
 
+const resolvedBaseUrl = getBaseUrl();
+if (__DEV__) {
+  console.log(`[AgroVision Backend] URL Base conectada: ${resolvedBaseUrl}`);
+}
+
 export const apiClient = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: resolvedBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
