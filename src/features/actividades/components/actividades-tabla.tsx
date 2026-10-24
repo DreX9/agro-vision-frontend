@@ -114,16 +114,23 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'parcela',
       encabezado: 'Parcela & Cultivo',
-      anchoMinimo: 150,
+      flex: 1.4,
+      anchoMinimo: 200,
       render: (a: ActividadItem) => (
         <View style={styles.filaUbicacion}>
-          <MapPin size={13} color={Palette.forestGreen} />
-          <View>
-            <Text style={styles.textoParcela}>{a.parcelaNombre || 'Parcela'}</Text>
+          <MapPin size={13} color={Palette.forestGreen} style={{ marginTop: 2 }} />
+          <View style={styles.contenedorTextoUbicacion}>
+            <Text style={styles.textoParcela} numberOfLines={1} ellipsizeMode="tail">
+              {a.parcelaNombre || 'Parcela'}
+            </Text>
             {a.sectorNombre ? (
-              <Text style={styles.textoCultivo}>{a.sectorNombre}{a.cultivoNombre ? ` (${a.cultivoNombre})` : ''}</Text>
+              <Text style={styles.textoCultivo} numberOfLines={2} ellipsizeMode="tail">
+                {a.sectorNombre}{a.cultivoNombre ? ` (${a.cultivoNombre})` : ''}
+              </Text>
             ) : a.cultivoNombre ? (
-              <Text style={styles.textoCultivo}>({a.cultivoNombre})</Text>
+              <Text style={styles.textoCultivo} numberOfLines={1} ellipsizeMode="tail">
+                ({a.cultivoNombre})
+              </Text>
             ) : null}
           </View>
         </View>
@@ -225,9 +232,22 @@ const styles = StyleSheet.create({
   },
   textoTitulo: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
   textoTipo: { fontSize: 11, color: '#4B5563', fontWeight: '500', textTransform: 'capitalize' },
-  filaUbicacion: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  filaUbicacion: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+  },
+  contenedorTextoUbicacion: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+    overflow: 'hidden',
+  },
   textoParcela: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  textoCultivo: { fontSize: 11, color: '#6B7280' },
+  textoCultivo: { fontSize: 11, color: '#6B7280', flexShrink: 1 },
   filaFecha: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   textoFecha: { fontSize: 12, color: '#374151', fontWeight: '500' },
   filaCuadrilla: { flexDirection: 'row', alignItems: 'center', gap: 6 },

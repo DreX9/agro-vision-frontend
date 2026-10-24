@@ -117,12 +117,16 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
     );
   }
 
+  const esAgronomo = usuario?.rol === 'AGRONOMO';
+
   return (
     <AppLayout
       titulo={`Editar Actividad: ${actividad.codigo} - ${actividad.titulo}`}
       subtitulo={
         esSupervisor
           ? 'Modo Supervisión: Conformación de cuadrilla de operarios y control en terreno'
+          : esAgronomo
+          ? 'Modo Agronomía: Modifique la prescripción técnica, insumos requeridos o designación de supervisión'
           : 'Modifique los datos, cuadrilla asignada o insumos requeridos'
       }
     >
@@ -133,6 +137,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           insumos={insumos}
           modo="editar"
           esSupervisor={esSupervisor}
+          esAgronomo={esAgronomo}
           actividadId={id}
           valoresIniciales={{
             codigo: actividad.codigo,

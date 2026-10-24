@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Check, User, Users, Search, ChevronLeft, ChevronRight, UserCheck, Clock, AlertTriangle } from 'lucide-react-native';
+import { Check, User, Users, Search, ChevronLeft, ChevronRight, Clock, AlertTriangle, Lock } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { Input, Badge } from '@/shared/components/ui';
@@ -31,6 +31,7 @@ export interface ActividadFormularioCuadrillaProps {
   onCambiarRol: (usuarioId: string, rol: string) => void;
   onCambiarHoras?: (usuarioId: string, horas: number) => void;
   esSupervisor?: boolean;
+  esAgronomo?: boolean;
   parcelaId?: string;
   fechaLabor?: string;
   fechaFinLabor?: string;
@@ -325,6 +326,7 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   onCambiarRol,
   onCambiarHoras,
   esSupervisor = false,
+  esAgronomo = false,
   parcelaId,
   fechaLabor,
   fechaFinLabor,
@@ -336,11 +338,14 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   const [limite, setLimite] = useState<number>(10);
   const [mostrarOcupados, setMostrarOcupados] = useState(false);
 
-  // 1. Excluir al encargado de la labor, y si es Supervisor, limitar estrictamente a Operadores
+  // 1. Excluir al encargado de la labor, excluir permanentemente a Administradores (perfil de oficina),
+  // y si es Supervisor, limitar estrictamente a Operadores
   const usuariosCandidatos = useMemo(() => {
     return usuariosDisponibles.filter((u) => {
       if (u.id === responsableId) return false;
-      // Regla de jerarquía: El supervisor SOLO coordina a Operadores (no a agrónomos ni administradores)
+      // Regla de negocio: Los administradores NO pertenecen a cuadrillas operativas de campo
+      if (u.rol === 'ADMINISTRADOR') return false;
+      // Regla de jerarquía: El supervisor SOLO coordina a Operadores de campo
       if (esSupervisor) {
         return u.rol === 'OPERADOR';
       }
@@ -503,38 +508,20 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
           <Users size={16} color={Palette.forestGreen} />
           <Text style={styles.titulo}>Cuadrilla de Trabajadores Asignada</Text>
         </View>
-        <View style={styles.badgeContador}>
-          <Text style={styles.textoContador}>
-            {trabajadoresSeleccionados.length} seleccionados
+        <View style={[styles.badgeContador, esAgronomo && { backgroundColor: '#FEF3C7' }]}>
+          <Text style={[styles.textoContador, esAgronomo && { color: '#92400E' }]}>
+            {esAgronomo ? '🔒 Delegado a Supervisión' : `${trabajadoresSeleccionados.length} seleccionados`}
           </Text>
         </View>
       </View>
 
       <Text style={styles.subtitulo}>
         {esSupervisor
-          ? 'Seleccione los operarios de campo disponibles para esta labor. Los trabajadores recomendados aparecen primero.'
-          : 'Seleccione y filtre el personal para esta labor. Los trabajadores recomendados aparecen primero y los perfiles de oficina al final.'}
+          ? 'Seleccione los operarios de campo disponibles para esta labor.'
+          : esAgronomo
+          ? 'Conformación de cuadrilla a cargo del Supervisor en terreno.'
+          : 'Seleccione y filtre el personal para esta labor.'}
       </Text>
-
-      {/* Banner informativo si ya se seleccionó encargado */}
-      {Boolean(responsableId && nombreResponsable) && (
-        <View style={styles.bannerEncargado}>
-          <UserCheck size={14} color="#1E40AF" />
-          <Text style={styles.textoBannerEncargado}>
-            Encargado de la labor: <Text style={{ fontWeight: '700' }}>{nombreResponsable}</Text> (excluido de la cuadrilla operativa)
-          </Text>
-        </View>
-      )}
-
-      {/* Banner de gestión directa para el Supervisor de campo */}
-      {esSupervisor && (
-        <View style={styles.bannerModoSupervisor}>
-          <Users size={15} color="#047857" />
-          <Text style={styles.textoBannerModoSupervisor}>
-            Área de gestión para Supervisores: Solo operarios de campo habilitados para asignación.
-          </Text>
-        </View>
-      )}
 
       {/* Banner de filtro por cruce de horario */}
       {mapaConflictos.size > 0 && (
@@ -610,14 +597,14 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                   ]}
                 >
                   <Pressable
-                    disabled={tieneConflicto}
+                    disabled={esAgronomo || tieneConflicto}
                     onPress={() => {
-                      if (tieneConflicto) return;
+                      if (esAgronomo || tieneConflicto) return;
                       onAlternarTrabajador(usuario.id);
                     }}
                     style={[
                       styles.contenidoTarjeta,
-                      tieneConflicto && { opacity: 0.7 },
+                      (tieneConflicto || esAgronomo) && { opacity: esAgronomo ? 0.85 : 0.7 },
                     ]}
                   >
                     <View
@@ -625,10 +612,12 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                         styles.casillaVerificacion,
                         estaSeleccionado && styles.casillaVerificacionActiva,
                         tieneConflicto && { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' },
+                        esAgronomo && !estaSeleccionado && !tieneConflicto && { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB' },
                       ]}
                     >
                       {estaSeleccionado && <Check size={14} color="#FFFFFF" />}
                       {tieneConflicto && <AlertTriangle size={12} color="#DC2626" />}
+                      {esAgronomo && !estaSeleccionado && !tieneConflicto && <Lock size={10} color="#9CA3AF" />}
                     </View>
 
                     <View style={styles.avatar}>
@@ -724,8 +713,9 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                           return (
                             <Pressable
                               key={rol}
-                              onPress={() => onCambiarRol(usuario.id, rol)}
-                              style={[styles.chipRol, rolActivo && styles.chipRolActivo]}
+                              disabled={esAgronomo}
+                              onPress={() => !esAgronomo && onCambiarRol(usuario.id, rol)}
+                              style={[styles.chipRol, rolActivo && styles.chipRolActivo, esAgronomo && { opacity: 0.8 }]}
                             >
                               <Text
                                 style={[styles.textoChipRol, rolActivo && styles.textoChipRolActivo]}
@@ -750,12 +740,14 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                             return (
                               <Pressable
                                 key={h}
-                                onPress={() => onCambiarHoras && onCambiarHoras(usuario.id, h)}
+                                disabled={esAgronomo}
+                                onPress={() => !esAgronomo && onCambiarHoras && onCambiarHoras(usuario.id, h)}
                                 style={{
                                   paddingHorizontal: 7,
                                   paddingVertical: 2,
                                   borderRadius: 6,
                                   backgroundColor: esHorasActivo ? Palette.forestGreen : '#F3F4F6',
+                                  opacity: esAgronomo ? 0.75 : 1,
                                 }}
                               >
                                 <Text style={{ fontSize: 11, fontWeight: '700', color: esHorasActivo ? '#FFFFFF' : '#374151' }}>

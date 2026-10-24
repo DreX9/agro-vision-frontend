@@ -83,7 +83,11 @@ export const CrearActividadContainer: React.FC = () => {
   return (
     <AppLayout
       titulo="Programar Nueva Actividad Agrícola"
-      subtitulo="Asigne la labor a una parcela, configure la cuadrilla de operarios y planifique los insumos requeridos"
+      subtitulo={
+        usuario?.rol === 'AGRONOMO'
+          ? 'Planificación técnica de labor, insumos y designación de supervisión en campo'
+          : 'Asigne la labor a una parcela, configure la cuadrilla de operarios y planifique los insumos requeridos'
+      }
     >
       {cargando ? (
         <ActividadesSkeleton />
@@ -94,6 +98,7 @@ export const CrearActividadContainer: React.FC = () => {
             usuarios={datosUsuarios?.elementos || []}
             insumos={insumos}
             modo="crear"
+            esAgronomo={usuario?.rol === 'AGRONOMO'}
             guardando={crearMutation.isPending}
             onSubmit={handleGuardar}
             onCancelar={handleCancelar}

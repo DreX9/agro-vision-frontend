@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   },
   tablaWrapper: {
     width: '100%',
-    minWidth: 880,
+    minWidth: 960,
   },
   filaEncabezado: {
     flexDirection: 'row',
@@ -149,6 +149,8 @@ const styles = StyleSheet.create({
   celdaEncabezado: {
     paddingHorizontal: 10,
     justifyContent: 'center',
+    overflow: 'hidden',
+    minWidth: 0,
   },
   textoEncabezado: {
     fontSize: 11,
@@ -174,6 +176,8 @@ const styles = StyleSheet.create({
   celdaDato: {
     paddingHorizontal: 10,
     justifyContent: 'center',
+    overflow: 'hidden',
+    minWidth: 0,
   },
   filaVacia: {
     padding: 40,

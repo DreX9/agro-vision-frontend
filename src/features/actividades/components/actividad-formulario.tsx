@@ -24,6 +24,7 @@ export interface ActividadFormularioProps {
   guardando?: boolean;
   modo?: 'crear' | 'editar';
   esSupervisor?: boolean;
+  esAgronomo?: boolean;
   actividadId?: string;
   onSubmit: (valores: ActividadFormValores) => void;
   onCancelar: () => void;
@@ -40,12 +41,14 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   guardando = false,
   modo = 'crear',
   esSupervisor: esSupervisorProp,
+  esAgronomo: esAgronomoProp,
   actividadId,
   onSubmit,
   onCancelar,
 }) => {
   const usuarioActual = useAuthStore((s) => s.usuario);
   const esSupervisor = esSupervisorProp ?? (usuarioActual?.rol === 'SUPERVISOR');
+  const esAgronomo = esAgronomoProp ?? (usuarioActual?.rol === 'AGRONOMO');
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
@@ -139,6 +142,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }, [responsableIdActual, setValue]);
 
   const alternarTrabajador = (usuarioId: string) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.some((t) => t.usuarioId === usuarioId)
         ? prev.filter((t) => t.usuarioId !== usuarioId)
@@ -158,6 +162,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarRolTrabajador = (usuarioId: string, rol: string) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, rolEnActividad: rol } : t));
       setValue('trabajadores', nueva);
@@ -166,6 +171,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarHorasTrabajador = (usuarioId: string, horas: number) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, horasAsignadas: horas } : t));
       setValue('trabajadores', nueva);
@@ -213,13 +219,20 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     };
 
     return [...usuarios]
-      .filter((u) => u.activo)
+      .filter((u) => {
+        if (!u.activo) return false;
+        // Los operarios no pueden ser responsables de labor
+        if (u.rol === 'OPERADOR') return false;
+        // El agrónomo NO debe poder seleccionar a Administradores como encargados
+        if (esAgronomo && u.rol === 'ADMINISTRADOR') return false;
+        return true;
+      })
       .sort((a, b) => (ordenRoles[a.rol] || 99) - (ordenRoles[b.rol] || 99))
       .map((u) => ({
         label: `${u.rol === 'SUPERVISOR' ? '⭐ [SUPERVISOR] ' : `[${u.rol}] `}${u.nombres} ${u.apellidos}`,
         valor: u.id,
       }));
-  }, [usuarios]);
+  }, [usuarios, esAgronomo]);
 
   const responsableSeleccionado = usuarios.find((u) => u.id === responsableIdActual);
   const nombreResponsable = responsableSeleccionado
@@ -244,6 +257,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       horaInicioActual={horaInicioActual}
       horaFinActual={horaFinActual}
       esSupervisor={esSupervisor}
+      esAgronomo={esAgronomo}
       onCambiarHorario={(ini, fin) => {
         setValue('horaInicio', ini);
         setValue('horaFin', fin);
@@ -275,6 +289,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
         esSupervisor={esSupervisor}
+        esAgronomo={esAgronomo}
         parcelaId={parcelaIdActual}
         fechaLabor={watch('fechaInicio')}
         fechaFinLabor={watch('fechaFin')}

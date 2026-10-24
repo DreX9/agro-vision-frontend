@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ArrowLeft, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Pencil, ClipboardCheck } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { Boton } from '@/shared/components/ui';
 import { ActividadDetalleTabs } from '../components/actividad-detalle-tabs';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
-import { useActividadPorIdQuery } from '../api/actividades.api';
+import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
+import { EstadoActividadTipo } from '../types/actividad.types';
 
 export interface DetalleActividadContainerProps {
   id: string;
@@ -18,7 +19,31 @@ export interface DetalleActividadContainerProps {
  */
 export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps> = ({ id }) => {
   const router = useRouter();
+  const [editandoSeguimiento, setEditandoSeguimiento] = useState(false);
   const { data: actividad, isLoading } = useActividadPorIdQuery(id);
+  const actualizarMutation = useActualizarActividadMutation();
+
+  const handleGuardarSeguimiento = (datos: {
+    estado: EstadoActividadTipo;
+    descripcion?: string;
+    observaciones?: string;
+  }) => {
+    actualizarMutation.mutate(
+      {
+        id,
+        datos: {
+          estado: datos.estado,
+          descripcion: datos.descripcion,
+          observaciones: datos.observaciones,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditandoSeguimiento(false);
+        },
+      },
+    );
+  };
 
   if (isLoading) {
     return (
@@ -51,7 +76,14 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
           </Pressable>
 
           <Boton
-            titulo="Editar Labor"
+            titulo="Actualizar Seguimiento"
+            variante="secundario"
+            iconoIzquierda={<ClipboardCheck size={16} color={Palette.forestGreen} />}
+            onPress={() => setEditandoSeguimiento(true)}
+          />
+
+          <Boton
+            titulo="Editar Labor Completa"
             variante="primario"
             iconoIzquierda={<Pencil size={16} color={Palette.white} />}
             onPress={() => router.push(`/actividades/${id}/editar` as Href)}
@@ -60,7 +92,13 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
       }
     >
       <View style={styles.contenedor}>
-        <ActividadDetalleTabs actividad={actividad} />
+        <ActividadDetalleTabs
+          actividad={actividad}
+          onGuardarSeguimiento={handleGuardarSeguimiento}
+          guardandoSeguimiento={actualizarMutation.isPending}
+          editandoSeguimientoDirecto={editandoSeguimiento}
+          onCerrarEdicionSeguimiento={() => setEditandoSeguimiento(false)}
+        />
       </View>
     </AppLayout>
   );
