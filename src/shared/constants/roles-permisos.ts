@@ -76,9 +76,12 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       'Ejecutor directo de actividades agronómicas en terreno (riego, poda, aplicación, maquinaria).',
     responsabilidades: [
       'Visualización de indicadores generales de la operación en el Dashboard.',
-      'A futuro: panel simplificado de labores asignadas del día y reporte de actividades.',
+      'Consulta de labores asignadas del día con descripción operativa e instrucciones.',
+      'Control de checklist de subtareas y avance durante el turno.',
+      'Reporte de novedades, averías o hallazgos de campo durante la jornada.',
+      'Registro de punto GPS de avance de la labor para continuar al día siguiente.',
     ],
-    rutasPermitidas: ['/'],
+    rutasPermitidas: ['/', '/actividades'],
   },
 };
 

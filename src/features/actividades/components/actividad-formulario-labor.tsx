@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Controller, Control, FieldErrors } from 'react-hook-form';
-import { Lock, ShieldAlert } from 'lucide-react-native';
+import { Lock } from 'lucide-react-native';
 import { Boton, Input, Select, SelectOpcion, SelectorFecha, SelectorHora } from '@/shared/components/ui';
 import { Palette } from '@/constants/theme';
 import { SectorParcelaItem } from '@/features/parcelas/types/sector-parcela.types';
@@ -46,6 +46,7 @@ export interface ActividadFormularioLaborProps {
   horaFinActual?: string;
   onCambiarHorario?: (inicio: string, fin: string) => void;
   esSupervisor?: boolean;
+  esAgronomo?: boolean;
 }
 
 /**
@@ -70,6 +71,7 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   horaFinActual = '12:00',
   onCambiarHorario,
   esSupervisor = false,
+  esAgronomo = false,
 }) => {
   const [categoriaTab, setCategoriaTab] = React.useState<'CAMPO' | 'ADMIN'>(() => {
     return esLaborCampo(tipoActual) ? 'CAMPO' : 'ADMIN';
@@ -87,21 +89,6 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   return (
     <View style={styles.tarjeta}>
       <Text style={styles.tituloSeccion}>Información de la Labor Agrícola</Text>
-
-      {/* Banner explicativo de segmentación de rol para Supervisores */}
-      {esSupervisor && (
-        <View style={styles.bannerSupervisor}>
-          <View style={styles.bannerSupervisorCabecera}>
-            <ShieldAlert size={16} color="#B45309" />
-            <Text style={styles.bannerSupervisorTitulo}>
-              Parámetros Administrativos y Técnicos Bloqueados
-            </Text>
-          </View>
-          <Text style={styles.bannerSupervisorTexto}>
-            La parcela, sector, tipo de labor y asignación de encargado fueron definidos por Administración o Agronomía. Como Supervisor, tu función en esta labor es coordinar la cuadrilla operativa y registrar las observaciones de ejecución.
-          </Text>
-        </View>
-      )}
 
       <Controller
         control={control}
@@ -199,9 +186,11 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
           <Text style={styles.textoAvisoTipoLabor}>
             {esSupervisor
               ? '🔒 Parámetro técnico: Tipo de labor programada desde planificación agrícola.'
+              : esAgronomo
+              ? '💡 Labor técnica: La cuadrilla operativa de campo será conformada directamente por el Supervisor.'
               : categoriaTab === 'CAMPO'
-              ? '💡 Labor de campo: La cuadrilla recomendará a Operarios y situará perfiles administrativos al final.'
-              : '💡 Labor técnica/administrativa: La cuadrilla recomendará a especialistas como Agrónomos y Supervisores.'}
+              ? '💡 Labor de campo: La cuadrilla está conformada exclusivamente por Operarios de campo.'
+              : '💡 Labor técnica/administrativa: La cuadrilla recomendará a especialistas técnicos.'}
           </Text>
         </View>
       </View>
@@ -385,7 +374,13 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
         name="usuarioResponsableId"
         render={({ field: { onChange } }) => (
           <Select
-            label={esSupervisor ? 'Supervisor de Campo Designado 🔒 (Solo lectura)' : 'Responsable / Supervisor'}
+            label={
+              esSupervisor
+                ? 'Supervisor de Campo Designado 🔒 (Solo lectura)'
+                : esAgronomo
+                ? 'Supervisor de Campo Responsable *'
+                : 'Responsable / Supervisor'
+            }
             placeholder="Seleccionar supervisor de campo..."
             valor={responsableIdActual || ''}
             opciones={opcionesResponsables}

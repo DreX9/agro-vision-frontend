@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import {
   Info,
@@ -9,20 +9,98 @@ import {
   Package,
   Clock,
   Phone,
+  ClipboardCheck,
+  ClipboardList,
+  Pencil,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Badge } from '@/shared/components/ui';
+import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
 import { ActividadDetalle, EstadoActividadTipo } from '../types/actividad.types';
+import { OperadorJornadaPanel } from './operador-jornada-panel';
+import { useAuthStore } from '@/features/autenticacion';
 
 export interface ActividadDetalleTabsProps {
   actividad: ActividadDetalle;
+  onGuardarSeguimiento?: (datos: {
+    estado: EstadoActividadTipo;
+    descripcion?: string;
+    observaciones?: string;
+  }) => void;
+  guardandoSeguimiento?: boolean;
+  editandoSeguimientoDirecto?: boolean;
+  onCerrarEdicionSeguimiento?: () => void;
 }
 
+const OPCIONES_ESTADO: SelectOpcion[] = [
+  { label: '🟡 Pendiente (Programada para campo)', valor: 'PENDIENTE' },
+  { label: '🔵 En Progreso (Cuadrilla operando en campo)', valor: 'EN_PROGRESO' },
+  { label: '🟢 Completada (Labor finalizada en terreno)', valor: 'COMPLETADA' },
+  { label: '🔴 Cancelada (Labor suspendida o anulada)', valor: 'CANCELADA' },
+];
+
 /**
- * @description Vista con pestañas (Tabs) para inspeccionar la ficha técnica y la cuadrilla asignada a una actividad.
+ * @description Vista con pestañas (Tabs) para inspeccionar la ficha técnica, la cuadrilla asignada,
+ * actualizar el seguimiento y acceder a la bitácora de turno del operador (subtareas, hallazgos, GPS).
  */
-export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ actividad }) => {
-  const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla'>('info');
+export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
+  actividad,
+  onGuardarSeguimiento,
+  guardandoSeguimiento = false,
+  editandoSeguimientoDirecto = false,
+  onCerrarEdicionSeguimiento,
+}) => {
+  const usuario = useAuthStore((s) => s.usuario);
+  const esOperador = usuario?.rol === 'OPERADOR';
+  const esAdministrador = usuario?.rol === 'ADMINISTRADOR';
+  const puedeVerBitacora = !esAdministrador;
+
+  const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla' | 'jornada'>(
+    esOperador ? 'jornada' : 'info',
+  );
+  const [editandoSeguimiento, setEditandoSeguimiento] = useState(false);
+  const [estadoForm, setEstadoForm] = useState<EstadoActividadTipo>(actividad.estado);
+  const [descripcionForm, setDescripcionForm] = useState(actividad.descripcion || '');
+  const [observacionesForm, setObservacionesForm] = useState(actividad.observaciones || '');
+
+  useEffect(() => {
+    setEstadoForm(actividad.estado);
+    setDescripcionForm(actividad.descripcion || '');
+    setObservacionesForm(actividad.observaciones || '');
+  }, [actividad]);
+
+  useEffect(() => {
+    if (editandoSeguimientoDirecto) {
+      setTabActivo('info');
+      setEditandoSeguimiento(true);
+    }
+  }, [editandoSeguimientoDirecto]);
+
+  useEffect(() => {
+    if (!puedeVerBitacora && tabActivo === 'jornada') {
+      setTabActivo('info');
+    }
+  }, [puedeVerBitacora, tabActivo]);
+
+  const handleCancelarEdicion = () => {
+    setEstadoForm(actividad.estado);
+    setDescripcionForm(actividad.descripcion || '');
+    setObservacionesForm(actividad.observaciones || '');
+    setEditandoSeguimiento(false);
+    if (onCerrarEdicionSeguimiento) onCerrarEdicionSeguimiento();
+  };
+
+  const handleGuardar = () => {
+    if (onGuardarSeguimiento) {
+      onGuardarSeguimiento({
+        estado: estadoForm,
+        descripcion: descripcionForm,
+        observaciones: observacionesForm,
+      });
+      setEditandoSeguimiento(false);
+      if (onCerrarEdicionSeguimiento) onCerrarEdicionSeguimiento();
+    }
+  };
 
   const obtenerVarianteEstado = (
     estado: EstadoActividadTipo,
@@ -38,6 +116,21 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ acti
         return 'peligro';
       default:
         return 'neutro';
+    }
+  };
+
+  const formatearEstadoTexto = (estado: EstadoActividadTipo): string => {
+    switch (estado) {
+      case 'COMPLETADA':
+        return 'Completada';
+      case 'EN_PROGRESO':
+        return 'En Progreso';
+      case 'PENDIENTE':
+        return 'Pendiente';
+      case 'CANCELADA':
+        return 'Cancelada';
+      default:
+        return estado;
     }
   };
 
@@ -61,9 +154,21 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ acti
         >
           <Users size={16} color={tabActivo === 'cuadrilla' ? Palette.forestGreen : '#6B7280'} />
           <Text style={[styles.textoTab, tabActivo === 'cuadrilla' && styles.textoTabActivo]}>
-            Cuadrilla de Trabajadores ({actividad.trabajadores.length})
+            Cuadrilla ({actividad.trabajadores.length})
           </Text>
         </Pressable>
+
+        {puedeVerBitacora && (
+          <Pressable
+            onPress={() => setTabActivo('jornada')}
+            style={[styles.botonTab, tabActivo === 'jornada' && styles.botonTabActivo]}
+          >
+            <ClipboardList size={16} color={tabActivo === 'jornada' ? Palette.forestGreen : '#6B7280'} />
+            <Text style={[styles.textoTab, tabActivo === 'jornada' && styles.textoTabActivo]}>
+              Bitácora y Turno del Operador
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Contenido según pestaña */}
@@ -138,20 +243,95 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ acti
                   </View>
                 </View>
               </View>
+            </View>
 
-              {actividad.descripcion ? (
-                <View style={styles.cajaTexto}>
-                  <Text style={styles.subtituloTexto}>Descripción:</Text>
-                  <Text style={styles.cuerpoTexto}>{actividad.descripcion}</Text>
+            {/* Tarjeta Interactiva: Seguimiento, Estado y Control Operativo */}
+            <View style={styles.tarjetaFicha}>
+              <View style={styles.cabeceraSeguimiento}>
+                <View style={styles.filaTituloSeguimiento}>
+                  <ClipboardCheck size={18} color={Palette.forestGreen} />
+                  <Text style={styles.tituloSeccion}>Seguimiento, Estado y Control Operativo</Text>
                 </View>
-              ) : null}
+                {!editandoSeguimiento && Boolean(onGuardarSeguimiento) && (
+                  <Boton
+                    titulo="Actualizar Estado / Notas"
+                    variante="secundario"
+                    tamano="sm"
+                    iconoIzquierda={<Pencil size={13} color={Palette.forestGreen} />}
+                    onPress={() => setEditandoSeguimiento(true)}
+                  />
+                )}
+              </View>
 
-              {actividad.observaciones ? (
-                <View style={styles.cajaTexto}>
-                  <Text style={styles.subtituloTexto}>Observaciones agronómicas:</Text>
-                  <Text style={styles.cuerpoTexto}>{actividad.observaciones}</Text>
+              {!editandoSeguimiento ? (
+                <View style={styles.cuerpoSeguimiento}>
+                  <View style={styles.filaEstadoActual}>
+                    <Text style={styles.etiquetaEstadoActual}>Estado actual:</Text>
+                    <Badge
+                      texto={formatearEstadoTexto(actividad.estado)}
+                      variante={obtenerVarianteEstado(actividad.estado)}
+                    />
+                  </View>
+
+                  <View style={styles.cajaTexto}>
+                    <Text style={styles.subtituloTexto}>Descripción operativa:</Text>
+                    <Text style={actividad.descripcion ? styles.cuerpoTexto : styles.textoVacio}>
+                      {actividad.descripcion || 'Sin descripción operativa registrada.'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.cajaTexto}>
+                    <Text style={styles.subtituloTexto}>Condiciones climáticas / Observaciones de campo:</Text>
+                    <Text style={actividad.observaciones ? styles.cuerpoTexto : styles.textoVacio}>
+                      {actividad.observaciones || 'Sin observaciones o advertencias registradas.'}
+                    </Text>
+                  </View>
                 </View>
-              ) : null}
+              ) : (
+                <View style={styles.formularioSeguimiento}>
+                  <Select
+                    label="Estado de la Actividad *"
+                    valor={estadoForm}
+                    opciones={OPCIONES_ESTADO}
+                    onChange={(v) => setEstadoForm(v as EstadoActividadTipo)}
+                  />
+
+                  <Input
+                    label="Descripción Operativa"
+                    placeholder="Detalles sobre dosis de aplicación, sectores o indicaciones..."
+                    value={descripcionForm}
+                    onChangeText={setDescripcionForm}
+                    multiline
+                    numberOfLines={3}
+                  />
+
+                  <Input
+                    label="Condiciones Climáticas o Seguridad"
+                    placeholder="Ej. Realizar en horario matutino sin presencia de viento fuerte..."
+                    value={observacionesForm}
+                    onChangeText={setObservacionesForm}
+                    multiline
+                    numberOfLines={3}
+                  />
+
+                  <View style={styles.filaBotonesSeguimiento}>
+                    <Boton
+                      titulo="Cancelar"
+                      variante="secundario"
+                      tamano="sm"
+                      onPress={handleCancelarEdicion}
+                    />
+                    <Boton
+                      titulo="Guardar Seguimiento"
+                      variante="primario"
+                      tamano="sm"
+                      iconoIzquierda={<CheckCircle2 size={14} color={Palette.white} />}
+                      cargando={guardandoSeguimiento}
+                      onPress={handleGuardar}
+                    />
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Insumos y Recursos */}
@@ -181,7 +361,7 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ acti
               )}
             </View>
           </View>
-        ) : (
+        ) : tabActivo === 'cuadrilla' ? (
           /* Tab Cuadrilla */
           <View style={styles.bloqueTab}>
             <View style={styles.tarjetaFicha}>
@@ -215,7 +395,10 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({ acti
               )}
             </View>
           </View>
-        )}
+        ) : puedeVerBitacora && tabActivo === 'jornada' ? (
+          /* Tab Bitácora y Turno del Operador */
+          <OperadorJornadaPanel actividad={actividad} />
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -328,4 +511,44 @@ const styles = StyleSheet.create({
   rolOperario: { fontSize: 11, color: '#4B5563', fontWeight: '500' },
   filaTelefono: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   telefonoOperario: { fontSize: 11, color: '#6B7280' },
+  cabeceraSeguimiento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  filaTituloSeguimiento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cuerpoSeguimiento: {
+    gap: 12,
+  },
+  filaEstadoActual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  etiquetaEstadoActual: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  formularioSeguimiento: {
+    gap: 12,
+    marginTop: 6,
+  },
+  filaBotonesSeguimiento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 8,
+  },
 });

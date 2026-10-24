@@ -4,9 +4,7 @@ import { Palette } from '@/constants/theme';
 export const styles = StyleSheet.create({
   contenedorPrincipal: {
     flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
+    width: '100%',
   },
   scroll: {
     flex: 1,
@@ -14,11 +12,35 @@ export const styles = StyleSheet.create({
   },
   contenedor: {
     padding: 16,
-    paddingBottom: 24,
-    gap: 16,
+    paddingBottom: 40,
+    gap: 18,
     maxWidth: 1440,
     width: '100%',
     alignSelf: 'center',
+  },
+  bannerSeccion: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D0DEC8',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 4,
+    marginTop: 6,
+  },
+  filaTituloBannerSeccion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tituloBannerSeccion: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Palette.forestGreen,
+  },
+  subtituloBannerSeccion: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   barraTabs: {
     flexDirection: 'row',
@@ -126,6 +148,17 @@ export const styles = StyleSheet.create({
   },
   columna: {
     flex: 1,
+  },
+  filaAccionesFormulario: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#D0DEC8',
+    width: '100%',
   },
   barraAccionesFooter: {
     width: '100%',
@@ -303,30 +336,6 @@ export const styles = StyleSheet.create({
   textoAvisoSinSectores: {
     fontSize: 11,
     color: '#64748B',
-    lineHeight: 16,
-  },
-  bannerSupervisor: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    gap: 4,
-    marginBottom: 6,
-  },
-  bannerSupervisorCabecera: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  bannerSupervisorTitulo: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  bannerSupervisorTexto: {
-    fontSize: 11,
-    color: '#78350F',
     lineHeight: 16,
   },
   filaLabelConCandado: {

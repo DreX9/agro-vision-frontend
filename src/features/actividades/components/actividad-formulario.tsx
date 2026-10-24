@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Users, Wrench, ArrowRight, ArrowLeft } from 'lucide-react-native';
+import { Users, Wrench } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Boton, Input, Select } from '@/shared/components/ui';
 import { useAuthStore } from '@/features/autenticacion';
@@ -24,6 +24,7 @@ export interface ActividadFormularioProps {
   guardando?: boolean;
   modo?: 'crear' | 'editar';
   esSupervisor?: boolean;
+  esAgronomo?: boolean;
   actividadId?: string;
   onSubmit: (valores: ActividadFormValores) => void;
   onCancelar: () => void;
@@ -40,16 +41,17 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   guardando = false,
   modo = 'crear',
   esSupervisor: esSupervisorProp,
+  esAgronomo: esAgronomoProp,
   actividadId,
   onSubmit,
   onCancelar,
 }) => {
   const usuarioActual = useAuthStore((s) => s.usuario);
   const esSupervisor = esSupervisorProp ?? (usuarioActual?.rol === 'SUPERVISOR');
+  const esAgronomo = esAgronomoProp ?? (usuarioActual?.rol === 'AGRONOMO');
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
-  const [tabActivo, setTabActivo] = useState<'labor_cuadrilla' | 'insumos_notas'>('labor_cuadrilla');
   const [cuadrilla, setCuadrilla] = useState<TrabajadorAsignadoInput[]>(
     valoresIniciales?.trabajadores || [],
   );
@@ -139,6 +141,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }, [responsableIdActual, setValue]);
 
   const alternarTrabajador = (usuarioId: string) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.some((t) => t.usuarioId === usuarioId)
         ? prev.filter((t) => t.usuarioId !== usuarioId)
@@ -158,6 +161,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarRolTrabajador = (usuarioId: string, rol: string) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, rolEnActividad: rol } : t));
       setValue('trabajadores', nueva);
@@ -166,6 +170,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarHorasTrabajador = (usuarioId: string, horas: number) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, horasAsignadas: horas } : t));
       setValue('trabajadores', nueva);
@@ -213,13 +218,20 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     };
 
     return [...usuarios]
-      .filter((u) => u.activo)
+      .filter((u) => {
+        if (!u.activo) return false;
+        // Los operarios no pueden ser responsables de labor
+        if (u.rol === 'OPERADOR') return false;
+        // El agrónomo NO debe poder seleccionar a Administradores como encargados
+        if (esAgronomo && u.rol === 'ADMINISTRADOR') return false;
+        return true;
+      })
       .sort((a, b) => (ordenRoles[a.rol] || 99) - (ordenRoles[b.rol] || 99))
       .map((u) => ({
         label: `${u.rol === 'SUPERVISOR' ? '⭐ [SUPERVISOR] ' : `[${u.rol}] `}${u.nombres} ${u.apellidos}`,
         valor: u.id,
       }));
-  }, [usuarios]);
+  }, [usuarios, esAgronomo]);
 
   const responsableSeleccionado = usuarios.find((u) => u.id === responsableIdActual);
   const nombreResponsable = responsableSeleccionado
@@ -244,6 +256,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       horaInicioActual={horaInicioActual}
       horaFinActual={horaFinActual}
       esSupervisor={esSupervisor}
+      esAgronomo={esAgronomo}
       onCambiarHorario={(ini, fin) => {
         setValue('horaInicio', ini);
         setValue('horaFin', fin);
@@ -275,6 +288,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         responsableId={responsableIdActual}
         nombreResponsable={nombreResponsable}
         esSupervisor={esSupervisor}
+        esAgronomo={esAgronomo}
         parcelaId={parcelaIdActual}
         fechaLabor={watch('fechaInicio')}
         fechaFinLabor={watch('fechaFin')}
@@ -366,37 +380,19 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         contentContainerStyle={styles.contenedor}
         showsVerticalScrollIndicator={false}
       >
-        {/* Selector de Pestañas / Tabs */}
-      <View style={styles.barraTabs}>
-        <Pressable
-          onPress={() => setTabActivo('labor_cuadrilla')}
-          style={[styles.botonTab, tabActivo === 'labor_cuadrilla' && styles.botonTabActivo]}
-        >
-          <Users size={16} color={tabActivo === 'labor_cuadrilla' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'labor_cuadrilla' && styles.textoTabActivo]}>
-            1. Labor Agrícola y Cuadrilla
+        {/* Encabezado Sección 1: Labor Agrícola y Cuadrilla */}
+        <View style={styles.bannerSeccion}>
+          <View style={styles.filaTituloBannerSeccion}>
+            <Users size={16} color={Palette.forestGreen} />
+            <Text style={styles.tituloBannerSeccion}>1. Labor Agrícola y Cuadrilla Operativa</Text>
+          </View>
+          <Text style={styles.subtituloBannerSeccion}>
+            Defina la labor, parcela, sector, horario de turno y la asignación de operarios de campo.
           </Text>
-        </Pressable>
+        </View>
 
-        <Pressable
-          onPress={() => setTabActivo('insumos_notas')}
-          style={[styles.botonTab, tabActivo === 'insumos_notas' && styles.botonTabActivo]}
-        >
-          <Wrench size={16} color={tabActivo === 'insumos_notas' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'insumos_notas' && styles.textoTabActivo]}>
-            2. Insumos y Notas Técnicas
-          </Text>
-          {recursos.length > 0 && (
-            <View style={styles.badgeTab}>
-              <Text style={styles.textoBadgeTab}>{recursos.length}</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
-
-      {/* Contenido según Tab y Layout (2 columnas en Web / 1 en móvil) */}
-      {tabActivo === 'labor_cuadrilla' ? (
-        esEscritorio ? (
+        {/* Fila 1: Labor Agrícola y Cuadrilla */}
+        {esEscritorio ? (
           <View style={styles.filaDosColumnasLayout}>
             <View style={styles.columnaMitad}>{bloqueLabor}</View>
             <View style={styles.columnaMitad}>{bloqueCuadrilla}</View>
@@ -406,63 +402,55 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
             {bloqueLabor}
             {bloqueCuadrilla}
           </View>
-        )
-      ) : esEscritorio ? (
-        <View style={styles.filaDosColumnasLayout}>
-          <View style={styles.columnaMitad}>{bloqueInsumos}</View>
-          <View style={styles.columnaMitad}>{bloqueNotas}</View>
-        </View>
-      ) : (
-        <View style={styles.layoutMovil}>
-          {bloqueInsumos}
-          {bloqueNotas}
-        </View>
-      )}
-      </ScrollView>
+        )}
 
-      {/* Barra de Acciones Anclada al Pie (No Tapa el Contenido y es Compacta) */}
-      <View style={styles.barraAccionesFooter}>
-        <View style={styles.barraAccionesInner}>
+        {/* Encabezado Sección 2: Insumos Planificados y Notas Técnicas (Continuando hacia abajo) */}
+        <View style={styles.bannerSeccion}>
+          <View style={styles.filaTituloBannerSeccion}>
+            <Wrench size={16} color={Palette.forestGreen} />
+            <Text style={styles.tituloBannerSeccion}>2. Insumos Planificados y Observaciones Técnicas</Text>
+            {recursos.length > 0 && (
+              <View style={styles.badgeTab}>
+                <Text style={styles.textoBadgeTab}>{recursos.length}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.subtituloBannerSeccion}>
+            Planifique los insumos requeridos y registre las condiciones climáticas, estado y descripción operativa.
+          </Text>
+        </View>
+
+        {/* Fila 2: Insumos y Observaciones / Seguimiento */}
+        {esEscritorio ? (
+          <View style={styles.filaDosColumnasLayout}>
+            <View style={styles.columnaMitad}>{bloqueInsumos}</View>
+            <View style={styles.columnaMitad}>{bloqueNotas}</View>
+          </View>
+        ) : (
+          <View style={styles.layoutMovil}>
+            {bloqueInsumos}
+            {bloqueNotas}
+          </View>
+        )}
+
+        {/* Fila 3: Botones de Acción al Final del Formulario */}
+        <View style={styles.filaAccionesFormulario}>
           <Boton
             titulo="Cancelar"
             variante="secundario"
+            tamano="sm"
             onPress={onCancelar}
             disabled={guardando}
-            estilo={styles.botonCompacto}
-            estiloTexto={styles.textoBotonCompacto}
           />
-
-          <View style={styles.grupoBotonesDerecha}>
-            {tabActivo === 'labor_cuadrilla' ? (
-              <Boton
-                titulo="Siguiente: Insumos"
-                iconoDerecha={<ArrowRight size={15} color="#FFFFFF" />}
-                onPress={() => setTabActivo('insumos_notas')}
-                estilo={styles.botonCompacto}
-                estiloTexto={styles.textoBotonCompacto}
-              />
-            ) : (
-              <Boton
-                titulo="Anterior"
-                variante="outline"
-                iconoIzquierda={<ArrowLeft size={15} color={Palette.forestGreen} />}
-                onPress={() => setTabActivo('labor_cuadrilla')}
-                estilo={styles.botonCompacto}
-                estiloTexto={styles.textoBotonCompacto}
-              />
-            )}
-
-            <Boton
-              titulo={modo === 'crear' ? 'Registrar Actividad' : 'Guardar Cambios'}
-              variante="primario"
-              onPress={handleSubmit(onSubmit)}
-              cargando={guardando}
-              estilo={styles.botonCompactoPrimario}
-              estiloTexto={styles.textoBotonCompacto}
-            />
-          </View>
+          <Boton
+            titulo={modo === 'crear' ? 'Registrar Actividad' : 'Guardar Cambios'}
+            variante="primario"
+            tamano="sm"
+            onPress={handleSubmit(onSubmit)}
+            cargando={guardando}
+          />
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 };
