@@ -60,14 +60,16 @@ export const DetalleParcelaContainer: React.FC<DetalleParcelaContainerProps> = (
           <Boton
             titulo="Asignar Cultivos"
             variante="secundario"
-            iconoIzquierda={<Layers size={16} color={Palette.forestGreen} />}
+            tamano="sm"
+            iconoIzquierda={<Layers size={14} color={Palette.forestGreen} />}
             onPress={() => router.push(`/parcelas/asignacion-cultivos?parcelaId=${id}` as Href)}
           />
 
           <Boton
             titulo="Editar Parcela"
             variante="primario"
-            iconoIzquierda={<Pencil size={16} color={Palette.white} />}
+            tamano="sm"
+            iconoIzquierda={<Pencil size={14} color={Palette.white} />}
             onPress={() => router.push(`/parcelas/${id}/editar` as Href)}
           />
         </View>

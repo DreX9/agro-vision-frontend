@@ -245,7 +245,8 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                   <Boton
                     titulo="Actualizar Estado / Notas"
                     variante="secundario"
-                    iconoIzquierda={<Pencil size={14} color={Palette.forestGreen} />}
+                    tamano="sm"
+                    iconoIzquierda={<Pencil size={13} color={Palette.forestGreen} />}
                     onPress={() => setEditandoSeguimiento(true)}
                   />
                 )}
@@ -306,12 +307,14 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                     <Boton
                       titulo="Cancelar"
                       variante="secundario"
+                      tamano="sm"
                       onPress={handleCancelarEdicion}
                     />
                     <Boton
                       titulo="Guardar Seguimiento"
                       variante="primario"
-                      iconoIzquierda={<CheckCircle2 size={16} color={Palette.white} />}
+                      tamano="sm"
+                      iconoIzquierda={<CheckCircle2 size={14} color={Palette.white} />}
                       cargando={guardandoSeguimiento}
                       onPress={handleGuardar}
                     />

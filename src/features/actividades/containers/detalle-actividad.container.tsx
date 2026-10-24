@@ -90,7 +90,8 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
             <Boton
               titulo="Actualizar Seguimiento"
               variante="secundario"
-              iconoIzquierda={<ClipboardCheck size={16} color={Palette.forestGreen} />}
+              tamano="sm"
+              iconoIzquierda={<ClipboardCheck size={14} color={Palette.forestGreen} />}
               onPress={() => setEditandoSeguimiento(true)}
             />
           )}
@@ -99,7 +100,8 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
             <Boton
               titulo="Editar Labor Completa"
               variante="primario"
-              iconoIzquierda={<Pencil size={16} color={Palette.white} />}
+              tamano="sm"
+              iconoIzquierda={<Pencil size={14} color={Palette.white} />}
               onPress={() => router.push(`/actividades/${id}/editar` as Href)}
             />
           )}

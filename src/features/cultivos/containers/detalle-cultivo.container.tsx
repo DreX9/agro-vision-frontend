@@ -60,7 +60,8 @@ export const DetalleCultivoContainer: React.FC<DetalleCultivoContainerProps> = (
           <Boton
             titulo="Editar Cultivo"
             variante="primario"
-            iconoIzquierda={<Pencil size={16} color={Palette.white} />}
+            tamano="sm"
+            iconoIzquierda={<Pencil size={14} color={Palette.white} />}
             onPress={() => router.push(`/cultivos/${id}/editar` as Href)}
           />
         </View>

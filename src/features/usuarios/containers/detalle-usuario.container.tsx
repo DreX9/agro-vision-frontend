@@ -60,7 +60,8 @@ export const DetalleUsuarioContainer: React.FC<DetalleUsuarioContainerProps> = (
           <Boton
             titulo="Editar Usuario"
             variante="primario"
-            iconoIzquierda={<Pencil size={16} color={Palette.white} />}
+            tamano="sm"
+            iconoIzquierda={<Pencil size={14} color={Palette.white} />}
             onPress={() => router.push(`/usuarios/${id}/editar` as Href)}
           />
         </View>

@@ -284,6 +284,7 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
             <Boton
               titulo={obteniendoGpsAvance ? 'Obteniendo GPS...' : '📍 Capturar mi GPS actual'}
               variante="secundario"
+              tamano="sm"
               cargando={obteniendoGpsAvance}
               onPress={() => capturarGps('avance')}
             />
@@ -317,12 +318,15 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
             </View>
           )}
 
-          <Boton
-            titulo="Guardar Punto de Avance de la Jornada"
-            variante="primario"
-            iconoIzquierda={<Navigation size={16} color={Palette.white} />}
-            onPress={handleGuardarPuntoAvance}
-          />
+          <View style={styles.filaAccionGuardar}>
+            <Boton
+              titulo="Guardar Punto de Avance"
+              variante="primario"
+              tamano="sm"
+              iconoIzquierda={<Navigation size={14} color={Palette.white} />}
+              onPress={handleGuardarPuntoAvance}
+            />
+          </View>
         </View>
       </View>
 
@@ -341,6 +345,7 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
           <Boton
             titulo="+ Subtarea"
             variante="secundario"
+            tamano="sm"
             onPress={() => setMostrandoAgregarSubtarea(!mostrandoAgregarSubtarea)}
           />
         </View>
@@ -371,12 +376,14 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
               <Boton
                 titulo="Cancelar"
                 variante="secundario"
+                tamano="sm"
                 onPress={() => setMostrandoAgregarSubtarea(false)}
               />
               <Boton
                 titulo="Agregar a la lista"
                 variante="primario"
-                iconoIzquierda={<Plus size={16} color={Palette.white} />}
+                tamano="sm"
+                iconoIzquierda={<Plus size={14} color={Palette.white} />}
                 onPress={handleCrearSubtarea}
               />
             </View>
@@ -447,6 +454,7 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
           <Boton
             titulo={mostrandoFormHallazgo ? 'Cerrar' : '+ Reportar'}
             variante={mostrandoFormHallazgo ? 'secundario' : 'primario'}
+            tamano="sm"
             onPress={() => setMostrandoFormHallazgo(!mostrandoFormHallazgo)}
           />
         </View>
@@ -487,6 +495,7 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
               <Boton
                 titulo={obteniendoGpsHallazgo ? 'Obteniendo GPS...' : '📍 Capturar GPS de la novedad'}
                 variante="secundario"
+                tamano="sm"
                 cargando={obteniendoGpsHallazgo}
                 onPress={() => capturarGps('hallazgo')}
               />
@@ -499,12 +508,15 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
               ) : null}
             </View>
 
-            <Boton
-              titulo="Enviar Reporte de Novedad"
-              variante="primario"
-              iconoIzquierda={<Send size={16} color={Palette.white} />}
-              onPress={handleRegistrarHallazgo}
-            />
+            <View style={styles.filaAccionGuardar}>
+              <Boton
+                titulo="Enviar Reporte de Novedad"
+                variante="primario"
+                tamano="sm"
+                iconoIzquierda={<Send size={14} color={Palette.white} />}
+                onPress={handleRegistrarHallazgo}
+              />
+            </View>
           </View>
         )}
 
@@ -717,6 +729,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Palette.success,
     fontWeight: '600',
+  },
+  filaAccionGuardar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginTop: 4,
   },
   contenedorProgreso: {
     backgroundColor: '#F9FAFB',

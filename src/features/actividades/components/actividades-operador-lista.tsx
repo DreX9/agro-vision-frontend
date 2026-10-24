@@ -188,6 +188,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 <Boton
                   titulo="Iniciar Labor"
                   variante="secundario"
+                  tamano="sm"
                   onPress={() => onCambiarEstado(act, 'EN_PROGRESO')}
                 />
               )}
@@ -196,6 +197,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 <Boton
                   titulo="Marcar Completada"
                   variante="secundario"
+                  tamano="sm"
                   onPress={() => onCambiarEstado(act, 'COMPLETADA')}
                 />
               )}
@@ -203,7 +205,8 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               <Boton
                 titulo="Abrir Bitácora & Tareas del Turno"
                 variante="primario"
-                iconoDerecha={<ArrowRight size={16} color={Palette.white} />}
+                tamano="sm"
+                iconoDerecha={<ArrowRight size={14} color={Palette.white} />}
                 onPress={() => onVerDetalle(act)}
               />
             </View>
