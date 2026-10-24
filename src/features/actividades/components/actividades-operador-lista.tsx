@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import {
   Calendar,
   MapPin,
@@ -9,11 +9,14 @@ import {
   Navigation,
   ArrowRight,
   Package,
+  Users,
+  Compass,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton } from '@/shared/components/ui';
-import { ActividadItem, EstadoActividadTipo } from '../types/actividad.types';
+import { ActividadItem, EstadoActividadTipo, extraerRolYZona } from '../types/actividad.types';
 import { useOperadorJornadaStore } from '../stores/operador-jornada.store';
+import { useAuthStore } from '@/features/autenticacion';
 
 export interface ActividadesOperadorListaProps {
   actividades: ActividadItem[];
@@ -23,8 +26,10 @@ export interface ActividadesOperadorListaProps {
 }
 
 /**
- * @description Vista adaptada para el Operador de Campo. Presenta cada labor en tarjetas
- * con la descripción operativa destacada, indicadores de subtareas, novedades y punto GPS.
+ * @description Vista adaptada para el Operador de Campo. Presenta cada labor destacando
+ * la zona/subtarea individual designada por el supervisor, el avance colaborativo de la cuadrilla
+ * y el botón para iniciar/completar su propia zona (la actividad general solo se cierra cuando
+ * todos los operadores completan sus zonas).
  */
 export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> = ({
   actividades,
@@ -32,8 +37,53 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
   onVerDetalle,
   onCambiarEstado,
 }) => {
-  const { subtareasPorActividad, hallazgosPorActividad, puntosAvancePorActividad } =
-    useOperadorJornadaStore();
+  const usuario = useAuthStore((s) => s.usuario);
+  const {
+    subtareasPorActividad,
+    hallazgosPorActividad,
+    puntosAvancePorActividad,
+    zonasTrabajadoresPorActividad,
+    sincronizarZonasDesdeTrabajadores,
+    obtenerEstadoZonaOperador,
+    iniciarZonaOperador,
+    completarZonaOperador,
+    obtenerProgresoActividad,
+  } = useOperadorJornadaStore();
+
+  // Sincronizar cuadrillas y zonas asignadas con el store de persistencia local
+  useEffect(() => {
+    actividades.forEach((act) => {
+      if (act.trabajadores && act.trabajadores.length > 0) {
+        sincronizarZonasDesdeTrabajadores(
+          act.id,
+          act.trabajadores.map((t) => ({
+            usuarioId: t.usuarioId,
+            nombres: t.nombres,
+            apellidos: t.apellidos,
+            rolEnActividad: t.rolEnActividad,
+            zonaTrabajo: t.zonaTrabajo || undefined,
+          })),
+        );
+      }
+    });
+  }, [actividades, sincronizarZonasDesdeTrabajadores]);
+
+  const handleIniciarMiZona = (act: ActividadItem) => {
+    if (!usuario?.id) return;
+    iniciarZonaOperador(act.id, usuario.id);
+    if (act.estado === 'PENDIENTE' && onCambiarEstado) {
+      onCambiarEstado(act, 'EN_PROGRESO');
+    }
+  };
+
+  const handleFinalizarMiZona = (act: ActividadItem) => {
+    if (!usuario?.id) return;
+    const resultado = completarZonaOperador(act.id, usuario.id);
+    // Solo cuando TODOS los operarios completan sus zonas, la actividad general pasa a COMPLETADA
+    if (resultado.todasCompletadas && onCambiarEstado) {
+      onCambiarEstado(act, 'COMPLETADA');
+    }
+  };
 
   const obtenerVarianteEstado = (
     estado: EstadoActividadTipo,
@@ -85,9 +135,52 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         const totalSub = subtareas.length;
         const subCompletadas = subtareas.filter((s) => s.completada).length;
 
+        // Asignación específica del operador actual
+        const miAsignacion = usuario?.id ? obtenerEstadoZonaOperador(act.id, usuario.id) : undefined;
+        const miTrabajador = act.trabajadores?.find((t) => t.usuarioId === usuario?.id);
+        const { rol: rolExtraido, zona: zonaExtraida } = extraerRolYZona(miTrabajador?.rolEnActividad);
+
+        const miZonaTexto = miAsignacion?.zonaTrabajo || zonaExtraida || 'Zona de labor asignada';
+        const miRolTexto = miAsignacion?.rolEnActividad || rolExtraido || 'Operador de campo';
+        const miEstadoZona =
+          miAsignacion?.estado || (act.estado === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
+
+        // Avance de la cuadrilla asignada
+        const totalCuadrilla = act.trabajadores?.length || act.cantidadTrabajadores || 1;
+        const progresoCuadrilla = obtenerProgresoActividad(act.id, totalCuadrilla);
+
         return (
           <View key={act.id} style={styles.tarjetaLabor}>
-            {/* Cabecera */}
+            {/* BLOQUE DESTACADO: SUBTAREA / ZONA ESPECÍFICA DESIGNADA AL OPERADOR */}
+            <View style={styles.cajaZonaPersonal}>
+              <View style={styles.cabeceraZonaPersonal}>
+                <View style={styles.filaTituloZonaPersonal}>
+                  <Compass size={16} color={Palette.forestGreen} />
+                  <Text style={styles.etiquetaZonaPersonal}>Tu Zona / Subtarea Asignada:</Text>
+                </View>
+                <Badge
+                  texto={
+                    miEstadoZona === 'COMPLETADA'
+                      ? '✓ Zona Finalizada'
+                      : miEstadoZona === 'EN_PROGRESO'
+                        ? 'En Terreno'
+                        : 'Por Iniciar'
+                  }
+                  variante={
+                    miEstadoZona === 'COMPLETADA'
+                      ? 'exito'
+                      : miEstadoZona === 'EN_PROGRESO'
+                        ? 'info'
+                        : 'alerta'
+                  }
+                />
+              </View>
+
+              <Text style={styles.textoNombreZona}>📍 {miZonaTexto}</Text>
+              <Text style={styles.textoRolEnZona}>Rol operativo: {miRolTexto}</Text>
+            </View>
+
+            {/* Contexto General de la Actividad Macro */}
             <View style={styles.cabeceraTarjeta}>
               <View style={{ flex: 1 }}>
                 <View style={styles.filaCodigoTipo}>
@@ -98,7 +191,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               </View>
 
               <Badge
-                texto={formatearEstadoTexto(act.estado)}
+                texto={`Labor General: ${formatearEstadoTexto(act.estado)}`}
                 variante={obtenerVarianteEstado(act.estado)}
               />
             </View>
@@ -113,19 +206,55 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               </Text>
             </View>
 
-            {/* DESCRIPCIÓN OPERATIVA DESTACADA */}
+            {/* DESCRIPCIÓN OPERATIVA */}
             <View style={styles.cajaDescripcionDestacada}>
               <View style={styles.filaTituloDescripcion}>
                 <FileText size={15} color={Palette.forestGreen} />
                 <Text style={styles.etiquetaDescripcion}>Indicaciones Operativas:</Text>
               </View>
               <Text style={styles.cuerpoDescripcion}>
-                {/* Fallback a texto informativo si no tiene descripción cargada */}
-                {'Sin indicaciones adicionales especificadas por el supervisor o agrónomo.'}
+                {act.descripcion && act.descripcion.trim().length > 0
+                  ? act.descripcion
+                  : 'Sin indicaciones adicionales especificadas por el supervisor o agrónomo.'}
               </Text>
             </View>
 
-            {/* Fecha y Resumen de Cuadrilla */}
+            {/* AVANCE DE LA CUADRILLA */}
+            <View style={styles.cajaProgresoCuadrilla}>
+              <View style={styles.filaCabeceraProgreso}>
+                <View style={styles.filaIconoTextoProgreso}>
+                  <Users size={14} color={Palette.forestGreen} />
+                  <Text style={styles.tituloProgresoCuadrilla}>
+                    Avance de Cuadrilla:{' '}
+                    <Text style={{ fontWeight: '800', color: Palette.forestGreen }}>
+                      {progresoCuadrilla.zonasCompletadas} de {progresoCuadrilla.totalZonas} operarios
+                    </Text>{' '}
+                    completaron su zona ({progresoCuadrilla.porcentaje}%)
+                  </Text>
+                </View>
+              </View>
+
+              {/* Barra de progreso */}
+              <View style={styles.barraProgresoFondo}>
+                <View
+                  style={[
+                    styles.barraProgresoRelleno,
+                    { width: `${Math.min(100, Math.max(0, progresoCuadrilla.porcentaje))}%` },
+                  ]}
+                />
+              </View>
+
+              {/* Nota explicativa de completado colaborativo */}
+              <Text style={styles.notaProgresoColaborativo}>
+                {progresoCuadrilla.todasCompletadas
+                  ? '🎉 Toda la cuadrilla ha finalizado sus zonas. Labor general cerrada.'
+                  : miEstadoZona === 'COMPLETADA'
+                    ? '✓ Tu zona está finalizada. Esperando que tus compañeros de cuadrilla completen las suyas para cerrar la labor general.'
+                    : 'Cada operario debe marcar completada su zona asignada para cerrar la labor general.'}
+              </Text>
+            </View>
+
+            {/* Fecha y Resumen de Insumos */}
             <View style={styles.filaMetas}>
               <View style={styles.itemMeta}>
                 <Calendar size={13} color="#6B7280" />
@@ -154,7 +283,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 <View style={styles.pillResumen}>
                   <CheckCircle2 size={13} color={Palette.forestGreen} />
                   <Text style={styles.textoPillResumen}>
-                    {subCompletadas}/{totalSub} subtareas
+                    {subCompletadas}/{totalSub} subtareas del turno
                   </Text>
                 </View>
               )}
@@ -171,42 +300,47 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               {puntoGuardado && (
                 <View style={[styles.pillResumen, styles.pillPuntoGps]}>
                   <Navigation size={13} color={Palette.forestGreen} />
-                  <Text
-                    style={styles.textoPillResumen}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
+                  <Text style={styles.textoPillResumen} numberOfLines={1} ellipsizeMode="tail">
                     📍 {puntoGuardado.referencia}
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* Acciones principales */}
+            {/* Acciones principales del Operador */}
             <View style={styles.filaAcciones}>
-              {act.estado === 'PENDIENTE' && onCambiarEstado && (
+              {miEstadoZona === 'PENDIENTE' && (
                 <Boton
-                  titulo="Iniciar Labor"
-                  variante="secundario"
+                  titulo="▶ Iniciar mi jornada en esta zona"
+                  variante="primario"
                   tamano="sm"
-                  onPress={() => onCambiarEstado(act, 'EN_PROGRESO')}
+                  onPress={() => handleIniciarMiZona(act)}
                 />
               )}
 
-              {act.estado === 'EN_PROGRESO' && onCambiarEstado && (
+              {miEstadoZona === 'EN_PROGRESO' && (
                 <Boton
-                  titulo="Marcar Completada"
-                  variante="secundario"
+                  titulo="✓ Finalizar mi zona de trabajo"
+                  variante="primario"
                   tamano="sm"
-                  onPress={() => onCambiarEstado(act, 'COMPLETADA')}
+                  onPress={() => handleFinalizarMiZona(act)}
                 />
+              )}
+
+              {miEstadoZona === 'COMPLETADA' && !progresoCuadrilla.todasCompletadas && (
+                <View style={styles.pillZonaFinalizadaEsperando}>
+                  <CheckCircle2 size={13} color="#059669" />
+                  <Text style={styles.textoZonaFinalizadaEsperando}>
+                    Tu zona está lista (esperando cuadrilla)
+                  </Text>
+                </View>
               )}
 
               <Boton
-                titulo="Abrir Bitácora & Tareas del Turno"
-                variante="primario"
+                titulo="Bitácora & Novedades"
+                variante="secundario"
                 tamano="sm"
-                iconoDerecha={<ArrowRight size={14} color={Palette.white} />}
+                iconoDerecha={<ArrowRight size={13} color={Palette.forestGreen} />}
                 onPress={() => onVerDetalle(act)}
               />
             </View>
@@ -247,6 +381,42 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+  cajaZonaPersonal: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 10,
+    padding: 12,
+    gap: 4,
+  },
+  cabeceraZonaPersonal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
+  },
+  filaTituloZonaPersonal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  etiquetaZonaPersonal: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Palette.forestGreen,
+    textTransform: 'uppercase',
+  },
+  textoNombreZona: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  textoRolEnZona: {
+    fontSize: 12,
+    color: '#166534',
+    fontWeight: '500',
+  },
   cabeceraTarjeta: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -286,10 +456,10 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   cajaDescripcionDestacada: {
-    backgroundColor: '#F5F9F2',
+    backgroundColor: '#F8FAF5',
     borderLeftWidth: 3.5,
     borderLeftColor: Palette.forestGreen,
-    padding: 12,
+    padding: 10,
     borderRadius: 8,
     gap: 4,
   },
@@ -308,6 +478,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#2D3748',
     lineHeight: 18,
+  },
+  cajaProgresoCuadrilla: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  filaCabeceraProgreso: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filaIconoTextoProgreso: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tituloProgresoCuadrilla: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  barraProgresoFondo: {
+    height: 7,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  barraProgresoRelleno: {
+    height: '100%',
+    backgroundColor: Palette.forestGreen,
+    borderRadius: 4,
+  },
+  notaProgresoColaborativo: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
   },
   filaMetas: {
     flexDirection: 'row',
@@ -360,5 +569,22 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
     paddingTop: 12,
+    flexWrap: 'wrap',
+  },
+  pillZonaFinalizadaEsperando: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  textoZonaFinalizadaEsperando: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#065F46',
   },
 });

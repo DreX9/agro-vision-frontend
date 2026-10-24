@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const actividadTrabajadorSchema = z.object({
   usuarioId: z.string().min(1, 'Debe seleccionar un trabajador'),
   rolEnActividad: z.string().optional(),
+  zonaTrabajo: z.string().optional(),
   horaInicio: z.string().optional(),
   horaFin: z.string().optional(),
   horasAsignadas: z.number().optional(),

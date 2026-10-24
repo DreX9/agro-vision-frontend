@@ -53,11 +53,26 @@ export interface TrabajadorAsignado {
   nombres: string;
   apellidos: string;
   rolEnActividad?: string | null;
+  zonaTrabajo?: string | null;
   telefono?: string | null;
   horaInicio?: string | null;
   horaFin?: string | null;
   horasAsignadas?: number | null;
 }
+
+/**
+ * @description Extrae de forma limpia el rol operativo y la zona de trabajo asignada (ej. 'Aplicador • Hilera 1-10').
+ */
+export const extraerRolYZona = (
+  rolEnActividad?: string | null,
+): { rol: string; zona?: string } => {
+  if (!rolEnActividad) return { rol: 'Operador' };
+  const partes = rolEnActividad.split(' • ');
+  return {
+    rol: partes[0] || 'Operador',
+    zona: partes.length > 1 ? partes.slice(1).join(' • ') : undefined,
+  };
+};
 
 export interface RecursoAsignado {
   id: string;
@@ -74,6 +89,7 @@ export interface ActividadItem {
   codigo: string;
   titulo: string;
   tipo: TipoActividadTipo;
+  descripcion?: string | null;
   parcelaId: string;
   parcelaNombre?: string;
   sectorId?: string | null;
@@ -86,6 +102,7 @@ export interface ActividadItem {
   fechaFin?: string | null;
   estado: EstadoActividadTipo;
   cantidadTrabajadores: number;
+  trabajadores?: TrabajadorAsignado[];
   cantidadRecursos: number;
   createdAt: string;
 }

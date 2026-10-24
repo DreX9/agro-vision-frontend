@@ -10,6 +10,7 @@ import { useAuthStore } from '@/features/autenticacion';
 import { useInsumosQuery } from '../api/insumos.api';
 import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
 import { ActividadFormValores } from '../schemas/actividad.schema';
+import { extraerRolYZona } from '../types/actividad.types';
 
 export interface EditarActividadContainerProps {
   id: string;
@@ -40,9 +41,13 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
     const trabajadoresFormateados = valores.trabajadores.map((t) => {
       const tHoraIni = t.horaInicio || horaIni;
       const tHoraFin = t.horaFin || horaFin;
+      const rolConZona = t.zonaTrabajo && t.zonaTrabajo.trim().length > 0
+        ? `${t.rolEnActividad || 'Operador'} • ${t.zonaTrabajo.trim()}`
+        : t.rolEnActividad;
+
       return {
         usuarioId: t.usuarioId,
-        rolEnActividad: t.rolEnActividad,
+        rolEnActividad: rolConZona,
         horaInicio: new Date(`${fechaSolo}T${tHoraIni}:00`).toISOString(),
         horaFin: new Date(`${fechaFinSolo}T${tHoraFin}:00`).toISOString(),
         horasAsignadas: t.horasAsignadas || valores.duracionHoras || 5,
@@ -165,27 +170,31 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
             descripcion: actividad.descripcion || '',
             observaciones: actividad.observaciones || '',
             estado: actividad.estado,
-            trabajadores: actividad.trabajadores.map((t) => ({
-              usuarioId: t.usuarioId,
-              rolEnActividad: t.rolEnActividad || undefined,
-              horaInicio: t.horaInicio
-                ? (() => {
-                    const d = new Date(t.horaInicio);
-                    return !isNaN(d.getTime())
-                      ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-                      : undefined;
-                  })()
-                : undefined,
-              horaFin: t.horaFin
-                ? (() => {
-                    const d = new Date(t.horaFin);
-                    return !isNaN(d.getTime())
-                      ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-                      : undefined;
-                  })()
-                : undefined,
-              horasAsignadas: t.horasAsignadas ? Number(t.horasAsignadas) : undefined,
-            })),
+            trabajadores: actividad.trabajadores.map((t) => {
+              const { rol, zona } = extraerRolYZona(t.rolEnActividad);
+              return {
+                usuarioId: t.usuarioId,
+                rolEnActividad: rol || undefined,
+                zonaTrabajo: zona || undefined,
+                horaInicio: t.horaInicio
+                  ? (() => {
+                      const d = new Date(t.horaInicio);
+                      return !isNaN(d.getTime())
+                        ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                        : undefined;
+                    })()
+                  : undefined,
+                horaFin: t.horaFin
+                  ? (() => {
+                      const d = new Date(t.horaFin);
+                      return !isNaN(d.getTime())
+                        ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+                        : undefined;
+                    })()
+                  : undefined,
+                horasAsignadas: t.horasAsignadas ? Number(t.horasAsignadas) : undefined,
+              };
+            }),
             recursos: actividad.recursos.map((r) => ({
               insumoId: r.insumoId,
               cantidadEstimada: r.cantidadEstimada,

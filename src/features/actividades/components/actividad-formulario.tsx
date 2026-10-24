@@ -169,6 +169,15 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     });
   };
 
+  const cambiarZonaTrabajador = (usuarioId: string, zona: string) => {
+    if (esAgronomo) return; // Bloqueado para Agrónomos
+    setCuadrilla((prev) => {
+      const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, zonaTrabajo: zona } : t));
+      setValue('trabajadores', nueva);
+      return nueva;
+    });
+  };
+
   const cambiarHorasTrabajador = (usuarioId: string, horas: number) => {
     if (esAgronomo) return; // Bloqueado para Agrónomos
     setCuadrilla((prev) => {
@@ -301,6 +310,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         onAlternarTrabajador={alternarTrabajador}
         onCambiarRol={cambiarRolTrabajador}
         onCambiarHoras={cambiarHorasTrabajador}
+        onCambiarZona={cambiarZonaTrabajador}
       />
     </View>
   );

@@ -41,9 +41,13 @@ export const CrearActividadContainer: React.FC = () => {
     const trabajadoresFormateados = valores.trabajadores.map((t) => {
       const tHoraIni = t.horaInicio || horaIni;
       const tHoraFin = t.horaFin || horaFin;
+      const rolConZona = t.zonaTrabajo && t.zonaTrabajo.trim().length > 0
+        ? `${t.rolEnActividad || 'Operador'} • ${t.zonaTrabajo.trim()}`
+        : t.rolEnActividad;
+
       return {
         usuarioId: t.usuarioId,
-        rolEnActividad: t.rolEnActividad,
+        rolEnActividad: rolConZona,
         horaInicio: new Date(`${fechaSolo}T${tHoraIni}:00`).toISOString(),
         horaFin: new Date(`${fechaFinSolo}T${tHoraFin}:00`).toISOString(),
         horasAsignadas: t.horasAsignadas || valores.duracionHoras || 5,

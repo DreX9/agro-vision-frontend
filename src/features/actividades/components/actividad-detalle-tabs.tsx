@@ -13,12 +13,14 @@ import {
   ClipboardList,
   Pencil,
   CheckCircle2,
+  Compass,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
-import { ActividadDetalle, EstadoActividadTipo } from '../types/actividad.types';
+import { ActividadDetalle, EstadoActividadTipo, extraerRolYZona } from '../types/actividad.types';
 import { OperadorJornadaPanel } from './operador-jornada-panel';
 import { useAuthStore } from '@/features/autenticacion';
+import { useOperadorJornadaStore } from '../stores/operador-jornada.store';
 
 export interface ActividadDetalleTabsProps {
   actividad: ActividadDetalle;
@@ -54,6 +56,32 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
   const esOperador = usuario?.rol === 'OPERADOR';
   const esAdministrador = usuario?.rol === 'ADMINISTRADOR';
   const puedeVerBitacora = !esAdministrador;
+
+  const {
+    sincronizarZonasDesdeTrabajadores,
+    obtenerEstadoZonaOperador,
+    obtenerProgresoActividad,
+  } = useOperadorJornadaStore();
+
+  useEffect(() => {
+    if (actividad.id && actividad.trabajadores && actividad.trabajadores.length > 0) {
+      sincronizarZonasDesdeTrabajadores(
+        actividad.id,
+        actividad.trabajadores.map((t) => ({
+          usuarioId: t.usuarioId,
+          nombres: t.nombres,
+          apellidos: t.apellidos,
+          rolEnActividad: t.rolEnActividad,
+          zonaTrabajo: t.zonaTrabajo || undefined,
+        })),
+      );
+    }
+  }, [actividad.id, actividad.trabajadores, sincronizarZonasDesdeTrabajadores]);
+
+  const progresoCuadrilla = obtenerProgresoActividad(
+    actividad.id,
+    actividad.trabajadores.length,
+  );
 
   const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla' | 'jornada'>(
     esOperador ? 'jornada' : 'info',
@@ -365,32 +393,99 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
           /* Tab Cuadrilla */
           <View style={styles.bloqueTab}>
             <View style={styles.tarjetaFicha}>
-              <Text style={styles.tituloSeccion}>Personal y Operarios Asignados</Text>
+              <View style={styles.cabeceraFichaCuadrilla}>
+                <Text style={styles.tituloSeccion}>Personal y Operarios Asignados</Text>
+                {actividad.trabajadores.length > 0 && (
+                  <Badge
+                    texto={`${progresoCuadrilla.zonasCompletadas}/${progresoCuadrilla.totalZonas} Zonas Listas (${progresoCuadrilla.porcentaje}%)`}
+                    variante={progresoCuadrilla.todasCompletadas ? 'exito' : 'info'}
+                  />
+                )}
+              </View>
+
+              {/* Barra de progreso colaborativo de cuadrilla */}
+              {actividad.trabajadores.length > 0 && (
+                <View style={styles.cajaProgresoCuadrillaTabs}>
+                  <View style={styles.filaCabeceraProgreso}>
+                    <Text style={styles.textoResumenProgreso}>
+                      Avance de cobertura de la cuadrilla: {progresoCuadrilla.porcentaje}%
+                    </Text>
+                    {progresoCuadrilla.todasCompletadas && (
+                      <Text style={styles.textoExitoProgreso}>✓ Cuadrilla finalizada</Text>
+                    )}
+                  </View>
+                  <View style={styles.barraFondoTabs}>
+                    <View
+                      style={[
+                        styles.barraRellenoTabs,
+                        { width: `${Math.min(100, Math.max(0, progresoCuadrilla.porcentaje))}%` },
+                      ]}
+                    />
+                  </View>
+                </View>
+              )}
+
               {actividad.trabajadores.length === 0 ? (
                 <Text style={styles.textoVacio}>No se han asignado trabajadores a esta actividad.</Text>
               ) : (
                 <View style={styles.listaTrabajadores}>
-                  {actividad.trabajadores.map((t) => (
-                    <View key={t.id} style={styles.tarjetaOperario}>
-                      <View style={styles.avatarOperario}>
-                        <User size={18} color={Palette.forestGreen} />
-                      </View>
-                      <View style={styles.detallesOperario}>
-                        <Text style={styles.nombreOperario}>
-                          {t.nombres} {t.apellidos}
-                        </Text>
-                        <Text style={styles.rolOperario}>
-                          Rol: {t.rolEnActividad || 'Operador de campo'}
-                        </Text>
-                        {t.telefono ? (
-                          <View style={styles.filaTelefono}>
-                            <Phone size={12} color="#6B7280" />
-                            <Text style={styles.telefonoOperario}>{t.telefono}</Text>
+                  {actividad.trabajadores.map((t) => {
+                    const { rol, zona } = extraerRolYZona(t.rolEnActividad);
+                    const asignacionStore = obtenerEstadoZonaOperador(actividad.id, t.usuarioId);
+                    const zonaFinal = asignacionStore?.zonaTrabajo || zona || 'Zona general de trabajo';
+                    const estadoZona =
+                      asignacionStore?.estado ||
+                      (actividad.estado === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
+
+                    return (
+                      <View key={t.id} style={styles.tarjetaOperario}>
+                        <View style={styles.avatarOperario}>
+                          <User size={18} color={Palette.forestGreen} />
+                        </View>
+                        <View style={styles.detallesOperario}>
+                          <View style={styles.filaNombreYEstadoOperario}>
+                            <Text style={styles.nombreOperario}>
+                              {t.nombres} {t.apellidos}
+                            </Text>
+                            <Badge
+                              texto={
+                                estadoZona === 'COMPLETADA'
+                                  ? 'Completada'
+                                  : estadoZona === 'EN_PROGRESO'
+                                    ? 'En Terreno'
+                                    : 'Pendiente'
+                              }
+                              variante={
+                                estadoZona === 'COMPLETADA'
+                                  ? 'exito'
+                                  : estadoZona === 'EN_PROGRESO'
+                                    ? 'info'
+                                    : 'alerta'
+                              }
+                            />
                           </View>
-                        ) : null}
+
+                          <View style={styles.cajaZonaOperarioFicha}>
+                            <Compass size={12} color={Palette.forestGreen} />
+                            <Text style={styles.textoZonaOperarioFicha}>
+                              Subtarea / Zona: <Text style={{ fontWeight: '700' }}>{zonaFinal}</Text>
+                            </Text>
+                          </View>
+
+                          <Text style={styles.rolOperario}>
+                            Rol: {rol || 'Operador de campo'}
+                          </Text>
+
+                          {t.telefono ? (
+                            <View style={styles.filaTelefono}>
+                              <Phone size={12} color="#6B7280" />
+                              <Text style={styles.telefonoOperario}>{t.telefono}</Text>
+                            </View>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -550,5 +645,69 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 10,
     marginTop: 8,
+  },
+  cabeceraFichaCuadrilla: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  cajaProgresoCuadrillaTabs: {
+    backgroundColor: '#F8FAF5',
+    borderWidth: 1,
+    borderColor: '#D7E3CF',
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  filaCabeceraProgreso: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  textoResumenProgreso: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  textoExitoProgreso: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Palette.forestGreen,
+  },
+  barraFondoTabs: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  barraRellenoTabs: {
+    height: '100%',
+    backgroundColor: Palette.forestGreen,
+    borderRadius: 3,
+  },
+  filaNombreYEstadoOperario: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cajaZonaOperarioFicha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 5,
+    marginVertical: 3,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+  },
+  textoZonaOperarioFicha: {
+    fontSize: 11,
+    color: '#166534',
   },
 });

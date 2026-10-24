@@ -44,6 +44,19 @@ export interface PuntoAvanceJornada {
   guardadoEn: string; // ISO date
 }
 
+export type EstadoZonaOperador = 'PENDIENTE' | 'EN_PROGRESO' | 'COMPLETADA';
+
+export interface AsignacionZonaTrabajador {
+  actividadId: string;
+  usuarioId: string;
+  usuarioNombre: string;
+  zonaTrabajo: string;
+  rolEnActividad?: string;
+  estado: EstadoZonaOperador;
+  iniciadoEn?: string;
+  completadoEn?: string;
+}
+
 export interface OperadorJornadaState {
   // Diccionario de subtareas por actividadId
   subtareasPorActividad: Record<string, SubtareaOperador[]>;
@@ -51,6 +64,8 @@ export interface OperadorJornadaState {
   hallazgosPorActividad: Record<string, HallazgoJornada[]>;
   // Último punto de corte/avance por actividadId
   puntosAvancePorActividad: Record<string, PuntoAvanceJornada>;
+  // Zonas de trabajo asignadas a cada operador por actividadId
+  zonasTrabajadoresPorActividad: Record<string, AsignacionZonaTrabajador[]>;
 
   // Métodos
   obtenerSubtareas: (actividadId: string, tipo: TipoActividadTipo) => SubtareaOperador[];
@@ -68,6 +83,35 @@ export interface OperadorJornadaState {
     actividadId: string,
     punto: Omit<PuntoAvanceJornada, 'actividadId' | 'guardadoEn'>,
   ) => void;
+
+  // Gestión de zonas de trabajo y avance de cuadrilla
+  sincronizarZonasDesdeTrabajadores: (
+    actividadId: string,
+    trabajadores: {
+      usuarioId: string;
+      nombres: string;
+      apellidos: string;
+      rolEnActividad?: string | null;
+      zonaTrabajo?: string;
+    }[],
+  ) => AsignacionZonaTrabajador[];
+
+  obtenerEstadoZonaOperador: (
+    actividadId: string,
+    usuarioId: string,
+  ) => AsignacionZonaTrabajador | undefined;
+
+  iniciarZonaOperador: (actividadId: string, usuarioId: string) => void;
+
+  completarZonaOperador: (
+    actividadId: string,
+    usuarioId: string,
+  ) => { todasCompletadas: boolean; zonasCompletadas: number; totalZonas: number };
+
+  obtenerProgresoActividad: (
+    actividadId: string,
+    totalTrabajadoresFallback?: number,
+  ) => { totalZonas: number; zonasCompletadas: number; porcentaje: number; todasCompletadas: boolean };
 }
 
 const SUBTAREAS_PREDETERMINADAS: Record<string, string[]> = {
@@ -143,6 +187,7 @@ export const useOperadorJornadaStore = create<OperadorJornadaState>()(
       subtareasPorActividad: {},
       hallazgosPorActividad: {},
       puntosAvancePorActividad: {},
+      zonasTrabajadoresPorActividad: {},
 
       obtenerSubtareas: (actividadId: string, tipo: TipoActividadTipo) => {
         const estado = get();
@@ -275,6 +320,126 @@ export const useOperadorJornadaStore = create<OperadorJornadaState>()(
             [actividadId]: nuevo,
           },
         }));
+      },
+
+      sincronizarZonasDesdeTrabajadores: (actividadId, trabajadores) => {
+        const estado = get();
+        const existentes = estado.zonasTrabajadoresPorActividad[actividadId] || [];
+        const mapaExistentes = new Map(existentes.map((z) => [z.usuarioId, z]));
+
+        const actualizadas: AsignacionZonaTrabajador[] = trabajadores.map((t, idx) => {
+          const prev = mapaExistentes.get(t.usuarioId);
+          // Parsear rol y zona si rolEnActividad contiene ' • '
+          const partes = (t.rolEnActividad || '').split(' • ');
+          const rol = partes[0] || 'Operador de campo';
+          const zonaParseada = partes.length > 1 ? partes.slice(1).join(' • ') : undefined;
+          const zonaDefinitiva =
+            t.zonaTrabajo?.trim() ||
+            zonaParseada ||
+            prev?.zonaTrabajo ||
+            `Zona Operativa ${idx + 1}`;
+
+          const nombreCompleto = `${t.nombres} ${t.apellidos}`.trim();
+
+          if (prev) {
+            return {
+              ...prev,
+              usuarioNombre: nombreCompleto,
+              zonaTrabajo: zonaDefinitiva,
+              rolEnActividad: rol,
+            };
+          }
+
+          return {
+            actividadId,
+            usuarioId: t.usuarioId,
+            usuarioNombre: nombreCompleto,
+            zonaTrabajo: zonaDefinitiva,
+            rolEnActividad: rol,
+            estado: 'PENDIENTE',
+          };
+        });
+
+        set((state) => ({
+          zonasTrabajadoresPorActividad: {
+            ...state.zonasTrabajadoresPorActividad,
+            [actividadId]: actualizadas,
+          },
+        }));
+
+        return actualizadas;
+      },
+
+      obtenerEstadoZonaOperador: (actividadId, usuarioId) => {
+        const zonas = get().zonasTrabajadoresPorActividad[actividadId] || [];
+        return zonas.find((z) => z.usuarioId === usuarioId);
+      },
+
+      iniciarZonaOperador: (actividadId, usuarioId) => {
+        set((state) => {
+          const actuales = state.zonasTrabajadoresPorActividad[actividadId] || [];
+          const actualizadas = actuales.map((z) => {
+            if (z.usuarioId !== usuarioId) return z;
+            return {
+              ...z,
+              estado: 'EN_PROGRESO' as const,
+              iniciadoEn: z.iniciadoEn || new Date().toISOString(),
+            };
+          });
+
+          return {
+            zonasTrabajadoresPorActividad: {
+              ...state.zonasTrabajadoresPorActividad,
+              [actividadId]: actualizadas,
+            },
+          };
+        });
+      },
+
+      completarZonaOperador: (actividadId, usuarioId) => {
+        let todasCompletadas = false;
+        let zonasCompletadas = 0;
+        let totalZonas = 0;
+
+        set((state) => {
+          const actuales = state.zonasTrabajadoresPorActividad[actividadId] || [];
+          const actualizadas = actuales.map((z) => {
+            if (z.usuarioId !== usuarioId) return z;
+            return {
+              ...z,
+              estado: 'COMPLETADA' as const,
+              completadoEn: new Date().toISOString(),
+            };
+          });
+
+          totalZonas = actualizadas.length;
+          zonasCompletadas = actualizadas.filter((z) => z.estado === 'COMPLETADA').length;
+          todasCompletadas = totalZonas > 0 && zonasCompletadas === totalZonas;
+
+          return {
+            zonasTrabajadoresPorActividad: {
+              ...state.zonasTrabajadoresPorActividad,
+              [actividadId]: actualizadas,
+            },
+          };
+        });
+
+        return { todasCompletadas, zonasCompletadas, totalZonas };
+      },
+
+      obtenerProgresoActividad: (actividadId, totalTrabajadoresFallback) => {
+        const zonas = get().zonasTrabajadoresPorActividad[actividadId] || [];
+        const total = zonas.length > 0 ? zonas.length : totalTrabajadoresFallback || 0;
+        const completadas = zonas.filter((z) => z.estado === 'COMPLETADA').length;
+        const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
+        const todasCompletadas = total > 0 && completadas === total;
+
+        return {
+          totalZonas: total,
+          zonasCompletadas: completadas,
+          porcentaje,
+          todasCompletadas,
+        };
       },
     }),
     {
