@@ -52,6 +52,9 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
 }) => {
   const usuario = useAuthStore((s) => s.usuario);
   const esOperador = usuario?.rol === 'OPERADOR';
+  const esAdministrador = usuario?.rol === 'ADMINISTRADOR';
+  const puedeVerBitacora = !esAdministrador;
+
   const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla' | 'jornada'>(
     esOperador ? 'jornada' : 'info',
   );
@@ -72,6 +75,12 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
       setEditandoSeguimiento(true);
     }
   }, [editandoSeguimientoDirecto]);
+
+  useEffect(() => {
+    if (!puedeVerBitacora && tabActivo === 'jornada') {
+      setTabActivo('info');
+    }
+  }, [puedeVerBitacora, tabActivo]);
 
   const handleCancelarEdicion = () => {
     setEstadoForm(actividad.estado);
@@ -149,15 +158,17 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
           </Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => setTabActivo('jornada')}
-          style={[styles.botonTab, tabActivo === 'jornada' && styles.botonTabActivo]}
-        >
-          <ClipboardList size={16} color={tabActivo === 'jornada' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'jornada' && styles.textoTabActivo]}>
-            Bitácora y Turno del Operador
-          </Text>
-        </Pressable>
+        {puedeVerBitacora && (
+          <Pressable
+            onPress={() => setTabActivo('jornada')}
+            style={[styles.botonTab, tabActivo === 'jornada' && styles.botonTabActivo]}
+          >
+            <ClipboardList size={16} color={tabActivo === 'jornada' ? Palette.forestGreen : '#6B7280'} />
+            <Text style={[styles.textoTab, tabActivo === 'jornada' && styles.textoTabActivo]}>
+              Bitácora y Turno del Operador
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Contenido según pestaña */}
@@ -384,10 +395,10 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
               )}
             </View>
           </View>
-        ) : (
+        ) : puedeVerBitacora && tabActivo === 'jornada' ? (
           /* Tab Bitácora y Turno del Operador */
           <OperadorJornadaPanel actividad={actividad} />
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );
