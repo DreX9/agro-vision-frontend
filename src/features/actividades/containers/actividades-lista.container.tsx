@@ -45,19 +45,26 @@ export const ActividadesListaContainer: React.FC = () => {
   const cambiarEstadoMutation = useCambiarEstadoActividadMutation();
   const eliminarMutation = useEliminarActividadMutation();
 
-  const handleCambiarEstado = (actividad: ActividadItem) => {
-    const ordenEstados: EstadoActividadTipo[] = [
-      'PENDIENTE',
-      'EN_PROGRESO',
-      'COMPLETADA',
-      'CANCELADA',
-    ];
-    const indiceActual = ordenEstados.indexOf(actividad.estado);
-    const siguienteEstado = ordenEstados[(indiceActual + 1) % ordenEstados.length];
+  const handleCambiarEstado = (
+    actividad: ActividadItem,
+    nuevoEstado?: EstadoActividadTipo,
+  ) => {
+    const estadoDestino =
+      nuevoEstado ||
+      (() => {
+        const ordenEstados: EstadoActividadTipo[] = [
+          'PENDIENTE',
+          'EN_PROGRESO',
+          'COMPLETADA',
+          'CANCELADA',
+        ];
+        const indiceActual = ordenEstados.indexOf(actividad.estado);
+        return ordenEstados[(indiceActual + 1) % ordenEstados.length];
+      })();
 
     cambiarEstadoMutation.mutate({
       id: actividad.id,
-      estado: siguienteEstado,
+      estado: estadoDestino,
     });
   };
 
@@ -179,6 +186,11 @@ export const ActividadesListaContainer: React.FC = () => {
               onEditar={handleEditar}
               onCambiarEstado={handleCambiarEstado}
               onEliminar={esAdmin ? handleEliminar : undefined}
+              idActividadCambiandoEstado={
+                cambiarEstadoMutation.isPending
+                  ? (cambiarEstadoMutation.variables as { id: string })?.id
+                  : undefined
+              }
             />
 
             {data && data.total > 0 && (
