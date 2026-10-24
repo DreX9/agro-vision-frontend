@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { Plus, Search, UserCheck, ListFilter } from 'lucide-react-native';
+import { Plus, Search, UserCheck, ListFilter, LayoutGrid, List } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { Boton, Input, Card, ModalConfirmacion, type DetalleConfirmacion } from '@/shared/components/ui';
 import { Paginacion } from '@/shared/components/ui/paginacion';
 import { ActividadesTabla } from '../components/actividades-tabla';
+import { ActividadesOperadorLista } from '../components/actividades-operador-lista';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import {
   useActividadesQuery,
@@ -26,12 +27,16 @@ export const ActividadesListaContainer: React.FC = () => {
   const esAdmin = rol === 'ADMINISTRADOR';
   const esAgronomo = rol === 'AGRONOMO';
   const esSupervisor = rol === 'SUPERVISOR';
+  const esOperador = rol === 'OPERADOR';
   const puedeCrear = esAdmin || esAgronomo;
 
   const [busqueda, setBusqueda] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
   const [soloMisLabores, setSoloMisLabores] = useState(esSupervisor);
+  const [modoVista, setModoVista] = useState<'tarjetas' | 'tabla'>(
+    esOperador ? 'tarjetas' : 'tabla',
+  );
   const [actividadAEliminar, setActividadAEliminar] = useState<ActividadItem | null>(null);
   const [modalExitoEliminacion, setModalExitoEliminacion] = useState<string | null>(null);
 
@@ -95,15 +100,17 @@ export const ActividadesListaContainer: React.FC = () => {
     });
   };
 
-  const subtituloSegunRol = esSupervisor
-    ? 'Gestión de cuadrillas de operarios, asignación de turnos y control de avance en terreno'
-    : esAgronomo
-      ? 'Planificación y prescripción agronómica de riego, fertilización, poda y fitosanidad'
-      : 'Planificación integral de labores de campo, asignación de cuadrillas y control de insumos';
+  const subtituloSegunRol = esOperador
+    ? 'Tus labores de campo del turno, checklist de tareas, reporte de novedades y punto de avance GPS'
+    : esSupervisor
+      ? 'Gestión de cuadrillas de operarios, asignación de turnos y control de avance en terreno'
+      : esAgronomo
+        ? 'Planificación y prescripción agronómica de riego, fertilización, poda y fitosanidad'
+        : 'Planificación integral de labores de campo, asignación de cuadrillas y control de insumos';
 
   return (
     <AppLayout
-      titulo="Actividades Agrícolas"
+      titulo={esOperador ? 'Mis Labores de Campo' : 'Actividades Agrícolas'}
       subtitulo={subtituloSegunRol}
       accionEncabezado={
         puedeCrear ? (
@@ -133,65 +140,121 @@ export const ActividadesListaContainer: React.FC = () => {
             contenedorEstilo={styles.inputBuscador}
           />
 
-          {/* Filtro rápido para Supervisor / Responsable */}
-          {esSupervisor && (
-            <View style={styles.filaFiltrosRoles}>
+          <View style={styles.filaFiltrosInferior}>
+            {/* Selector de Modo de Vista */}
+            <View style={styles.filaSelectorVista}>
               <Pressable
-                onPress={() => {
-                  setSoloMisLabores(true);
-                  setPagina(1);
-                }}
-                style={[styles.botonFiltroRol, soloMisLabores && styles.botonFiltroRolActivo]}
+                onPress={() => setModoVista('tarjetas')}
+                style={[
+                  styles.botonModoVista,
+                  modoVista === 'tarjetas' && styles.botonModoVistaActivo,
+                ]}
               >
-                <UserCheck size={15} color={soloMisLabores ? Palette.white : Palette.forestGreen} />
+                <LayoutGrid
+                  size={15}
+                  color={modoVista === 'tarjetas' ? Palette.white : '#4B5563'}
+                />
                 <Text
                   style={[
-                    styles.textoFiltroRol,
-                    soloMisLabores && styles.textoFiltroRolActivo,
+                    styles.textoModoVista,
+                    modoVista === 'tarjetas' && styles.textoModoVistaActivo,
                   ]}
                 >
-                  Mis labores a cargo
+                  Tarjetas de Campo
                 </Text>
               </Pressable>
 
               <Pressable
-                onPress={() => {
-                  setSoloMisLabores(false);
-                  setPagina(1);
-                }}
-                style={[styles.botonFiltroRol, !soloMisLabores && styles.botonFiltroRolActivo]}
+                onPress={() => setModoVista('tabla')}
+                style={[
+                  styles.botonModoVista,
+                  modoVista === 'tabla' && styles.botonModoVistaActivo,
+                ]}
               >
-                <ListFilter size={15} color={!soloMisLabores ? Palette.white : '#4B5563'} />
+                <List
+                  size={15}
+                  color={modoVista === 'tabla' ? Palette.white : '#4B5563'}
+                />
                 <Text
                   style={[
-                    styles.textoFiltroRol,
-                    !soloMisLabores && styles.textoFiltroRolActivo,
+                    styles.textoModoVista,
+                    modoVista === 'tabla' && styles.textoModoVistaActivo,
                   ]}
                 >
-                  Todas las labores
+                  Tabla Completa
                 </Text>
               </Pressable>
             </View>
-          )}
+
+            {/* Filtro rápido para Supervisor / Responsable */}
+            {esSupervisor && (
+              <View style={styles.filaFiltrosRoles}>
+                <Pressable
+                  onPress={() => {
+                    setSoloMisLabores(true);
+                    setPagina(1);
+                  }}
+                  style={[styles.botonFiltroRol, soloMisLabores && styles.botonFiltroRolActivo]}
+                >
+                  <UserCheck size={15} color={soloMisLabores ? Palette.white : Palette.forestGreen} />
+                  <Text
+                    style={[
+                      styles.textoFiltroRol,
+                      soloMisLabores && styles.textoFiltroRolActivo,
+                    ]}
+                  >
+                    Mis labores a cargo
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    setSoloMisLabores(false);
+                    setPagina(1);
+                  }}
+                  style={[styles.botonFiltroRol, !soloMisLabores && styles.botonFiltroRolActivo]}
+                >
+                  <ListFilter size={15} color={!soloMisLabores ? Palette.white : '#4B5563'} />
+                  <Text
+                    style={[
+                      styles.textoFiltroRol,
+                      !soloMisLabores && styles.textoFiltroRolActivo,
+                    ]}
+                  >
+                    Todas las labores
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
         </Card>
 
         {isLoading ? (
           <ActividadesSkeleton />
         ) : (
           <View style={styles.contenedorTabla}>
-            <ActividadesTabla
-              actividades={data?.items || []}
-              cargando={isFetching}
-              onVerDetalle={handleVerDetalle}
-              onEditar={handleEditar}
-              onCambiarEstado={handleCambiarEstado}
-              onEliminar={esAdmin ? handleEliminar : undefined}
-              idActividadCambiandoEstado={
-                cambiarEstadoMutation.isPending
-                  ? (cambiarEstadoMutation.variables as { id: string })?.id
-                  : undefined
-              }
-            />
+            {modoVista === 'tarjetas' ? (
+              <ActividadesOperadorLista
+                actividades={data?.items || []}
+                cargando={isFetching}
+                onVerDetalle={handleVerDetalle}
+                onCambiarEstado={handleCambiarEstado}
+              />
+            ) : (
+              <ActividadesTabla
+                actividades={data?.items || []}
+                cargando={isFetching}
+                onVerDetalle={handleVerDetalle}
+                onEditar={handleEditar}
+                onCambiarEstado={handleCambiarEstado}
+                onEliminar={esAdmin ? handleEliminar : undefined}
+                idActividadCambiandoEstado={
+                  cambiarEstadoMutation.isPending
+                    ? (cambiarEstadoMutation.variables as { id: string })?.id
+                    : undefined
+                }
+              />
+            )}
 
             {data && data.total > 0 && (
               <Paginacion
@@ -300,6 +363,40 @@ const styles = StyleSheet.create({
     color: '#4B5563',
   },
   textoFiltroRolActivo: {
+    color: Palette.white,
+  },
+  filaFiltrosInferior: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  filaSelectorVista: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 3,
+    gap: 4,
+  },
+  botonModoVista: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  botonModoVistaActivo: {
+    backgroundColor: Palette.forestGreen,
+  },
+  textoModoVista: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  textoModoVistaActivo: {
     color: Palette.white,
   },
   contenedorTabla: { gap: 16 },

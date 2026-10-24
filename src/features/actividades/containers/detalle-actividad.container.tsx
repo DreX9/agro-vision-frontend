@@ -10,15 +10,22 @@ import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
 import { EstadoActividadTipo } from '../types/actividad.types';
 
+import { useAuthStore } from '@/features/autenticacion';
+
 export interface DetalleActividadContainerProps {
   id: string;
 }
 
 /**
- * @description Contenedor para la ficha técnica y visualización de cuadrilla/insumos de una actividad.
+ * @description Contenedor para la ficha técnica, bitácora y visualización de cuadrilla/insumos de una actividad.
  */
 export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps> = ({ id }) => {
   const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+  const rol = usuario?.rol || 'OPERADOR';
+  const puedeEditar = rol === 'ADMINISTRADOR' || rol === 'SUPERVISOR' || rol === 'AGRONOMO';
+  const esOperador = rol === 'OPERADOR';
+
   const [editandoSeguimiento, setEditandoSeguimiento] = useState(false);
   const { data: actividad, isLoading } = useActividadPorIdQuery(id);
   const actualizarMutation = useActualizarActividadMutation();
@@ -61,10 +68,14 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
     );
   }
 
+  const subtitulo = esOperador
+    ? actividad.descripcion || `${actividad.parcelaNombre || 'Parcela'} · ${actividad.tipo.replace(/_/g, ' ')}`
+    : actividad.titulo;
+
   return (
     <AppLayout
-      titulo={`Ficha Técnica: ${actividad.codigo}`}
-      subtitulo={actividad.titulo}
+      titulo={`Labor: ${actividad.codigo}`}
+      subtitulo={subtitulo}
       accionEncabezado={
         <View style={styles.accionesEncabezado}>
           <Pressable
@@ -75,19 +86,23 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
             <Text style={styles.textoVolver}>Volver al listado</Text>
           </Pressable>
 
-          <Boton
-            titulo="Actualizar Seguimiento"
-            variante="secundario"
-            iconoIzquierda={<ClipboardCheck size={16} color={Palette.forestGreen} />}
-            onPress={() => setEditandoSeguimiento(true)}
-          />
+          {!esOperador && (
+            <Boton
+              titulo="Actualizar Seguimiento"
+              variante="secundario"
+              iconoIzquierda={<ClipboardCheck size={16} color={Palette.forestGreen} />}
+              onPress={() => setEditandoSeguimiento(true)}
+            />
+          )}
 
-          <Boton
-            titulo="Editar Labor Completa"
-            variante="primario"
-            iconoIzquierda={<Pencil size={16} color={Palette.white} />}
-            onPress={() => router.push(`/actividades/${id}/editar` as Href)}
-          />
+          {puedeEditar && (
+            <Boton
+              titulo="Editar Labor Completa"
+              variante="primario"
+              iconoIzquierda={<Pencil size={16} color={Palette.white} />}
+              onPress={() => router.push(`/actividades/${id}/editar` as Href)}
+            />
+          )}
         </View>
       }
     >

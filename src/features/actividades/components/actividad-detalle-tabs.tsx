@@ -10,12 +10,15 @@ import {
   Clock,
   Phone,
   ClipboardCheck,
+  ClipboardList,
   Pencil,
   CheckCircle2,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
 import { ActividadDetalle, EstadoActividadTipo } from '../types/actividad.types';
+import { OperadorJornadaPanel } from './operador-jornada-panel';
+import { useAuthStore } from '@/features/autenticacion';
 
 export interface ActividadDetalleTabsProps {
   actividad: ActividadDetalle;
@@ -37,8 +40,8 @@ const OPCIONES_ESTADO: SelectOpcion[] = [
 ];
 
 /**
- * @description Vista con pestañas (Tabs) para inspeccionar la ficha técnica, la cuadrilla asignada
- * y actualizar directamente el seguimiento/estado operativo sin pasar por formularios complejos.
+ * @description Vista con pestañas (Tabs) para inspeccionar la ficha técnica, la cuadrilla asignada,
+ * actualizar el seguimiento y acceder a la bitácora de turno del operador (subtareas, hallazgos, GPS).
  */
 export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
   actividad,
@@ -47,7 +50,11 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
   editandoSeguimientoDirecto = false,
   onCerrarEdicionSeguimiento,
 }) => {
-  const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla'>('info');
+  const usuario = useAuthStore((s) => s.usuario);
+  const esOperador = usuario?.rol === 'OPERADOR';
+  const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla' | 'jornada'>(
+    esOperador ? 'jornada' : 'info',
+  );
   const [editandoSeguimiento, setEditandoSeguimiento] = useState(false);
   const [estadoForm, setEstadoForm] = useState<EstadoActividadTipo>(actividad.estado);
   const [descripcionForm, setDescripcionForm] = useState(actividad.descripcion || '');
@@ -138,7 +145,17 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
         >
           <Users size={16} color={tabActivo === 'cuadrilla' ? Palette.forestGreen : '#6B7280'} />
           <Text style={[styles.textoTab, tabActivo === 'cuadrilla' && styles.textoTabActivo]}>
-            Cuadrilla de Trabajadores ({actividad.trabajadores.length})
+            Cuadrilla ({actividad.trabajadores.length})
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => setTabActivo('jornada')}
+          style={[styles.botonTab, tabActivo === 'jornada' && styles.botonTabActivo]}
+        >
+          <ClipboardList size={16} color={tabActivo === 'jornada' ? Palette.forestGreen : '#6B7280'} />
+          <Text style={[styles.textoTab, tabActivo === 'jornada' && styles.textoTabActivo]}>
+            Bitácora y Turno del Operador
           </Text>
         </Pressable>
       </View>
@@ -330,7 +347,7 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
               )}
             </View>
           </View>
-        ) : (
+        ) : tabActivo === 'cuadrilla' ? (
           /* Tab Cuadrilla */
           <View style={styles.bloqueTab}>
             <View style={styles.tarjetaFicha}>
@@ -364,6 +381,9 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
               )}
             </View>
           </View>
+        ) : (
+          /* Tab Bitácora y Turno del Operador */
+          <OperadorJornadaPanel actividad={actividad} />
         )}
       </ScrollView>
     </View>

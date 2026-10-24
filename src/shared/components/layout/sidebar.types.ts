@@ -71,7 +71,7 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
     nombre: 'Actividades',
     ruta: '/actividades',
     icono: CalendarCheck,
-    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
   },
   {
     nombre: 'Cultivos',
