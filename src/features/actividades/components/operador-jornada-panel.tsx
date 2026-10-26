@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Pressable,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import {
@@ -22,7 +21,10 @@ import {
   Droplets,
   Bug,
   ShieldAlert,
-  HelpCircle,
+  ListTodo,
+  User,
+  Play,
+  Sparkles,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
@@ -33,6 +35,7 @@ import {
   SeveridadHallazgo,
 } from '../stores/operador-jornada.store';
 import { useAuthStore } from '@/features/autenticacion';
+import { useCambiarEstadoActividadMutation } from '../api/actividades.api';
 
 export interface OperadorJornadaPanelProps {
   actividad: ActividadDetalle;
@@ -53,10 +56,20 @@ const OPCIONES_SEVERIDAD: SelectOpcion[] = [
   { label: '🔴 Alta (Urgente / Afecta la labor o el cultivo)', valor: 'ALTA' },
 ];
 
+const CHIPS_ZONA_SUGERIDAS = [
+  'Hilera 1 a 10',
+  'Hilera 11 a 20',
+  'Hilera 21 a 30',
+  'Sector Norte',
+  'Sector Sur',
+  'Cabecera Principal',
+  'Válvula 1 y 2',
+];
+
 /**
- * @description Panel integral de trabajo de campo para el Operador agrícola.
- * Permite gestionar subtareas, reportar hallazgos de campo y guardar la ubicación GPS
- * de avance de la jornada para retomar las labores al día siguiente.
+ * @description Panel integral de trabajo de campo para el Operador agrícola y Supervisor.
+ * Gestiona tareas asignadas individualmente a cada operario, reportes de hallazgos
+ * y guardado de punto GPS para retomar la labor al día siguiente.
  */
 export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ actividad }) => {
   const usuario = useAuthStore((s) => s.usuario);
@@ -64,11 +77,24 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
     ? usuario.nombreCompleto || `${usuario.nombres} ${usuario.apellidos}`.trim()
     : 'Operador de Campo';
 
+  const esOperador = usuario?.rol === 'OPERADOR';
+  const esSupervisor =
+    usuario?.rol === 'SUPERVISOR' ||
+    usuario?.rol === 'ADMINISTRADOR' ||
+    usuario?.rol === 'AGRONOMO' ||
+    actividad.usuarioResponsableId === usuario?.id;
+
+  const cambiarEstadoMutation = useCambiarEstadoActividadMutation();
+
   const {
     obtenerSubtareas,
     toggleSubtarea,
-    agregarSubtarea,
     eliminarSubtarea,
+    crearTareaSupervisor,
+    iniciarTareaOperador,
+    completarTareaOperador,
+    obtenerProgresoTareas,
+    obtenerSugerenciasTareas,
     agregarHallazgo,
     eliminarHallazgo,
     guardarPuntoAvance,
@@ -77,9 +103,26 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
     puntosAvancePorActividad,
   } = useOperadorJornadaStore();
 
-  // Subtareas
-  const [nuevaSubtareaTitulo, setNuevaSubtareaTitulo] = useState('');
-  const [mostrandoAgregarSubtarea, setMostrandoAgregarSubtarea] = useState(false);
+  // Filtro de vista para Operador
+  const [filtroVista, setFiltroVista] = useState<'mis_tareas' | 'todas'>(
+    esOperador ? 'mis_tareas' : 'todas',
+  );
+
+  // Formulario de asignación de tarea por supervisor
+  const [mostrandoFormTarea, setMostrandoFormTarea] = useState(false);
+  const [nuevaTareaTitulo, setNuevaTareaTitulo] = useState('');
+  const [nuevaTareaDescripcion, setNuevaTareaDescripcion] = useState('');
+  const [nuevaTareaZona, setNuevaTareaZona] = useState('');
+  const [nuevaTareaOperarioId, setNuevaTareaOperarioId] = useState('');
+
+  // Sugerencias según tipo de labor
+  const sugerenciasTareas = obtenerSugerenciasTareas(actividad.tipo);
+
+  // Opciones de operarios de la cuadrilla
+  const opcionesOperarios: SelectOpcion[] = (actividad.trabajadores || []).map((t) => ({
+    label: `${t.nombres} ${t.apellidos} ${t.rolEnActividad ? `(${t.rolEnActividad})` : ''}`,
+    valor: t.usuarioId,
+  }));
 
   // Punto de Avance GPS
   const [latitudAvance, setLatitudAvance] = useState<string>('');
@@ -104,14 +147,12 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
     obtenerSubtareas(actividad.id, actividad.tipo);
   }, [actividad.id, actividad.tipo, obtenerSubtareas]);
 
-  const subtareas = subtareasPorActividad[actividad.id] || [];
+  const todasLasTareas = subtareasPorActividad[actividad.id] || [];
+  const misTareas = todasLasTareas.filter((t) => t.responsableId === usuario?.id);
   const hallazgos = hallazgosPorActividad[actividad.id] || [];
   const puntoGuardado = puntosAvancePorActividad[actividad.id];
 
-  const totalSubtareas = subtareas.length;
-  const subtareasCompletadas = subtareas.filter((s) => s.completada).length;
-  const porcentajeAvance =
-    totalSubtareas > 0 ? Math.round((subtareasCompletadas / totalSubtareas) * 100) : 0;
+  const progresoTareas = obtenerProgresoTareas(actividad.id);
 
   // Capturar GPS
   const capturarGps = (tipo: 'avance' | 'hallazgo') => {
@@ -175,11 +216,60 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
     setTimeout(() => setMensajeExitoAvance(null), 4000);
   };
 
-  const handleCrearSubtarea = () => {
-    if (!nuevaSubtareaTitulo.trim()) return;
-    agregarSubtarea(actividad.id, nuevaSubtareaTitulo);
-    setNuevaSubtareaTitulo('');
-    setMostrandoAgregarSubtarea(false);
+  const handleCrearTareaSupervisor = () => {
+    if (!nuevaTareaTitulo.trim()) return;
+
+    const trabajadorSel = actividad.trabajadores?.find(
+      (t) => t.usuarioId === nuevaTareaOperarioId,
+    );
+    const nombreOp = trabajadorSel
+      ? `${trabajadorSel.nombres} ${trabajadorSel.apellidos}`.trim()
+      : undefined;
+
+    crearTareaSupervisor(actividad.id, {
+      titulo: nuevaTareaTitulo.trim(),
+      descripcion: nuevaTareaDescripcion.trim() || undefined,
+      zonaTrabajo: nuevaTareaZona.trim() || undefined,
+      responsableId: nuevaTareaOperarioId || undefined,
+      responsableNombre: nombreOp,
+      creadaPor: nombreUsuario,
+    });
+
+    setNuevaTareaTitulo('');
+    setNuevaTareaDescripcion('');
+    setNuevaTareaZona('');
+    setNuevaTareaOperarioId('');
+    setMostrandoFormTarea(false);
+  };
+
+  const handleIniciarTarea = (tareaId: string) => {
+    iniciarTareaOperador(actividad.id, tareaId);
+    if (actividad.estado === 'PENDIENTE') {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: 'EN_PROGRESO',
+      });
+    }
+  };
+
+  const handleFinalizarTarea = (tareaId: string) => {
+    const res = completarTareaOperador(actividad.id, tareaId, nombreUsuario);
+    if (res.todasCompletadas && actividad.estado !== 'COMPLETADA') {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: 'COMPLETADA',
+      });
+    }
+  };
+
+  const handleToggleTarea = (subId: string) => {
+    const res = toggleSubtarea(actividad.id, subId, nombreUsuario);
+    if (res.todasCompletadas && actividad.estado !== 'COMPLETADA') {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: 'COMPLETADA',
+      });
+    }
   };
 
   const handleRegistrarHallazgo = () => {
@@ -330,113 +420,448 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
         </View>
       </View>
 
-      {/* SECCIÓN 2: Checklist de Subtareas de la Jornada */}
+      {/* SECCIÓN 2: Tareas de Campo de la Cuadrilla / Tareas Asignadas */}
       <View style={styles.tarjetaModulo}>
         <View style={styles.cabeceraModulo}>
           <View style={styles.iconoModulo}>
-            <CheckCircle2 size={18} color={Palette.forestGreen} />
+            <ListTodo size={18} color={Palette.forestGreen} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tituloModulo}>Checklist de Subtareas del Turno</Text>
+            <Text style={styles.tituloModulo}>
+              {esOperador ? 'Tareas Asignadas a Tu Turno' : 'Tareas de Campo de la Cuadrilla'}
+            </Text>
             <Text style={styles.subtituloModulo}>
-              Marca las tareas conforme las vayas finalizando durante la jornada.
+              {esOperador
+                ? 'Revisa la labor que te designó el supervisor y márcala conforme avances.'
+                : 'Desglosa la actividad en tareas individuales y designa al operario responsable.'}
             </Text>
           </View>
-          <Boton
-            titulo="+ Subtarea"
-            variante="secundario"
-            tamano="sm"
-            onPress={() => setMostrandoAgregarSubtarea(!mostrandoAgregarSubtarea)}
-          />
-        </View>
 
-        {/* Barra de progreso */}
-        <View style={styles.contenedorProgreso}>
-          <View style={styles.filaTextoProgreso}>
-            <Text style={styles.textoProgresoDetalle}>
-              {subtareasCompletadas} de {totalSubtareas} tareas finalizadas
-            </Text>
-            <Text style={styles.porcentajeProgreso}>{porcentajeAvance}%</Text>
-          </View>
-          <View style={styles.barraFondo}>
-            <View style={[styles.barraRelleno, { width: `${porcentajeAvance}%` }]} />
-          </View>
-        </View>
-
-        {/* Formulario agregar subtarea rápida */}
-        {mostrandoAgregarSubtarea && (
-          <View style={styles.cajaAgregarSubtarea}>
-            <Input
-              label="Nueva tarea operativa para el turno"
-              placeholder="Ej: Calibrar presión de manguera secundaria..."
-              value={nuevaSubtareaTitulo}
-              onChangeText={setNuevaSubtareaTitulo}
+          {esSupervisor && (
+            <Boton
+              titulo={mostrandoFormTarea ? 'Cancelar' : '+ Asignar Tarea a Operador'}
+              variante={mostrandoFormTarea ? 'secundario' : 'primario'}
+              tamano="sm"
+              iconoIzquierda={
+                mostrandoFormTarea ? undefined : <Plus size={14} color={Palette.white} />
+              }
+              onPress={() => setMostrandoFormTarea(!mostrandoFormTarea)}
             />
-            <View style={styles.filaBotonesSubtarea}>
+          )}
+        </View>
+
+        {/* Selector de vista para el Operador */}
+        {esOperador && (
+          <View style={styles.filaFiltroTareasOperador}>
+            <Pressable
+              onPress={() => setFiltroVista('mis_tareas')}
+              style={[
+                styles.botonFiltroTarea,
+                filtroVista === 'mis_tareas' && styles.botonFiltroTareaActivo,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.textoFiltroTarea,
+                  filtroVista === 'mis_tareas' && styles.textoFiltroTareaActivo,
+                ]}
+              >
+                📍 Mi Tarea Asignada ({misTareas.length})
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setFiltroVista('todas')}
+              style={[
+                styles.botonFiltroTarea,
+                filtroVista === 'todas' && styles.botonFiltroTareaActivo,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.textoFiltroTarea,
+                  filtroVista === 'todas' && styles.textoFiltroTareaActivo,
+                ]}
+              >
+                👥 Toda la Cuadrilla ({todasLasTareas.length})
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Barra de progreso colaborativo */}
+        {todasLasTareas.length > 0 && (
+          <View style={styles.contenedorProgreso}>
+            <View style={styles.filaTextoProgreso}>
+              <Text style={styles.textoProgresoDetalle}>
+                Avance de Cuadrilla: {progresoTareas.tareasCompletadas} de {progresoTareas.totalTareas}{' '}
+                tareas finalizadas
+              </Text>
+              <Text style={styles.porcentajeProgreso}>{progresoTareas.porcentaje}%</Text>
+            </View>
+            <View style={styles.barraFondo}>
+              <View style={[styles.barraRelleno, { width: `${progresoTareas.porcentaje}%` }]} />
+            </View>
+          </View>
+        )}
+
+        {/* Aviso de labor completamente finalizada */}
+        {progresoTareas.todasCompletadas && progresoTareas.totalTareas > 0 && (
+          <View style={styles.cajaAlertaTodasCompletadas}>
+            <Sparkles size={16} color={Palette.success} />
+            <Text style={styles.textoAlertaTodasCompletadas}>
+              🎉 ¡Todas las tareas de la cuadrilla han sido completadas! La labor general ha quedado
+              marcada como COMPLETADA.
+            </Text>
+          </View>
+        )}
+
+        {/* Formulario de creación de tarea por el supervisor */}
+        {mostrandoFormTarea && (
+          <View style={styles.cajaFormularioTareaSupervisor}>
+            <Text style={styles.subtituloFormularioTarea}>
+              Designar Tarea Operativa y Operador Responsable
+            </Text>
+
+            {/* Sugerencias rápidas */}
+            {sugerenciasTareas.length > 0 && (
+              <View style={styles.contenedorSugerencias}>
+                <Text style={styles.etiquetaSugerencias}>Sugerencias según la labor:</Text>
+                <View style={styles.filaChipsSugerencias}>
+                  {sugerenciasTareas.map((sug, i) => (
+                    <Pressable
+                      key={i}
+                      onPress={() => setNuevaTareaTitulo(sug)}
+                      style={[
+                        styles.chipSugerencia,
+                        nuevaTareaTitulo === sug && styles.chipSugerenciaActivo,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.textoChipSugerencia,
+                          nuevaTareaTitulo === sug && styles.textoChipSugerenciaActivo,
+                        ]}
+                      >
+                        + {sug}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <Input
+              label="Nombre / Título de la Tarea *"
+              placeholder="Ej: Poda de ramas secas y chupones..."
+              value={nuevaTareaTitulo}
+              onChangeText={setNuevaTareaTitulo}
+            />
+
+            <Select
+              label="Operador Responsable *"
+              placeholder="Seleccionar operario de la cuadrilla..."
+              valor={nuevaTareaOperarioId}
+              opciones={opcionesOperarios}
+              onChange={setNuevaTareaOperarioId}
+            />
+
+            <View style={styles.bloqueZonaTarea}>
+              <Input
+                label="Zona de Trabajo / Subárea"
+                placeholder="Ej: Hilera 1 a 15, Válvula 3, Cabecera..."
+                value={nuevaTareaZona}
+                onChangeText={setNuevaTareaZona}
+              />
+              <View style={styles.filaChipsZona}>
+                {CHIPS_ZONA_SUGERIDAS.map((chip) => (
+                  <Pressable
+                    key={chip}
+                    onPress={() => setNuevaTareaZona(chip)}
+                    style={[
+                      styles.chipZona,
+                      nuevaTareaZona === chip && styles.chipZonaActivo,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.textoChipZona,
+                        nuevaTareaZona === chip && styles.textoChipZonaActivo,
+                      ]}
+                    >
+                      {chip}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <Input
+              label="Instrucciones u Observaciones de la Tarea"
+              placeholder="Ej: Desinfectar tijeras antes de cada planta, aplicar pasta cicatrizante..."
+              value={nuevaTareaDescripcion}
+              onChangeText={setNuevaTareaDescripcion}
+              multiline
+              numberOfLines={2}
+            />
+
+            <View style={styles.filaBotonesFormTarea}>
               <Boton
                 titulo="Cancelar"
                 variante="secundario"
                 tamano="sm"
-                onPress={() => setMostrandoAgregarSubtarea(false)}
+                onPress={() => setMostrandoFormTarea(false)}
               />
               <Boton
-                titulo="Agregar a la lista"
+                titulo="Guardar y Asignar Tarea"
                 variante="primario"
                 tamano="sm"
-                iconoIzquierda={<Plus size={14} color={Palette.white} />}
-                onPress={handleCrearSubtarea}
+                iconoIzquierda={<CheckCircle2 size={14} color={Palette.white} />}
+                onPress={handleCrearTareaSupervisor}
               />
             </View>
           </View>
         )}
 
-        {/* Lista de subtareas */}
-        <View style={styles.listaSubtareas}>
-          {subtareas.map((sub) => (
-            <Pressable
-              key={sub.id}
-              style={({ pressed }) => [
-                styles.itemSubtarea,
-                sub.completada && styles.itemSubtareaCompletada,
-                pressed && styles.itemSubtareaPresionada,
-              ]}
-              onPress={() => toggleSubtarea(actividad.id, sub.id, nombreUsuario)}
-            >
-              <View style={styles.checkCirculo}>
-                {sub.completada ? (
-                  <CheckCircle2 size={20} color={Palette.success} strokeWidth={2.4} />
-                ) : (
-                  <Circle size={20} color="#9CA3AF" />
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
+        {/* LISTADO DE TAREAS */}
+        {esOperador && filtroVista === 'mis_tareas' ? (
+          /* Vista específica del Operador: LA TAREA QUE SE LE DIO */
+          misTareas.length === 0 ? (
+            <View style={styles.cajaSinTareasAsignadas}>
+              <ListTodo size={28} color="#9CA3AF" />
+              <Text style={styles.tituloSinTareasAsignadas}>
+                No tienes tareas asignadas a tu nombre
+              </Text>
+              <Text style={styles.subtituloSinTareasAsignadas}>
+                El supervisor aún no ha desglosado una tarea específica designándote como responsable.
+                Puedes consultar con tu supervisor o ver las labores de tus compañeros de cuadrilla.
+              </Text>
+              <Boton
+                titulo="Ver Tareas de Toda la Cuadrilla"
+                variante="secundario"
+                tamano="sm"
+                onPress={() => setFiltroVista('todas')}
+              />
+            </View>
+          ) : (
+            <View style={styles.listaSubtareas}>
+              {misTareas.map((tarea) => (
+                <View
+                  key={tarea.id}
                   style={[
-                    styles.textoSubtarea,
-                    sub.completada && styles.textoSubtareaCompletada,
+                    styles.tarjetaTareaOperador,
+                    tarea.completada && styles.tarjetaTareaOperadorCompletada,
+                    tarea.estado === 'EN_PROGRESO' && styles.tarjetaTareaOperadorEnProgreso,
                   ]}
                 >
-                  {sub.titulo}
-                </Text>
-                {sub.completada && sub.completadaEn && (
-                  <Text style={styles.metaSubtarea}>
-                    Finalizada por {sub.completadaPor || 'Operador'} ·{' '}
-                    {new Date(sub.completadaEn).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                )}
-              </View>
-              <Pressable
-                onPress={() => eliminarSubtarea(actividad.id, sub.id)}
-                style={styles.botonBorrarSubtarea}
-              >
-                <Trash2 size={14} color="#9CA3AF" />
-              </Pressable>
-            </Pressable>
-          ))}
-        </View>
+                  <View style={styles.filaCabeceraTarea}>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.tituloTareaItem,
+                          tarea.completada && styles.tituloTareaItemCompletada,
+                        ]}
+                      >
+                        {tarea.titulo}
+                      </Text>
+                    </View>
+                    <Badge
+                      texto={
+                        tarea.completada
+                          ? '✓ Completada'
+                          : tarea.estado === 'EN_PROGRESO'
+                            ? 'En Terreno'
+                            : 'Por Iniciar'
+                      }
+                      variante={
+                        tarea.completada
+                          ? 'exito'
+                          : tarea.estado === 'EN_PROGRESO'
+                            ? 'info'
+                            : 'alerta'
+                      }
+                    />
+                  </View>
+
+                  {tarea.zonaTrabajo ? (
+                    <View style={styles.filaDetalleTarea}>
+                      <MapPin size={13} color={Palette.forestGreen} />
+                      <Text style={styles.textoDetalleTarea}>
+                        Zona asignada: <Text style={{ fontWeight: '700' }}>{tarea.zonaTrabajo}</Text>
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {tarea.descripcion ? (
+                    <View style={styles.filaDetalleTarea}>
+                      <FileText size={13} color="#4B5563" />
+                      <Text style={styles.textoIndicacionOperador}>{tarea.descripcion}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.pieAccionTarea}>
+                    {!tarea.completada ? (
+                      tarea.estado === 'EN_PROGRESO' ? (
+                        <Boton
+                          titulo="✓ Finalizar Mi Tarea"
+                          variante="primario"
+                          tamano="sm"
+                          iconoIzquierda={<CheckCircle2 size={14} color={Palette.white} />}
+                          onPress={() => handleFinalizarTarea(tarea.id)}
+                        />
+                      ) : (
+                        <Boton
+                          titulo="▶ Iniciar Mi Tarea"
+                          variante="secundario"
+                          tamano="sm"
+                          iconoIzquierda={<Play size={14} color={Palette.forestGreen} />}
+                          onPress={() => handleIniciarTarea(tarea.id)}
+                        />
+                      )
+                    ) : (
+                      <Text style={styles.textoFinalizadoOperador}>
+                        ✓ Finalizada a las{' '}
+                        {tarea.completadaEn
+                          ? new Date(tarea.completadaEn).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : ''}{' '}
+                        por {tarea.completadaPor || 'Operador'}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )
+        ) : (
+          /* Vista de toda la cuadrilla (para supervisor o para operador consultando al equipo) */
+          todasLasTareas.length === 0 ? (
+            <View style={styles.cajaSinTareasAsignadas}>
+              <ListTodo size={28} color="#9CA3AF" />
+              <Text style={styles.tituloSinTareasAsignadas}>
+                Aún no hay tareas desglosadas para esta labor
+              </Text>
+              <Text style={styles.subtituloSinTareasAsignadas}>
+                {esSupervisor
+                  ? 'Presiona "+ Asignar Tarea a Operador" para organizar el trabajo de la cuadrilla.'
+                  : 'El supervisor aún no ha generado tareas individuales para esta actividad.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.listaSubtareas}>
+              {todasLasTareas.map((tarea) => {
+                const esMiTarea = tarea.responsableId === usuario?.id;
+                return (
+                  <View
+                    key={tarea.id}
+                    style={[
+                      styles.tarjetaTareaOperador,
+                      tarea.completada && styles.tarjetaTareaOperadorCompletada,
+                      esMiTarea && styles.tarjetaTareaOperadorPropia,
+                    ]}
+                  >
+                    <View style={styles.filaCabeceraTarea}>
+                      <Pressable
+                        onPress={() => handleToggleTarea(tarea.id)}
+                        style={styles.checkCirculo}
+                      >
+                        {tarea.completada ? (
+                          <CheckCircle2 size={20} color={Palette.success} strokeWidth={2.4} />
+                        ) : (
+                          <Circle size={20} color="#9CA3AF" />
+                        )}
+                      </Pressable>
+
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text
+                          style={[
+                            styles.tituloTareaItem,
+                            tarea.completada && styles.tituloTareaItemCompletada,
+                          ]}
+                        >
+                          {tarea.titulo}
+                        </Text>
+
+                        <View style={styles.filaMetaResponsable}>
+                          <User size={12} color="#6B7280" />
+                          <Text style={styles.textoResponsableTarea}>
+                            Responsable:{' '}
+                            <Text style={{ fontWeight: '700' }}>
+                              {tarea.responsableNombre || 'Sin asignar'}
+                            </Text>
+                            {esMiTarea ? ' (Tú)' : ''}
+                          </Text>
+                          {tarea.zonaTrabajo ? (
+                            <Text style={styles.textoZonaMini}>· 📍 {tarea.zonaTrabajo}</Text>
+                          ) : null}
+                        </View>
+
+                        {tarea.descripcion ? (
+                          <Text style={styles.textoIndicacionOperadorMini}>
+                            📝 {tarea.descripcion}
+                          </Text>
+                        ) : null}
+
+                        {tarea.completada && tarea.completadaEn ? (
+                          <Text style={styles.metaSubtarea}>
+                            Finalizada por {tarea.completadaPor || 'Operador'} ·{' '}
+                            {new Date(tarea.completadaEn).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.accionesItemTarea}>
+                        <Badge
+                          texto={
+                            tarea.completada
+                              ? 'Completada'
+                              : tarea.estado === 'EN_PROGRESO'
+                                ? 'En Terreno'
+                                : 'Pendiente'
+                          }
+                          variante={
+                            tarea.completada
+                              ? 'exito'
+                              : tarea.estado === 'EN_PROGRESO'
+                                ? 'info'
+                                : 'alerta'
+                          }
+                        />
+
+                        {esMiTarea && !tarea.completada && (
+                          <Boton
+                            titulo={tarea.estado === 'EN_PROGRESO' ? '✓ Finalizar' : '▶ Iniciar'}
+                            variante={tarea.estado === 'EN_PROGRESO' ? 'primario' : 'secundario'}
+                            tamano="sm"
+                            onPress={() =>
+                              tarea.estado === 'EN_PROGRESO'
+                                ? handleFinalizarTarea(tarea.id)
+                                : handleIniciarTarea(tarea.id)
+                            }
+                          />
+                        )}
+
+                        {esSupervisor && (
+                          <Pressable
+                            onPress={() => eliminarSubtarea(actividad.id, tarea.id)}
+                            style={styles.botonBorrarSubtarea}
+                          >
+                            <Trash2 size={14} color="#9CA3AF" />
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )
+        )}
       </View>
 
       {/* SECCIÓN 3: Reporte de Novedades y Hallazgos de Campo */}
@@ -448,52 +873,55 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
           <View style={{ flex: 1 }}>
             <Text style={styles.tituloModulo}>Reportar Novedades o Incidencias de Campo</Text>
             <Text style={styles.subtituloModulo}>
-              ¿Encontraste plagas, fugas de riego, herramientas rotas o malezas? Repórtalo aquí.
+              Informa al supervisor si encuentras plagas, fallas de riego, o averías durante la labor.
             </Text>
           </View>
           <Boton
-            titulo={mostrandoFormHallazgo ? 'Cerrar' : '+ Reportar'}
-            variante={mostrandoFormHallazgo ? 'secundario' : 'primario'}
+            titulo={mostrandoFormHallazgo ? 'Cancelar' : '+ Novedad'}
+            variante={mostrandoFormHallazgo ? 'secundario' : 'outline'}
             tamano="sm"
             onPress={() => setMostrandoFormHallazgo(!mostrandoFormHallazgo)}
           />
         </View>
 
+        {/* Formulario de reporte de hallazgo */}
         {mostrandoFormHallazgo && (
           <View style={styles.formularioHallazgo}>
             <Select
-              label="Tipo de Novedad o Anomalía *"
-              valor={tipoHallazgo}
+              label="Tipo de Incidencia o Hallazgo *"
               opciones={OPCIONES_TIPO_HALLAZGO}
-              onChange={(v) => setTipoHallazgo(v as TipoHallazgoJornada)}
+              valor={tipoHallazgo}
+              onChange={(val) => setTipoHallazgo(val as TipoHallazgoJornada)}
             />
 
             <Select
-              label="Nivel de Severidad *"
-              valor={severidadHallazgo}
+              label="Nivel de Severidad / Urgencia *"
               opciones={OPCIONES_SEVERIDAD}
-              onChange={(v) => setSeveridadHallazgo(v as SeveridadHallazgo)}
+              valor={severidadHallazgo}
+              onChange={(val) => setSeveridadHallazgo(val as SeveridadHallazgo)}
             />
 
             <Input
-              label="Descripción de lo Encontrado *"
-              placeholder="Describe lo observado (ej: Gotero roto con fuga de agua severa en la línea 3)..."
-              multiline
-              numberOfLines={3}
+              label="Descripción de lo encontrado *"
+              placeholder="Ej: Fuga moderada en conector de manguera, hilera 12..."
               value={descripcionHallazgo}
               onChangeText={setDescripcionHallazgo}
+              multiline
+              numberOfLines={3}
             />
 
             <Input
-              label="Referencia o Ubicación en el Lote"
-              placeholder="Ej: Hilera 12, surco 5, cerca de poste 3..."
+              label="Referencia de ubicación en la parcela (opcional)"
+              placeholder="Ej: Hilera 12 cerca al poste este..."
               value={referenciaHallazgo}
               onChangeText={setReferenciaHallazgo}
             />
 
             <View style={styles.filaGps}>
               <Boton
-                titulo={obteniendoGpsHallazgo ? 'Obteniendo GPS...' : '📍 Capturar GPS de la novedad'}
+                titulo={
+                  obteniendoGpsHallazgo ? 'Obteniendo GPS...' : '📍 Capturar GPS de la Incidencia'
+                }
                 variante="secundario"
                 tamano="sm"
                 cargando={obteniendoGpsHallazgo}
@@ -735,6 +1163,38 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     marginTop: 4,
   },
+  filaFiltroTareasOperador: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    padding: 3,
+    gap: 4,
+  },
+  botonFiltroTarea: {
+    flex: 1,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  botonFiltroTareaActivo: {
+    backgroundColor: '#FFFFFF',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+  },
+  textoFiltroTarea: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  textoFiltroTareaActivo: {
+    color: Palette.forestGreen,
+    fontWeight: '800',
+  },
   contenedorProgreso: {
     backgroundColor: '#F9FAFB',
     padding: 12,
@@ -767,57 +1227,217 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.forestGreen,
     borderRadius: 4,
   },
-  cajaAgregarSubtarea: {
+  cajaAlertaTodasCompletadas: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EDF7ED',
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+    padding: 10,
+    borderRadius: 8,
+  },
+  textoAlertaTodasCompletadas: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Palette.forestGreen,
+    flex: 1,
+  },
+  cajaFormularioTareaSupervisor: {
     backgroundColor: '#F8FAF6',
     borderWidth: 1,
     borderColor: '#D4E3CC',
     borderRadius: 8,
-    padding: 12,
-    gap: 8,
+    padding: 14,
+    gap: 10,
   },
-  filaBotonesSubtarea: {
+  subtituloFormularioTarea: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Palette.forestGreen,
+  },
+  contenedorSugerencias: {
+    gap: 6,
+  },
+  etiquetaSugerencias: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  filaChipsSugerencias: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chipSugerencia: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D4DEC9',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  chipSugerenciaActivo: {
+    backgroundColor: Palette.forestGreen,
+    borderColor: Palette.forestGreen,
+  },
+  textoChipSugerencia: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  textoChipSugerenciaActivo: {
+    color: Palette.white,
+    fontWeight: '700',
+  },
+  bloqueZonaTarea: {
+    gap: 6,
+  },
+  filaChipsZona: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chipZona: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  chipZonaActivo: {
+    backgroundColor: '#E5F3DF',
+    borderWidth: 1,
+    borderColor: Palette.forestGreen,
+  },
+  textoChipZona: {
+    fontSize: 11,
+    color: '#4B5563',
+  },
+  textoChipZonaActivo: {
+    color: Palette.forestGreen,
+    fontWeight: '700',
+  },
+  filaBotonesFormTarea: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,
+    marginTop: 4,
+  },
+  cajaSinTareasAsignadas: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 8,
+  },
+  tituloSinTareasAsignadas: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  subtituloSinTareasAsignadas: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 420,
   },
   listaSubtareas: {
     gap: 8,
   },
-  itemSubtarea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: 8,
+  tarjetaTareaOperador: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    cursor: Platform.OS === 'web' ? ('pointer' as const) : undefined,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
   },
-  itemSubtareaCompletada: {
+  tarjetaTareaOperadorCompletada: {
     backgroundColor: '#F7FAF5',
     borderColor: '#D4DEC9',
   },
-  itemSubtareaPresionada: {
-    opacity: 0.8,
+  tarjetaTareaOperadorEnProgreso: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#F0F7FF',
   },
-  checkCirculo: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  tarjetaTareaOperadorPropia: {
+    borderLeftWidth: 4,
+    borderLeftColor: Palette.forestGreen,
   },
-  textoSubtarea: {
-    fontSize: 13,
-    color: '#1F2937',
-    fontWeight: '500',
+  filaCabeceraTarea: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
   },
-  textoSubtareaCompletada: {
+  tituloTareaItem: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  tituloTareaItemCompletada: {
     color: '#6B7280',
     textDecorationLine: 'line-through',
+  },
+  filaDetalleTarea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  textoDetalleTarea: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  textoIndicacionOperador: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontStyle: 'italic',
+  },
+  pieAccionTarea: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginTop: 4,
+  },
+  textoFinalizadoOperador: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Palette.forestGreen,
+  },
+  filaMetaResponsable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  textoResponsableTarea: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  textoZonaMini: {
+    fontSize: 11,
+    color: Palette.forestGreen,
+    fontWeight: '600',
+  },
+  textoIndicacionOperadorMini: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+  accionesItemTarea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  checkCirculo: {
+    paddingTop: 2,
   },
   metaSubtarea: {
     fontSize: 11,
     color: Palette.forestGreen,
-    marginTop: 2,
     fontWeight: '500',
   },
   botonBorrarSubtarea: {

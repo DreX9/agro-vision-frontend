@@ -2,13 +2,23 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { TipoActividadTipo } from '../types/actividad.types';
 
+export type EstadoTareaOperador = 'PENDIENTE' | 'EN_PROGRESO' | 'COMPLETADA';
+
 export interface SubtareaOperador {
   id: string;
   actividadId: string;
   titulo: string;
+  descripcion?: string;
+  zonaTrabajo?: string;
+  responsableId?: string; // ID del operario asignado por el supervisor
+  responsableNombre?: string; // Nombre del operario asignado
+  estado?: EstadoTareaOperador;
   completada: boolean;
   completadaPor?: string;
   completadaEn?: string; // ISO date
+  iniciadaEn?: string; // ISO date
+  creadaPor?: string; // Nombre del supervisor que creó la tarea
+  creadaEn?: string; // ISO date
 }
 
 export type TipoHallazgoJornada =
@@ -58,7 +68,7 @@ export interface AsignacionZonaTrabajador {
 }
 
 export interface OperadorJornadaState {
-  // Diccionario de subtareas por actividadId
+  // Diccionario de subtareas / tareas por actividadId
   subtareasPorActividad: Record<string, SubtareaOperador[]>;
   // Lista de hallazgos por actividadId
   hallazgosPorActividad: Record<string, HallazgoJornada[]>;
@@ -67,11 +77,37 @@ export interface OperadorJornadaState {
   // Zonas de trabajo asignadas a cada operador por actividadId
   zonasTrabajadoresPorActividad: Record<string, AsignacionZonaTrabajador[]>;
 
-  // Métodos
-  obtenerSubtareas: (actividadId: string, tipo: TipoActividadTipo) => SubtareaOperador[];
-  toggleSubtarea: (actividadId: string, subtareaId: string, usuarioNombre: string) => void;
+  // Métodos de tareas
+  obtenerSubtareas: (actividadId: string, tipo?: TipoActividadTipo) => SubtareaOperador[];
+  obtenerTareasOperador: (actividadId: string, usuarioId: string) => SubtareaOperador[];
+  obtenerSugerenciasTareas: (tipo?: TipoActividadTipo) => string[];
+  crearTareaSupervisor: (
+    actividadId: string,
+    tarea: {
+      titulo: string;
+      descripcion?: string;
+      zonaTrabajo?: string;
+      responsableId?: string;
+      responsableNombre?: string;
+      creadaPor?: string;
+    },
+  ) => SubtareaOperador;
+  iniciarTareaOperador: (actividadId: string, tareaId: string) => void;
+  completarTareaOperador: (
+    actividadId: string,
+    tareaId: string,
+    usuarioNombre: string,
+  ) => { todasCompletadas: boolean; tareasCompletadas: number; totalTareas: number };
+  toggleSubtarea: (
+    actividadId: string,
+    subtareaId: string,
+    usuarioNombre: string,
+  ) => { todasCompletadas: boolean; tareasCompletadas: number; totalTareas: number };
   agregarSubtarea: (actividadId: string, titulo: string) => void;
   eliminarSubtarea: (actividadId: string, subtareaId: string) => void;
+  obtenerProgresoTareas: (
+    actividadId: string,
+  ) => { totalTareas: number; tareasCompletadas: number; porcentaje: number; todasCompletadas: boolean };
 
   agregarHallazgo: (
     actividadId: string,
@@ -189,46 +225,64 @@ export const useOperadorJornadaStore = create<OperadorJornadaState>()(
       puntosAvancePorActividad: {},
       zonasTrabajadoresPorActividad: {},
 
-      obtenerSubtareas: (actividadId: string, tipo: TipoActividadTipo) => {
+      obtenerSubtareas: (actividadId: string, _tipo?: TipoActividadTipo) => {
         const estado = get();
         const existentes = estado.subtareasPorActividad[actividadId];
         if (existentes && existentes.length > 0) {
           return existentes;
         }
-
-        // Inicializar con la plantilla correspondiente
-        const tipoClave = String(tipo).toUpperCase();
-        const titulos =
-          SUBTAREAS_PREDETERMINADAS[tipoClave] || SUBTAREAS_PREDETERMINADAS.DEFAULT;
-
-        const nuevas: SubtareaOperador[] = titulos.map((titulo, idx) => ({
-          id: `${actividadId}-sub-${idx}-${Date.now()}`,
-          actividadId,
-          titulo,
-          completada: false,
-        }));
-
-        set((state) => ({
-          subtareasPorActividad: {
-            ...state.subtareasPorActividad,
-            [actividadId]: nuevas,
-          },
-        }));
-
-        return nuevas;
+        return [];
       },
 
-      toggleSubtarea: (actividadId: string, subtareaId: string, usuarioNombre: string) => {
+      obtenerTareasOperador: (actividadId: string, usuarioId: string) => {
+        const estado = get();
+        const tareas = estado.subtareasPorActividad[actividadId] || [];
+        return tareas.filter((t) => t.responsableId === usuarioId);
+      },
+
+      obtenerSugerenciasTareas: (tipo?: TipoActividadTipo) => {
+        if (!tipo) return SUBTAREAS_PREDETERMINADAS.DEFAULT;
+        const clave = String(tipo).toUpperCase();
+        return SUBTAREAS_PREDETERMINADAS[clave] || SUBTAREAS_PREDETERMINADAS.DEFAULT;
+      },
+
+      crearTareaSupervisor: (actividadId, datos) => {
+        const nuevaTarea: SubtareaOperador = {
+          id: `tarea-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          actividadId,
+          titulo: datos.titulo.trim(),
+          descripcion: datos.descripcion?.trim() || undefined,
+          zonaTrabajo: datos.zonaTrabajo?.trim() || undefined,
+          responsableId: datos.responsableId || undefined,
+          responsableNombre: datos.responsableNombre || undefined,
+          estado: 'PENDIENTE',
+          completada: false,
+          creadaPor: datos.creadaPor || undefined,
+          creadaEn: new Date().toISOString(),
+        };
+
         set((state) => {
           const actuales = state.subtareasPorActividad[actividadId] || [];
-          const actualizadas = actuales.map((sub) => {
-            if (sub.id !== subtareaId) return sub;
-            const nuevoEstado = !sub.completada;
+          return {
+            subtareasPorActividad: {
+              ...state.subtareasPorActividad,
+              [actividadId]: [...actuales, nuevaTarea],
+            },
+          };
+        });
+
+        return nuevaTarea;
+      },
+
+      iniciarTareaOperador: (actividadId, tareaId) => {
+        set((state) => {
+          const actuales = state.subtareasPorActividad[actividadId] || [];
+          const actualizadas = actuales.map((t) => {
+            if (t.id !== tareaId) return t;
             return {
-              ...sub,
-              completada: nuevoEstado,
-              completadaPor: nuevoEstado ? usuarioNombre : undefined,
-              completadaEn: nuevoEstado ? new Date().toISOString() : undefined,
+              ...t,
+              estado: 'EN_PROGRESO' as const,
+              iniciadaEn: t.iniciadaEn || new Date().toISOString(),
             };
           });
 
@@ -239,6 +293,83 @@ export const useOperadorJornadaStore = create<OperadorJornadaState>()(
             },
           };
         });
+      },
+
+      completarTareaOperador: (actividadId, tareaId, usuarioNombre) => {
+        let todasCompletadas = false;
+        let tareasCompletadas = 0;
+        let totalTareas = 0;
+
+        set((state) => {
+          const actuales = state.subtareasPorActividad[actividadId] || [];
+          const actualizadas = actuales.map((t) => {
+            if (t.id !== tareaId) return t;
+            return {
+              ...t,
+              completada: true,
+              estado: 'COMPLETADA' as const,
+              completadaPor: usuarioNombre,
+              completadaEn: new Date().toISOString(),
+            };
+          });
+
+          totalTareas = actualizadas.length;
+          tareasCompletadas = actualizadas.filter((t) => t.completada || t.estado === 'COMPLETADA').length;
+          todasCompletadas = totalTareas > 0 && tareasCompletadas === totalTareas;
+
+          return {
+            subtareasPorActividad: {
+              ...state.subtareasPorActividad,
+              [actividadId]: actualizadas,
+            },
+          };
+        });
+
+        return { todasCompletadas, tareasCompletadas, totalTareas };
+      },
+
+      toggleSubtarea: (actividadId: string, subtareaId: string, usuarioNombre: string) => {
+        let todasCompletadas = false;
+        let tareasCompletadas = 0;
+        let totalTareas = 0;
+
+        set((state) => {
+          const actuales = state.subtareasPorActividad[actividadId] || [];
+          const actualizadas = actuales.map((sub) => {
+            if (sub.id !== subtareaId) return sub;
+            const nuevoEstado = !sub.completada;
+            return {
+              ...sub,
+              completada: nuevoEstado,
+              estado: (nuevoEstado ? 'COMPLETADA' : 'PENDIENTE') as EstadoTareaOperador,
+              completadaPor: nuevoEstado ? usuarioNombre : undefined,
+              completadaEn: nuevoEstado ? new Date().toISOString() : undefined,
+            };
+          });
+
+          totalTareas = actualizadas.length;
+          tareasCompletadas = actualizadas.filter((t) => t.completada || t.estado === 'COMPLETADA').length;
+          todasCompletadas = totalTareas > 0 && tareasCompletadas === totalTareas;
+
+          return {
+            subtareasPorActividad: {
+              ...state.subtareasPorActividad,
+              [actividadId]: actualizadas,
+            },
+          };
+        });
+
+        return { todasCompletadas, tareasCompletadas, totalTareas };
+      },
+
+      obtenerProgresoTareas: (actividadId: string) => {
+        const tareas = get().subtareasPorActividad[actividadId] || [];
+        const total = tareas.length;
+        const completadas = tareas.filter((t) => t.completada || t.estado === 'COMPLETADA').length;
+        const porcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0;
+        const todasCompletadas = total > 0 && completadas === total;
+
+        return { totalTareas: total, tareasCompletadas: completadas, porcentaje, todasCompletadas };
       },
 
       agregarSubtarea: (actividadId: string, titulo: string) => {

@@ -14,6 +14,13 @@ import {
   Pencil,
   CheckCircle2,
   Compass,
+  ListTodo,
+  Plus,
+  Trash2,
+  CheckCircle,
+  Circle,
+  CheckSquare,
+  Square,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
@@ -54,14 +61,106 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
 }) => {
   const usuario = useAuthStore((s) => s.usuario);
   const esOperador = usuario?.rol === 'OPERADOR';
+  const esSupervisor = usuario?.rol === 'SUPERVISOR';
   const esAdministrador = usuario?.rol === 'ADMINISTRADOR';
+  const esResponsable = usuario?.id === actividad.usuarioResponsableId;
+  const puedeGestionarTareas = esSupervisor || esAdministrador || esResponsable;
   const puedeVerBitacora = !esAdministrador;
 
   const {
     sincronizarZonasDesdeTrabajadores,
     obtenerEstadoZonaOperador,
     obtenerProgresoActividad,
+    subtareasPorActividad,
+    obtenerSugerenciasTareas,
+    crearTareaSupervisor,
+    iniciarTareaOperador,
+    completarTareaOperador,
+    toggleSubtarea,
+    eliminarSubtarea,
+    obtenerProgresoTareas,
   } = useOperadorJornadaStore();
+
+  const [mostrandoFormTarea, setMostrandoFormTarea] = useState(false);
+  const [nuevaTareaTitulo, setNuevaTareaTitulo] = useState('');
+  const [nuevaTareaOperarioId, setNuevaTareaOperarioId] = useState('');
+  const [nuevaTareaZona, setNuevaTareaZona] = useState('');
+  const [nuevaTareaDescripcion, setNuevaTareaDescripcion] = useState('');
+
+  const CHIPS_ZONA_SUGERIDAS = [
+    'Hilera 1-10',
+    'Hilera 11-20',
+    'Hilera 21-30',
+    'Sector Norte',
+    'Sector Sur',
+    'Cabecera / Mezcla',
+  ];
+
+  const tareasActividad = subtareasPorActividad[actividad.id] || [];
+  const progresoTareas = obtenerProgresoTareas(actividad.id);
+
+  const opcionesOperarios = React.useMemo(() => {
+    return actividad.trabajadores.map((t) => {
+      const { rol, zona } = extraerRolYZona(t.rolEnActividad);
+      return {
+        label: `${t.nombres} ${t.apellidos} (${rol}${zona ? ` · ${zona}` : ''})`,
+        valor: t.usuarioId,
+      };
+    });
+  }, [actividad.trabajadores]);
+
+  const sugerenciasTareas = React.useMemo(() => {
+    return obtenerSugerenciasTareas(actividad.tipo);
+  }, [actividad.tipo, obtenerSugerenciasTareas]);
+
+  const handleCrearTareaSupervisor = () => {
+    if (!nuevaTareaTitulo.trim()) return;
+    const opSeleccionado = actividad.trabajadores.find((t) => t.usuarioId === nuevaTareaOperarioId);
+    const nombreOp = opSeleccionado
+      ? `${opSeleccionado.nombres} ${opSeleccionado.apellidos}`
+      : undefined;
+    const nombreSupervisor =
+      usuario?.nombreCompleto || `${usuario?.nombres} ${usuario?.apellidos}`.trim() || 'Supervisor';
+
+    crearTareaSupervisor(actividad.id, {
+      titulo: nuevaTareaTitulo.trim(),
+      descripcion: nuevaTareaDescripcion.trim() || undefined,
+      zonaTrabajo: nuevaTareaZona.trim() || undefined,
+      responsableId: nuevaTareaOperarioId || undefined,
+      responsableNombre: nombreOp,
+      creadaPor: nombreSupervisor,
+    });
+
+    setNuevaTareaTitulo('');
+    setNuevaTareaDescripcion('');
+    setNuevaTareaZona('');
+    setNuevaTareaOperarioId('');
+    setMostrandoFormTarea(false);
+  };
+
+  const handleCompletarTarea = (tareaId: string) => {
+    const nombreUsuario =
+      usuario?.nombreCompleto || `${usuario?.nombres} ${usuario?.apellidos}`.trim() || 'Operador';
+    const res = completarTareaOperador(actividad.id, tareaId, nombreUsuario);
+    if (res.todasCompletadas && onGuardarSeguimiento) {
+      onGuardarSeguimiento({
+        estado: 'COMPLETADA',
+        descripcion: actividad.descripcion || undefined,
+        observaciones: actividad.observaciones || undefined,
+      });
+    }
+  };
+
+  const handleIniciarTarea = (tareaId: string) => {
+    iniciarTareaOperador(actividad.id, tareaId);
+    if (actividad.estado === 'PENDIENTE' && onGuardarSeguimiento) {
+      onGuardarSeguimiento({
+        estado: 'EN_PROGRESO',
+        descripcion: actividad.descripcion || undefined,
+        observaciones: actividad.observaciones || undefined,
+      });
+    }
+  };
 
   useEffect(() => {
     if (actividad.id && actividad.trabajadores && actividad.trabajadores.length > 0) {
@@ -182,7 +281,8 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
         >
           <Users size={16} color={tabActivo === 'cuadrilla' ? Palette.forestGreen : '#6B7280'} />
           <Text style={[styles.textoTab, tabActivo === 'cuadrilla' && styles.textoTabActivo]}>
-            Cuadrilla ({actividad.trabajadores.length})
+            Cuadrilla y Tareas ({actividad.trabajadores.length}
+            {progresoTareas.totalTareas > 0 ? ` · ${progresoTareas.totalTareas} tareas` : ''})
           </Text>
         </Pressable>
 
@@ -489,6 +589,289 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                 </View>
               )}
             </View>
+
+            {/* Tareas Específicas Asignadas a la Cuadrilla */}
+            <View style={styles.tarjetaFicha}>
+              <View style={styles.cabeceraFichaCuadrilla}>
+                <View style={styles.filaTituloCuadrilla}>
+                  <ListTodo size={18} color={Palette.forestGreen} />
+                  <Text style={styles.tituloSeccion}>Tareas de Campo de la Actividad</Text>
+                </View>
+                <View style={styles.filaAccionesCabeceraCuadrilla}>
+                  {progresoTareas.totalTareas > 0 && (
+                    <Badge
+                      texto={`${progresoTareas.tareasCompletadas}/${progresoTareas.totalTareas} Tareas Listas (${progresoTareas.porcentaje}%)`}
+                      variante={progresoTareas.todasCompletadas ? 'exito' : 'info'}
+                    />
+                  )}
+                  {puedeGestionarTareas && (
+                    <Boton
+                      titulo={mostrandoFormTarea ? 'Cancelar' : '+ Asignar Tarea a Operador'}
+                      variante={mostrandoFormTarea ? 'secundario' : 'primario'}
+                      tamano="sm"
+                      iconoIzquierda={
+                        mostrandoFormTarea ? undefined : <Plus size={14} color={Palette.white} />
+                      }
+                      onPress={() => setMostrandoFormTarea(!mostrandoFormTarea)}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* Formulario de creación y asignación de tarea por el supervisor */}
+              {mostrandoFormTarea && (
+                <View style={styles.cajaFormularioTareaSupervisor}>
+                  <Text style={styles.subtituloFormularioTarea}>
+                    Designar Tarea Operativa y Operador Responsable
+                  </Text>
+
+                  {/* Sugerencias rápidas según el tipo de labor */}
+                  {sugerenciasTareas.length > 0 && (
+                    <View style={styles.contenedorSugerencias}>
+                      <Text style={styles.etiquetaSugerencias}>Sugerencias de tareas:</Text>
+                      <View style={styles.filaChipsSugerencias}>
+                        {sugerenciasTareas.map((sug, i) => (
+                          <Pressable
+                            key={i}
+                            onPress={() => setNuevaTareaTitulo(sug)}
+                            style={[
+                              styles.chipSugerencia,
+                              nuevaTareaTitulo === sug && styles.chipSugerenciaActivo,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.textoChipSugerencia,
+                                nuevaTareaTitulo === sug && styles.textoChipSugerenciaActivo,
+                              ]}
+                            >
+                              + {sug}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <Input
+                    label="Nombre / Título de la Tarea *"
+                    placeholder="Ej: Poda de ramas secas y chupones..."
+                    value={nuevaTareaTitulo}
+                    onChangeText={setNuevaTareaTitulo}
+                  />
+
+                  <Select
+                    label="Operador Responsable *"
+                    placeholder="Seleccionar operario de la cuadrilla..."
+                    valor={nuevaTareaOperarioId}
+                    opciones={opcionesOperarios}
+                    onChange={setNuevaTareaOperarioId}
+                  />
+
+                  <View style={styles.bloqueZonaTarea}>
+                    <Input
+                      label="Zona de Trabajo / Subárea"
+                      placeholder="Ej: Hilera 1 a 15, Válvula 3, Cabecera..."
+                      value={nuevaTareaZona}
+                      onChangeText={setNuevaTareaZona}
+                    />
+                    <View style={styles.filaChipsZona}>
+                      {CHIPS_ZONA_SUGERIDAS.map((chip) => (
+                        <Pressable
+                          key={chip}
+                          onPress={() => setNuevaTareaZona(chip)}
+                          style={[
+                            styles.chipZona,
+                            nuevaTareaZona === chip && styles.chipZonaActivo,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.textoChipZona,
+                              nuevaTareaZona === chip && styles.textoChipZonaActivo,
+                            ]}
+                          >
+                            {chip}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+
+                  <Input
+                    label="Instrucciones u Observaciones de la Tarea"
+                    placeholder="Ej: Desinfectar tijeras antes de cada planta, aplicar pasta en cortes..."
+                    value={nuevaTareaDescripcion}
+                    onChangeText={setNuevaTareaDescripcion}
+                    multiline
+                    numberOfLines={2}
+                  />
+
+                  <View style={styles.filaBotonesFormTarea}>
+                    <Boton
+                      titulo="Cancelar"
+                      variante="secundario"
+                      tamano="sm"
+                      onPress={() => setMostrandoFormTarea(false)}
+                    />
+                    <Boton
+                      titulo="Guardar y Asignar Tarea"
+                      variante="primario"
+                      tamano="sm"
+                      iconoIzquierda={<CheckCircle2 size={14} color={Palette.white} />}
+                      onPress={handleCrearTareaSupervisor}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Listado de tareas creadas */}
+              {tareasActividad.length === 0 ? (
+                <View style={styles.cajaSinTareas}>
+                  <Text style={styles.textoSinTareas}>
+                    {puedeGestionarTareas
+                      ? 'Aún no has creado tareas para esta labor. Presiona "+ Asignar Tarea a Operador" para desglosar el trabajo de campo y designar responsables.'
+                      : 'El supervisor aún no ha desglosado tareas específicas para esta actividad.'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.listaTareasDetalle}>
+                  {tareasActividad.map((tarea) => {
+                    const esMiTarea = tarea.responsableId === usuario?.id;
+                    return (
+                      <View
+                        key={tarea.id}
+                        style={[
+                          styles.tarjetaItemTarea,
+                          esMiTarea && styles.tarjetaItemTareaPropia,
+                        ]}
+                      >
+                        <View style={styles.cabeceraItemTarea}>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.filaTituloTareaConIcono}>
+                              {tarea.completada ? (
+                                <CheckCircle size={16} color={Palette.forestGreen} />
+                              ) : (
+                                <Circle size={16} color="#9CA3AF" />
+                              )}
+                              <Text
+                                style={[
+                                  styles.tituloItemTarea,
+                                  tarea.completada && styles.tituloItemTareaCompletada,
+                                ]}
+                              >
+                                {tarea.titulo}
+                              </Text>
+                            </View>
+
+                            <View style={styles.filaMetadatosTarea}>
+                              <Text style={styles.textoMetadatoTarea}>
+                                👤 Responsable:{' '}
+                                <Text style={{ fontWeight: '700', color: '#1F2937' }}>
+                                  {tarea.responsableNombre || 'Sin asignar'}
+                                </Text>
+                              </Text>
+                              {tarea.zonaTrabajo ? (
+                                <Text style={styles.textoMetadatoTarea}>
+                                  📍 Zona:{' '}
+                                  <Text style={{ fontWeight: '700', color: '#1F2937' }}>
+                                    {tarea.zonaTrabajo}
+                                  </Text>
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            {tarea.descripcion ? (
+                              <Text style={styles.descripcionItemTarea}>
+                                📝 {tarea.descripcion}
+                              </Text>
+                            ) : null}
+
+                            {tarea.completada && tarea.completadaEn ? (
+                              <Text style={styles.completadoItemTarea}>
+                                ✓ Finalizada por {tarea.completadaPor || 'Operador'} ·{' '}
+                                {new Date(tarea.completadaEn).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <View style={styles.columnaAccionesTarea}>
+                            <Badge
+                              texto={
+                                tarea.completada
+                                  ? 'Completada'
+                                  : tarea.estado === 'EN_PROGRESO'
+                                    ? 'En Terreno'
+                                    : 'Pendiente'
+                              }
+                              variante={
+                                tarea.completada
+                                  ? 'exito'
+                                  : tarea.estado === 'EN_PROGRESO'
+                                    ? 'info'
+                                    : 'alerta'
+                              }
+                            />
+
+                            {/* Acciones para el operario dueño de la tarea */}
+                            {esOperador && esMiTarea && !tarea.completada && (
+                              <View style={{ marginTop: 6 }}>
+                                {tarea.estado !== 'EN_PROGRESO' ? (
+                                  <Boton
+                                    titulo="Iniciar"
+                                    tamano="sm"
+                                    variante="primario"
+                                    onPress={() => handleIniciarTarea(tarea.id)}
+                                  />
+                                ) : (
+                                  <Boton
+                                    titulo="Finalizar"
+                                    tamano="sm"
+                                    variante="primario"
+                                    onPress={() => handleCompletarTarea(tarea.id)}
+                                  />
+                                )}
+                              </View>
+                            )}
+
+                            {/* Acciones para el supervisor */}
+                            {puedeGestionarTareas && (
+                              <View style={styles.filaBotonesSupervisorTarea}>
+                                <Pressable
+                                  onPress={() =>
+                                    toggleSubtarea(
+                                      actividad.id,
+                                      tarea.id,
+                                      usuario?.nombreCompleto || 'Supervisor',
+                                    )
+                                  }
+                                  style={styles.botonIconoAccion}
+                                >
+                                  {tarea.completada ? (
+                                    <CheckSquare size={16} color={Palette.forestGreen} />
+                                  ) : (
+                                    <Square size={16} color="#9CA3AF" />
+                                  )}
+                                </Pressable>
+                                <Pressable
+                                  onPress={() => eliminarSubtarea(actividad.id, tarea.id)}
+                                  style={styles.botonIconoAccion}
+                                >
+                                  <Trash2 size={16} color="#EF4444" />
+                                </Pressable>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </View>
         ) : puedeVerBitacora && tabActivo === 'jornada' ? (
           /* Tab Bitácora y Turno del Operador */
@@ -709,5 +1092,180 @@ const styles = StyleSheet.create({
   textoZonaOperarioFicha: {
     fontSize: 11,
     color: '#166534',
+  },
+  filaTituloCuadrilla: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filaAccionesCabeceraCuadrilla: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  cajaFormularioTareaSupervisor: {
+    backgroundColor: '#F7FAF5',
+    borderWidth: 1,
+    borderColor: '#D4E3CC',
+    borderRadius: 10,
+    padding: 14,
+    gap: 10,
+  },
+  subtituloFormularioTarea: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1B4332',
+  },
+  contenedorSugerencias: {
+    gap: 6,
+  },
+  etiquetaSugerencias: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  filaChipsSugerencias: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  chipSugerencia: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0DEC8',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  chipSugerenciaActivo: {
+    backgroundColor: '#E8F5E9',
+    borderColor: Palette.forestGreen,
+  },
+  textoChipSugerencia: {
+    fontSize: 11,
+    color: '#374151',
+  },
+  textoChipSugerenciaActivo: {
+    color: Palette.forestGreen,
+    fontWeight: '700',
+  },
+  bloqueZonaTarea: {
+    gap: 6,
+  },
+  filaChipsZona: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: -4,
+  },
+  chipZona: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 5,
+  },
+  chipZonaActivo: {
+    backgroundColor: '#E8F5E9',
+  },
+  textoChipZona: {
+    fontSize: 11,
+    color: '#4B5563',
+  },
+  textoChipZonaActivo: {
+    color: Palette.forestGreen,
+    fontWeight: '700',
+  },
+  filaBotonesFormTarea: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  cajaSinTareas: {
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  textoSinTareas: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  listaTareasDetalle: {
+    gap: 10,
+  },
+  tarjetaItemTarea: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+  },
+  tarjetaItemTareaPropia: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#F0FDF4',
+  },
+  cabeceraItemTarea: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  filaTituloTareaConIcono: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tituloItemTarea: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  tituloItemTareaCompletada: {
+    textDecorationLine: 'line-through',
+    color: '#6B7280',
+  },
+  filaMetadatosTarea: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
+  },
+  textoMetadatoTarea: {
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  descripcionItemTarea: {
+    fontSize: 12,
+    color: '#4B5563',
+    backgroundColor: '#F9FAFB',
+    padding: 6,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  completadoItemTarea: {
+    fontSize: 11,
+    color: Palette.forestGreen,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  columnaAccionesTarea: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  filaBotonesSupervisorTarea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  botonIconoAccion: {
+    padding: 4,
   },
 });
