@@ -1,8 +1,17 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, ScrollView, useWindowDimensions, Pressable } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Users, Wrench } from 'lucide-react-native';
+import {
+  Users,
+  Wrench,
+  Check,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  ClipboardList,
+} from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Boton, Input, Select } from '@/shared/components/ui';
 import { useAuthStore } from '@/features/autenticacion';
@@ -15,6 +24,16 @@ import { ActividadFormularioCuadrilla, TrabajadorAsignadoInput } from './activid
 import { ActividadFormularioRecursos, RecursoAsignadoInput } from './actividad-formulario-recursos';
 import { ActividadFormularioLabor } from './actividad-formulario-labor';
 import { styles } from './actividad-formulario.styles';
+
+export type TipoPasoActividad = 'labor' | 'insumos' | 'cuadrilla' | 'seguimiento';
+
+export interface PasoConfig {
+  id: TipoPasoActividad;
+  numero: number;
+  titulo: string;
+  subtitulo: string;
+  badge?: number;
+}
 
 export interface ActividadFormularioProps {
   parcelas: ParcelaItem[];
@@ -31,7 +50,11 @@ export interface ActividadFormularioProps {
 }
 
 /**
- * @description Formulario estructurado en tabs y 2 columnas para planificación de labores agrícolas.
+ * @description Formulario en pasos (Wizard) para planificación y gestión de actividades agrícolas.
+ * Muestra u oculta pasos según el rol del usuario:
+ * - Administrador: Todos los pasos (Labor, Insumos, Cuadrilla, Seguimiento).
+ * - Agrónomo: Labor Agrícola, Insumos y Estado/Prescripción (la Cuadrilla queda oculta).
+ * - Supervisor: Cuadrilla Operativa y Seguimiento de campo (la prescripción técnica queda oculta).
  */
 export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   parcelas,
@@ -49,8 +72,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const usuarioActual = useAuthStore((s) => s.usuario);
   const esSupervisor = esSupervisorProp ?? (usuarioActual?.rol === 'SUPERVISOR');
   const esAgronomo = esAgronomoProp ?? (usuarioActual?.rol === 'AGRONOMO');
-  const { width } = useWindowDimensions();
-  const esEscritorio = width >= 980;
+  const esAdmin = usuarioActual?.rol === 'ADMINISTRADOR';
 
   const [cuadrilla, setCuadrilla] = useState<TrabajadorAsignadoInput[]>(
     valoresIniciales?.trabajadores || [],
@@ -64,6 +86,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     handleSubmit,
     setValue,
     watch,
+    trigger,
     formState: { errors },
   } = useForm<ActividadFormValores>({
     resolver: zodResolver(actividadSchema),
@@ -95,14 +118,124 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const horaFinActual = watch('horaFin') || '12:00';
   const duracionHorasActual = watch('duracionHoras') || 5;
 
-  // Consulta de sectores / áreas de cultivo correspondientes a la parcela seleccionada
+  // Definición dinámica de los pasos según el rol del usuario
+  const pasosDisponibles = useMemo<PasoConfig[]>(() => {
+    if (esSupervisor) {
+      // Supervisor: solo gestiona Cuadrilla de operarios y Seguimiento / Estado
+      return [
+        {
+          id: 'cuadrilla',
+          numero: 1,
+          titulo: '1. Cuadrilla Operativa',
+          subtitulo: 'Asignar operarios y zonas',
+          badge: cuadrilla.length,
+        },
+        {
+          id: 'seguimiento',
+          numero: 2,
+          titulo: '2. Seguimiento y Estado',
+          subtitulo: 'Estado y notas de campo',
+        },
+      ];
+    }
+
+    if (esAgronomo) {
+      // Agrónomo: prescribe Labor, Insumos y Estado/Observaciones (Cuadrilla oculta)
+      return [
+        {
+          id: 'labor',
+          numero: 1,
+          titulo: '1. Labor Agrícola',
+          subtitulo: 'Labor, parcela, fecha y supervisor',
+        },
+        {
+          id: 'insumos',
+          numero: 2,
+          titulo: '2. Insumos Planificados',
+          subtitulo: 'Recursos y dosis estimadas',
+          badge: recursos.length,
+        },
+        {
+          id: 'seguimiento',
+          numero: 3,
+          titulo: '3. Estado y Prescripción',
+          subtitulo: 'Estado inicial y advertencias',
+        },
+      ];
+    }
+
+    // Administrador: visualiza y gestiona todos los pasos completos
+    return [
+      {
+        id: 'labor',
+        numero: 1,
+        titulo: '1. Labor Agrícola',
+        subtitulo: 'Labor, parcela, fecha y supervisor',
+      },
+      {
+        id: 'insumos',
+        numero: 2,
+        titulo: '2. Insumos Planificados',
+        subtitulo: 'Recursos y dosis estimadas',
+        badge: recursos.length,
+      },
+      {
+        id: 'cuadrilla',
+        numero: 3,
+        titulo: '3. Cuadrilla Operativa',
+        subtitulo: 'Operarios y turnos de campo',
+        badge: cuadrilla.length,
+      },
+      {
+        id: 'seguimiento',
+        numero: 4,
+        titulo: '4. Seguimiento y Estado',
+        subtitulo: 'Estado de avance y notas',
+      },
+    ];
+  }, [esSupervisor, esAgronomo, cuadrilla.length, recursos.length]);
+
+  const [pasoActivoId, setPasoActivoId] = useState<TipoPasoActividad>(pasosDisponibles[0].id);
+
+  // Garantizar consistencia si cambian los pasos disponibles
+  useEffect(() => {
+    if (!pasosDisponibles.some((p) => p.id === pasoActivoId)) {
+      setPasoActivoId(pasosDisponibles[0].id);
+    }
+  }, [pasosDisponibles, pasoActivoId]);
+
+  const indicePasoActivo = Math.max(
+    0,
+    pasosDisponibles.findIndex((p) => p.id === pasoActivoId),
+  );
+  const esPrimerPaso = indicePasoActivo === 0;
+  const esUltimoPaso = indicePasoActivo === pasosDisponibles.length - 1;
+
+  // Control de avance y validación de pasos
+  const handleSiguiente = async () => {
+    if (pasoActivoId === 'labor') {
+      const valido = await trigger(['titulo', 'tipo', 'parcelaId', 'fechaInicio']);
+      if (!valido) return;
+    }
+    if (!esUltimoPaso) {
+      setPasoActivoId(pasosDisponibles[indicePasoActivo + 1].id);
+    }
+  };
+
+  const handleAnterior = () => {
+    if (!esPrimerPaso) {
+      setPasoActivoId(pasosDisponibles[indicePasoActivo - 1].id);
+    }
+  };
+
+  // Consulta de sectores correspondientes a la parcela seleccionada
   const { data: resumenSectores, isLoading: cargandoSectores } = useSectoresPorParcelaQuery(
     parcelaIdActual || undefined,
   );
 
   // Si cambia la parcela, limpiar sectorId para evitar asignaciones inconsistentes
-  const parcelaIdAnteriorRef = React.useRef(parcelaIdActual);
-  React.useEffect(() => {
+  const parcelaIdAnteriorRef = useRef(parcelaIdActual);
+  useEffect(() => {
     if (parcelaIdAnteriorRef.current && parcelaIdAnteriorRef.current !== parcelaIdActual) {
       setValue('sectorId', '');
     }
@@ -110,7 +243,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }, [parcelaIdActual, setValue]);
 
   const sectoresDisponibles = resumenSectores?.sectores || [];
-  const opcionesSectores = React.useMemo(() => {
+  const opcionesSectores = useMemo(() => {
     return [
       {
         label:
@@ -127,7 +260,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }, [sectoresDisponibles]);
 
   // Si se selecciona un encargado/responsable, se excluye de la cuadrilla operativa
-  React.useEffect(() => {
+  useEffect(() => {
     if (responsableIdActual) {
       setCuadrilla((prev) => {
         if (prev.some((t) => t.usuarioId === responsableIdActual)) {
@@ -141,7 +274,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }, [responsableIdActual, setValue]);
 
   const alternarTrabajador = (usuarioId: string) => {
-    if (esAgronomo) return; // Bloqueado para Agrónomos
+    if (esAgronomo) return;
     setCuadrilla((prev) => {
       const nueva = prev.some((t) => t.usuarioId === usuarioId)
         ? prev.filter((t) => t.usuarioId !== usuarioId)
@@ -161,7 +294,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarRolTrabajador = (usuarioId: string, rol: string) => {
-    if (esAgronomo) return; // Bloqueado para Agrónomos
+    if (esAgronomo) return;
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, rolEnActividad: rol } : t));
       setValue('trabajadores', nueva);
@@ -170,7 +303,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarZonaTrabajador = (usuarioId: string, zona: string) => {
-    if (esAgronomo) return; // Bloqueado para Agrónomos
+    if (esAgronomo) return;
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, zonaTrabajo: zona } : t));
       setValue('trabajadores', nueva);
@@ -179,7 +312,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   };
 
   const cambiarHorasTrabajador = (usuarioId: string, horas: number) => {
-    if (esAgronomo) return; // Bloqueado para Agrónomos
+    if (esAgronomo) return;
     setCuadrilla((prev) => {
       const nueva = prev.map((t) => (t.usuarioId === usuarioId ? { ...t, horasAsignadas: horas } : t));
       setValue('trabajadores', nueva);
@@ -190,7 +323,10 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   const agregarRecurso = (insumo: InsumoItem) => {
     setRecursos((prev) => {
       if (prev.some((r) => r.insumoId === insumo.id)) return prev;
-      const nueva = [...prev, { insumoId: insumo.id, cantidadEstimada: 1, unidadMedida: insumo.unidadMedida }];
+      const nueva = [
+        ...prev,
+        { insumoId: insumo.id, cantidadEstimada: 1, unidadMedida: insumo.unidadMedida },
+      ];
       setValue('recursos', nueva);
       return nueva;
     });
@@ -206,7 +342,9 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
 
   const cambiarCantidadRecurso = (insumoId: string, cantidad: number) => {
     setRecursos((prev) => {
-      const nueva = prev.map((r) => (r.insumoId === insumoId ? { ...r, cantidadEstimada: cantidad } : r));
+      const nueva = prev.map((r) =>
+        r.insumoId === insumoId ? { ...r, cantidadEstimada: cantidad } : r,
+      );
       setValue('recursos', nueva);
       return nueva;
     });
@@ -218,7 +356,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
   }));
 
   // Priorizar y ordenar para destacar Supervisores de campo como encargados
-  const opcionesResponsables = React.useMemo(() => {
+  const opcionesResponsables = useMemo(() => {
     const ordenRoles: Record<string, number> = {
       SUPERVISOR: 1,
       AGRONOMO: 2,
@@ -229,9 +367,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     return [...usuarios]
       .filter((u) => {
         if (!u.activo) return false;
-        // Los operarios no pueden ser responsables de labor
         if (u.rol === 'OPERADOR') return false;
-        // El agrónomo NO debe poder seleccionar a Administradores como encargados
         if (esAgronomo && u.rol === 'ADMINISTRADOR') return false;
         return true;
       })
@@ -247,6 +383,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     ? `${responsableSeleccionado.nombres} ${responsableSeleccionado.apellidos}`
     : undefined;
 
+  // Bloque 1: Labor Agrícola
   const bloqueLabor = (
     <ActividadFormularioLabor
       control={control}
@@ -288,6 +425,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     />
   );
 
+  // Bloque 2: Cuadrilla Operativa
   const bloqueCuadrilla = (
     <View style={styles.tarjeta}>
       <ActividadFormularioCuadrilla
@@ -315,6 +453,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     </View>
   );
 
+  // Bloque 3: Insumos Planificados
   const bloqueInsumos = (
     <View style={styles.tarjeta}>
       <ActividadFormularioRecursos
@@ -327,6 +466,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     </View>
   );
 
+  // Bloque 4: Seguimiento, Estado y Observaciones
   const bloqueNotas = (
     <View style={styles.tarjeta}>
       <Text style={styles.tituloSeccion}>Seguimiento, Estado y Observaciones</Text>
@@ -383,6 +523,39 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     </View>
   );
 
+  // Banner de contexto informativo para el Supervisor
+  const bannerContextoSupervisor = (
+    <View style={styles.bannerContextoLaborSupervisor}>
+      <View style={styles.filaContextoSupervisor}>
+        <FileText size={16} color={Palette.forestGreen} />
+        <Text style={styles.tituloContextoSupervisor}>
+          Labor prescrita:{' '}
+          <Text style={{ fontWeight: '800' }}>
+            {valoresIniciales?.titulo || watch('titulo') || 'Actividad Agrícola'}
+          </Text>
+        </Text>
+      </View>
+      <Text style={styles.textoContextoSupervisor}>
+        Parcela:{' '}
+        <Text style={{ fontWeight: '700' }}>
+          {parcelas.find((p) => p.id === parcelaIdActual)?.nombre || 'Parcela'}
+        </Text>
+        {sectorIdActual
+          ? ` · Sector: ${opcionesSectores.find((s) => s.valor === sectorIdActual)?.label?.split('] ')[1] || sectorIdActual}`
+          : ''}
+        {' · '}Turno:{' '}
+        <Text style={{ fontWeight: '700' }}>
+          {horaInicioActual} a {horaFinActual} ({duracionHorasActual}h)
+        </Text>
+      </Text>
+      {watch('descripcion') ? (
+        <Text style={styles.descripcionContextoSupervisor}>
+          Indicaciones operativas: {watch('descripcion')}
+        </Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={styles.contenedorPrincipal}>
       <ScrollView
@@ -390,77 +563,140 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         contentContainerStyle={styles.contenedor}
         showsVerticalScrollIndicator={false}
       >
-        {/* Encabezado Sección 1: Labor Agrícola y Cuadrilla */}
-        <View style={styles.bannerSeccion}>
-          <View style={styles.filaTituloBannerSeccion}>
-            <Users size={16} color={Palette.forestGreen} />
-            <Text style={styles.tituloBannerSeccion}>1. Labor Agrícola y Cuadrilla Operativa</Text>
-          </View>
-          <Text style={styles.subtituloBannerSeccion}>
-            Defina la labor, parcela, sector, horario de turno y la asignación de operarios de campo.
-          </Text>
+        {/* Indicador Stepper de Pasos Interactivos */}
+        <View style={styles.contenedorStepper}>
+          {pasosDisponibles.map((paso, idx) => {
+            const esActivo = paso.id === pasoActivoId;
+            const esCompletado = idx < indicePasoActivo;
+
+            return (
+              <Pressable
+                key={paso.id}
+                style={[
+                  styles.itemStepper,
+                  esActivo && styles.itemStepperActivo,
+                  esCompletado && styles.itemStepperCompletado,
+                ]}
+                onPress={() => setPasoActivoId(paso.id)}
+              >
+                <View
+                  style={[
+                    styles.circuloNumeroPaso,
+                    esActivo && styles.circuloNumeroPasoActivo,
+                    esCompletado && styles.circuloNumeroPasoCompletado,
+                  ]}
+                >
+                  {esCompletado ? (
+                    <Check size={14} color="#FFFFFF" strokeWidth={2.5} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.textoNumeroPaso,
+                        esActivo && styles.textoNumeroPasoActivo,
+                      ]}
+                    >
+                      {paso.numero}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.infoPasoStepper}>
+                  <Text
+                    style={[
+                      styles.tituloPasoStepper,
+                      esActivo && styles.tituloPasoStepperActivo,
+                      esCompletado && styles.tituloPasoStepperCompletado,
+                    ]}
+                  >
+                    {paso.titulo}
+                  </Text>
+                  <Text style={styles.subtituloPasoStepper} numberOfLines={1}>
+                    {paso.subtitulo}
+                  </Text>
+                </View>
+
+                {paso.badge !== undefined && paso.badge > 0 && (
+                  <View style={styles.badgePaso}>
+                    <Text style={styles.textoBadgePaso}>{paso.badge}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Fila 1: Labor Agrícola y Cuadrilla */}
-        {esEscritorio ? (
-          <View style={styles.filaDosColumnasLayout}>
-            <View style={styles.columnaMitad}>{bloqueLabor}</View>
-            <View style={styles.columnaMitad}>{bloqueCuadrilla}</View>
-          </View>
-        ) : (
-          <View style={styles.layoutMovil}>
-            {bloqueLabor}
+        {/* Contenido según el Paso Activo */}
+        {pasoActivoId === 'labor' && (
+          <View style={styles.bloqueCampo}>{bloqueLabor}</View>
+        )}
+
+        {pasoActivoId === 'insumos' && (
+          <View style={styles.bloqueCampo}>{bloqueInsumos}</View>
+        )}
+
+        {pasoActivoId === 'cuadrilla' && (
+          <View style={{ gap: 14 }}>
+            {esSupervisor && bannerContextoSupervisor}
             {bloqueCuadrilla}
           </View>
         )}
 
-        {/* Encabezado Sección 2: Insumos Planificados y Notas Técnicas (Continuando hacia abajo) */}
-        <View style={styles.bannerSeccion}>
-          <View style={styles.filaTituloBannerSeccion}>
-            <Wrench size={16} color={Palette.forestGreen} />
-            <Text style={styles.tituloBannerSeccion}>2. Insumos Planificados y Observaciones Técnicas</Text>
-            {recursos.length > 0 && (
-              <View style={styles.badgeTab}>
-                <Text style={styles.textoBadgeTab}>{recursos.length}</Text>
-              </View>
+        {pasoActivoId === 'seguimiento' && (
+          <View style={styles.bloqueCampo}>{bloqueNotas}</View>
+        )}
+      </ScrollView>
+
+      {/* Barra de navegación de pasos al pie */}
+      <View style={styles.barraAccionesFooter}>
+        <View style={styles.barraAccionesInner}>
+          <View style={styles.grupoBotonesIzquierda}>
+            {esPrimerPaso ? (
+              <Boton
+                titulo="Cancelar"
+                variante="secundario"
+                tamano="sm"
+                onPress={onCancelar}
+                disabled={guardando}
+              />
+            ) : (
+              <Boton
+                titulo="← Anterior"
+                variante="secundario"
+                tamano="sm"
+                iconoIzquierda={<ArrowLeft size={14} color={Palette.forestGreen} />}
+                onPress={handleAnterior}
+                disabled={guardando}
+              />
             )}
           </View>
-          <Text style={styles.subtituloBannerSeccion}>
-            Planifique los insumos requeridos y registre las condiciones climáticas, estado y descripción operativa.
+
+          <Text style={styles.textoProgresoPasos}>
+            Paso {indicePasoActivo + 1} de {pasosDisponibles.length}
           </Text>
-        </View>
 
-        {/* Fila 2: Insumos y Observaciones / Seguimiento */}
-        {esEscritorio ? (
-          <View style={styles.filaDosColumnasLayout}>
-            <View style={styles.columnaMitad}>{bloqueInsumos}</View>
-            <View style={styles.columnaMitad}>{bloqueNotas}</View>
+          <View style={styles.grupoBotonesDerecha}>
+            {!esUltimoPaso ? (
+              <Boton
+                titulo="Siguiente Paso →"
+                variante="primario"
+                tamano="sm"
+                iconoDerecha={<ArrowRight size={14} color="#FFFFFF" />}
+                onPress={handleSiguiente}
+                disabled={guardando}
+              />
+            ) : (
+              <Boton
+                titulo={modo === 'crear' ? 'Registrar Actividad' : 'Guardar Cambios'}
+                variante="primario"
+                tamano="sm"
+                iconoIzquierda={<CheckCircle2 size={14} color="#FFFFFF" />}
+                onPress={handleSubmit(onSubmit)}
+                cargando={guardando}
+              />
+            )}
           </View>
-        ) : (
-          <View style={styles.layoutMovil}>
-            {bloqueInsumos}
-            {bloqueNotas}
-          </View>
-        )}
-
-        {/* Fila 3: Botones de Acción al Final del Formulario */}
-        <View style={styles.filaAccionesFormulario}>
-          <Boton
-            titulo="Cancelar"
-            variante="secundario"
-            tamano="sm"
-            onPress={onCancelar}
-            disabled={guardando}
-          />
-          <Boton
-            titulo={modo === 'crear' ? 'Registrar Actividad' : 'Guardar Cambios'}
-            variante="primario"
-            tamano="sm"
-            onPress={handleSubmit(onSubmit)}
-            cargando={guardando}
-          />
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };

@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { Palette } from '@/constants/theme';
 
 export const styles = StyleSheet.create({
@@ -367,4 +367,126 @@ export const styles = StyleSheet.create({
     opacity: 0.45,
     backgroundColor: '#F9FAFB',
   },
+  contenedorStepper: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D0DEC8',
+    padding: 8,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  itemStepper: {
+    flex: 1,
+    minWidth: 160,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    cursor: Platform.OS === 'web' ? 'pointer' : undefined,
+  },
+  itemStepperActivo: {
+    backgroundColor: '#EDF5E8',
+    borderColor: Palette.forestGreen,
+  },
+  itemStepperCompletado: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  circuloNumeroPaso: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circuloNumeroPasoActivo: {
+    backgroundColor: Palette.forestGreen,
+  },
+  circuloNumeroPasoCompletado: {
+    backgroundColor: '#2E7D32',
+  },
+  textoNumeroPaso: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  textoNumeroPasoActivo: {
+    color: '#FFFFFF',
+  },
+  infoPasoStepper: {
+    flex: 1,
+  },
+  tituloPasoStepper: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  tituloPasoStepperActivo: {
+    color: Palette.forestGreen,
+    fontWeight: '800',
+  },
+  tituloPasoStepperCompletado: {
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  subtituloPasoStepper: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  badgePaso: {
+    backgroundColor: Palette.forestGreen,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  textoBadgePaso: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  bannerContextoLaborSupervisor: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 14,
+    gap: 6,
+  },
+  filaContextoSupervisor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tituloContextoSupervisor: {
+    fontSize: 14,
+    color: '#166534',
+  },
+  textoContextoSupervisor: {
+    fontSize: 12,
+    color: '#374151',
+  },
+  descripcionContextoSupervisor: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontStyle: 'italic',
+  },
+  textoProgresoPasos: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  grupoBotonesIzquierda: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
 });
+
