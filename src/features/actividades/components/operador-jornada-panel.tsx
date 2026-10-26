@@ -28,7 +28,7 @@ import {
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
-import { ActividadDetalle } from '../types/actividad.types';
+import { ActividadDetalle, EstadoActividadTipo } from '../types/actividad.types';
 import {
   useOperadorJornadaStore,
   TipoHallazgoJornada,
@@ -154,6 +154,40 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
 
   const progresoTareas = obtenerProgresoTareas(actividad.id);
 
+  // Estado efectivo de la actividad: si hay tareas de cuadrilla y no todas están concluidas,
+  // la actividad no puede considerarse COMPLETADA
+  const estadoEfectivo: EstadoActividadTipo = (() => {
+    if (progresoTareas.totalTareas > 0 && !progresoTareas.todasCompletadas) {
+      if (actividad.estado === 'COMPLETADA') {
+        return progresoTareas.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
+      }
+    }
+    return actividad.estado;
+  })();
+
+  // Si en BD la labor quedó como COMPLETADA pero tiene tareas pendientes
+  // (por ejemplo porque se agregaron nuevas tareas o se eliminaron las completadas),
+  // se sincroniza automáticamente de vuelta a EN_PROGRESO o PENDIENTE.
+  useEffect(() => {
+    if (
+      actividad.estado === 'COMPLETADA' &&
+      progresoTareas.totalTareas > 0 &&
+      !progresoTareas.todasCompletadas &&
+      !cambiarEstadoMutation.isPending
+    ) {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: progresoTareas.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE',
+      });
+    }
+  }, [
+    actividad.estado,
+    progresoTareas.totalTareas,
+    progresoTareas.todasCompletadas,
+    progresoTareas.tareasCompletadas,
+    actividad.id,
+  ]);
+
   // Capturar GPS
   const capturarGps = (tipo: 'avance' | 'hallazgo') => {
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
@@ -235,11 +269,39 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
       creadaPor: nombreUsuario,
     });
 
+    // Si la actividad figuraba como COMPLETADA pero se acaba de crear una tarea pendiente,
+    // reabrir a EN_PROGRESO para que mantenga coherencia
+    if (actividad.estado === 'COMPLETADA') {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: 'EN_PROGRESO',
+      });
+    }
+
     setNuevaTareaTitulo('');
     setNuevaTareaDescripcion('');
     setNuevaTareaZona('');
     setNuevaTareaOperarioId('');
     setMostrandoFormTarea(false);
+  };
+
+  const handleEliminarTarea = (tareaId: string) => {
+    eliminarSubtarea(actividad.id, tareaId);
+    const progresoNuevo = obtenerProgresoTareas(actividad.id);
+    if (!progresoNuevo.todasCompletadas && actividad.estado === 'COMPLETADA') {
+      cambiarEstadoMutation.mutate({
+        id: actividad.id,
+        estado: progresoNuevo.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE',
+      });
+    }
+  };
+
+  const handleValidarYFinalizarLabor = () => {
+    if (!esSupervisor) return;
+    cambiarEstadoMutation.mutate({
+      id: actividad.id,
+      estado: 'COMPLETADA',
+    });
   };
 
   const handleIniciarTarea = (tareaId: string) => {
@@ -253,23 +315,14 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
   };
 
   const handleFinalizarTarea = (tareaId: string) => {
-    const res = completarTareaOperador(actividad.id, tareaId, nombreUsuario);
-    if (res.todasCompletadas && actividad.estado !== 'COMPLETADA') {
-      cambiarEstadoMutation.mutate({
-        id: actividad.id,
-        estado: 'COMPLETADA',
-      });
-    }
+    completarTareaOperador(actividad.id, tareaId, nombreUsuario);
+    // El operario concluye su tarea. La actividad NO se completa automáticamente;
+    // entra en espera para que el supervisor o agrónomo la valide y confirme en terreno.
   };
 
   const handleToggleTarea = (subId: string) => {
-    const res = toggleSubtarea(actividad.id, subId, nombreUsuario);
-    if (res.todasCompletadas && actividad.estado !== 'COMPLETADA') {
-      cambiarEstadoMutation.mutate({
-        id: actividad.id,
-        estado: 'COMPLETADA',
-      });
-    }
+    toggleSubtarea(actividad.id, subId, nombreUsuario);
+    // No se completa automáticamente; requiere validación del supervisor
   };
 
   const handleRegistrarHallazgo = () => {
@@ -505,15 +558,47 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
           </View>
         )}
 
-        {/* Aviso de labor completamente finalizada */}
+        {/* Banner de Validación y Cierre por el Supervisor o Aviso de completitud */}
         {progresoTareas.todasCompletadas && progresoTareas.totalTareas > 0 && (
-          <View style={styles.cajaAlertaTodasCompletadas}>
-            <Sparkles size={16} color={Palette.success} />
-            <Text style={styles.textoAlertaTodasCompletadas}>
-              🎉 ¡Todas las tareas de la cuadrilla han sido completadas! La labor general ha quedado
-              marcada como COMPLETADA.
-            </Text>
-          </View>
+          estadoEfectivo === 'COMPLETADA' ? (
+            <View style={styles.cajaAlertaTodasCompletadas}>
+              <Sparkles size={16} color={Palette.success} />
+              <Text style={styles.textoAlertaTodasCompletadas}>
+                🎉 ¡Todas las tareas de la cuadrilla han sido completadas y la labor general fue validada y cerrada por el supervisor!
+              </Text>
+            </View>
+          ) : esSupervisor ? (
+            <View style={styles.bannerValidacionSupervisorJornada}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.tituloBannerValidacionJornada}>
+                  ⭐ ¡Cuadrilla al 100%! Tareas listas para validación
+                </Text>
+                <Text style={styles.subtituloBannerValidacionJornada}>
+                  Todos los operarios han concluido sus labores asignadas. Confirma para cerrar definitivamente la labor general.
+                </Text>
+              </View>
+              <Boton
+                titulo="✓ Validar y Finalizar Labor"
+                variante="primario"
+                tamano="sm"
+                cargando={cambiarEstadoMutation.isPending}
+                iconoIzquierda={<CheckCircle2 size={14} color="#FFFFFF" />}
+                onPress={handleValidarYFinalizarLabor}
+              />
+            </View>
+          ) : (
+            <View style={styles.cajaEsperaValidacionOperador}>
+              <Sparkles size={18} color="#2563EB" />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={styles.tituloEsperaValidacionOperador}>
+                  ✓ Tareas 100% finalizadas · En espera de validación
+                </Text>
+                <Text style={styles.subtituloEsperaValidacionOperador}>
+                  Toda la cuadrilla ha concluido sus asignaciones de campo. El supervisor debe revisar y validar en terreno para cerrar la actividad.
+                </Text>
+              </View>
+            </View>
+          )
         )}
 
         {/* Formulario de creación de tarea por el supervisor */}
@@ -848,7 +933,7 @@ export const OperadorJornadaPanel: React.FC<OperadorJornadaPanelProps> = ({ acti
 
                         {esSupervisor && (
                           <Pressable
-                            onPress={() => eliminarSubtarea(actividad.id, tarea.id)}
+                            onPress={() => handleEliminarTarea(tarea.id)}
                             style={styles.botonBorrarSubtarea}
                           >
                             <Trash2 size={14} color="#9CA3AF" />
@@ -1242,6 +1327,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Palette.forestGreen,
     flex: 1,
+  },
+  bannerValidacionSupervisorJornada: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  tituloBannerValidacionJornada: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  subtituloBannerValidacionJornada: {
+    fontSize: 12,
+    color: '#B45309',
+    lineHeight: 16,
+  },
+  cajaEsperaValidacionOperador: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    padding: 12,
+    borderRadius: 10,
+  },
+  tituloEsperaValidacionOperador: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E40AF',
+  },
+  subtituloEsperaValidacionOperador: {
+    fontSize: 12,
+    color: '#3B82F6',
+    lineHeight: 16,
   },
   cajaFormularioTareaSupervisor: {
     backgroundColor: '#F8FAF6',

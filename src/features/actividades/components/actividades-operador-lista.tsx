@@ -39,6 +39,8 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
   onCambiarEstado,
 }) => {
   const usuario = useAuthStore((s) => s.usuario);
+  const esSupervisor = usuario?.rol === 'SUPERVISOR' || usuario?.rol === 'ADMINISTRADOR';
+
   const {
     subtareasPorActividad,
     hallazgosPorActividad,
@@ -50,12 +52,14 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     obtenerProgresoActividad,
     iniciarTareaOperador,
     completarTareaOperador,
+    obtenerSubtareas,
     obtenerProgresoTareas,
   } = useOperadorJornadaStore();
 
-  // Sincronizar cuadrillas y zonas asignadas con el store de persistencia local
+  // Sincronizar cuadrillas, zonas asignadas y subtareas con el store de persistencia local
   useEffect(() => {
     actividades.forEach((act) => {
+      obtenerSubtareas(act.id, act.tipo);
       if (act.trabajadores && act.trabajadores.length > 0) {
         sincronizarZonasDesdeTrabajadores(
           act.id,
@@ -69,7 +73,24 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         );
       }
     });
-  }, [actividades, sincronizarZonasDesdeTrabajadores]);
+  }, [actividades, sincronizarZonasDesdeTrabajadores, obtenerSubtareas]);
+
+  // Si en la base de datos la labor quedó como COMPLETADA pero tiene tareas pendientes
+  // (por ejemplo porque se agregaron nuevas tareas o se eliminaron las completadas),
+  // se sincroniza automáticamente de vuelta a EN_PROGRESO o PENDIENTE.
+  useEffect(() => {
+    actividades.forEach((act) => {
+      const subtareas = subtareasPorActividad[act.id] || [];
+      if (subtareas.length > 0) {
+        const progreso = obtenerProgresoTareas(act.id);
+        if (!progreso.todasCompletadas && act.estado === 'COMPLETADA') {
+          const nuevoEstado: EstadoActividadTipo =
+            progreso.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
+          onCambiarEstado?.(act, nuevoEstado);
+        }
+      }
+    });
+  }, [actividades, subtareasPorActividad, obtenerProgresoTareas, onCambiarEstado]);
 
   const handleIniciarMiTarea = (act: ActividadItem, tareaId: string) => {
     if (!usuario?.id) return;
@@ -83,12 +104,9 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     if (!usuario?.id) return;
     const nombreUsuario =
       usuario.nombreCompleto || `${usuario.nombres} ${usuario.apellidos}`.trim() || 'Operador';
-    const resultado = completarTareaOperador(act.id, tareaId, nombreUsuario);
-
-    // Si todas las tareas de la actividad fueron completadas, marcar la actividad macro como COMPLETADA
-    if (resultado.todasCompletadas && onCambiarEstado) {
-      onCambiarEstado(act, 'COMPLETADA');
-    }
+    completarTareaOperador(act.id, tareaId, nombreUsuario);
+    // Ya NO se marca la actividad como COMPLETADA automáticamente por el operador.
+    // El supervisor validará y confirmará la finalización definitiva de la labor.
   };
 
   const handleIniciarMiZona = (act: ActividadItem) => {
@@ -101,10 +119,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
   const handleFinalizarMiZona = (act: ActividadItem) => {
     if (!usuario?.id) return;
-    const resultado = completarZonaOperador(act.id, usuario.id);
-    if (resultado.todasCompletadas && onCambiarEstado) {
-      onCambiarEstado(act, 'COMPLETADA');
-    }
+    completarZonaOperador(act.id, usuario.id);
   };
 
   const obtenerVarianteEstado = (
@@ -159,6 +174,32 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         const tieneTareasEspecificas = subtareas.length > 0;
         const progresoTareas = obtenerProgresoTareas(act.id);
 
+        const totalCuadrilla = act.trabajadores?.length || act.cantidadTrabajadores || 1;
+        const progresoCuadrilla = obtenerProgresoActividad(act.id, totalCuadrilla);
+
+        // Estado efectivo de la actividad:
+        // Si hay tareas de cuadrilla (o zonas) y NO todas están completadas, NO puede mostrarse como COMPLETADA
+        const estadoEfectivo: EstadoActividadTipo = (() => {
+          if (tieneTareasEspecificas) {
+            if (!progresoTareas.todasCompletadas) {
+              if (act.estado === 'COMPLETADA') {
+                return progresoTareas.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
+              }
+              return act.estado;
+            }
+            return act.estado;
+          } else if (!progresoCuadrilla.todasCompletadas) {
+            if (act.estado === 'COMPLETADA') {
+              return progresoCuadrilla.zonasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
+            }
+            return act.estado;
+          }
+          return act.estado;
+        })();
+
+        const misTareasCompletadas = misTareas.length > 0 && misTareas.every((t) => t.completada);
+        const misTareasEnProgreso = misTareas.some((t) => t.estado === 'EN_PROGRESO');
+
         // Fallback de zona de operario
         const miAsignacion = usuario?.id ? obtenerEstadoZonaOperador(act.id, usuario.id) : undefined;
         const miTrabajador = act.trabajadores?.find((t) => t.usuarioId === usuario?.id);
@@ -166,11 +207,15 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
         const miZonaTexto = miAsignacion?.zonaTrabajo || zonaExtraida || 'Zona de labor asignada';
         const miRolTexto = miAsignacion?.rolEnActividad || rolExtraido || 'Operador de campo';
-        const miEstadoZona =
-          miAsignacion?.estado || (act.estado === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
 
-        const totalCuadrilla = act.trabajadores?.length || act.cantidadTrabajadores || 1;
-        const progresoCuadrilla = obtenerProgresoActividad(act.id, totalCuadrilla);
+        // El estado de zona del operador depende de sus tareas asignadas, no del estado de la actividad macro
+        const miEstadoZona: 'PENDIENTE' | 'EN_PROGRESO' | 'COMPLETADA' = misTareas.length > 0
+          ? misTareasCompletadas
+            ? 'COMPLETADA'
+            : misTareasEnProgreso
+              ? 'EN_PROGRESO'
+              : 'PENDIENTE'
+          : miAsignacion?.estado || (estadoEfectivo === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
 
         return (
           <View key={act.id} style={styles.tarjetaLabor}>
@@ -310,8 +355,20 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               </View>
 
               <Badge
-                texto={`Labor General: ${formatearEstadoTexto(act.estado)}`}
-                variante={obtenerVarianteEstado(act.estado)}
+                texto={
+                  ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+                    (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+                  estadoEfectivo !== 'COMPLETADA'
+                    ? 'Por Validar (100% tareas)'
+                    : `Labor General: ${formatearEstadoTexto(estadoEfectivo)}`
+                }
+                variante={
+                  ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+                    (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+                  estadoEfectivo !== 'COMPLETADA'
+                    ? 'alerta'
+                    : obtenerVarianteEstado(estadoEfectivo)
+                }
               />
             </View>
 
@@ -383,15 +440,31 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 />
               </View>
 
-              {/* Nota explicativa de completado colaborativo */}
+              {/* Nota explicativa de completado colaborativo y validación de supervisor */}
               <Text style={styles.notaProgresoColaborativo}>
-                {(tieneTareasEspecificas ? progresoTareas.todasCompletadas : progresoCuadrilla.todasCompletadas)
-                  ? '🎉 Toda la cuadrilla ha finalizado todas las tareas. Labor general cerrada.'
-                  : misTareas.length > 0 && misTareas.every((t) => t.completada)
-                    ? '✓ Has completado tus tareas asignadas. Esperando que tus compañeros de cuadrilla completen las suyas para cerrar la labor general.'
-                    : miEstadoZona === 'COMPLETADA'
-                      ? '✓ Tu zona está finalizada. Esperando que tus compañeros de cuadrilla completen las suyas para cerrar la labor general.'
-                      : 'Cada operario debe marcar completadas sus tareas asignadas para cerrar la labor general.'}
+                {tieneTareasEspecificas
+                  ? progresoTareas.todasCompletadas && estadoEfectivo === 'COMPLETADA'
+                    ? '🎉 Toda la cuadrilla finalizó sus tareas y la labor fue validada y completada por el supervisor.'
+                    : progresoTareas.todasCompletadas
+                      ? esSupervisor
+                        ? '⭐ La cuadrilla completó el 100% de las tareas. Valida el trabajo en terreno y confirma el cierre definitivo.'
+                        : '✓ Toda la cuadrilla ha finalizado sus tareas. Esperando validación y confirmación del supervisor.'
+                      : misTareas.length > 0 && misTareasCompletadas
+                        ? '✓ Has completado tu tarea asignada. Esperando que tus compañeros de cuadrilla completen las suyas.'
+                        : misTareasEnProgreso
+                          ? '▶ Te encuentras ejecutando tu labor asignada.'
+                          : 'Cada operario debe marcar completadas sus tareas asignadas para que el supervisor valide el cierre de la labor.'
+                  : progresoCuadrilla.todasCompletadas && estadoEfectivo === 'COMPLETADA'
+                    ? '🎉 Todos los operarios completaron su zona y la labor general fue cerrada.'
+                    : progresoCuadrilla.todasCompletadas
+                      ? esSupervisor
+                        ? '⭐ Todos los operarios completaron su zona. Valida el trabajo y confirma el cierre.'
+                        : '✓ Toda la cuadrilla completó su zona. Esperando validación del supervisor.'
+                      : miEstadoZona === 'COMPLETADA'
+                        ? '✓ Has finalizado tu zona asignada. Esperando que tus compañeros completen las suyas.'
+                        : miEstadoZona === 'EN_PROGRESO'
+                          ? '▶ Te encuentras ejecutando labores en tu zona asignada.'
+                          : 'Cada operario debe completar su zona asignada para que el supervisor valide el cierre de la labor.'}
               </Text>
             </View>
 
@@ -448,8 +521,35 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               )}
             </View>
 
-            {/* Acciones principales del Operador */}
+            {/* Acciones principales del Operador y Validación del Supervisor */}
             <View style={styles.filaAcciones}>
+              {/* Si la cuadrilla terminó el 100% de tareas o zonas, el Supervisor valida y confirma el cierre */}
+              {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+                (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+                estadoEfectivo !== 'COMPLETADA' &&
+                esSupervisor && (
+                  <Boton
+                    titulo="✓ Validar y Finalizar Labor"
+                    variante="primario"
+                    tamano="sm"
+                    iconoIzquierda={<CheckCircle2 size={13} color={Palette.white} />}
+                    onPress={() => onCambiarEstado?.(act, 'COMPLETADA')}
+                  />
+                )}
+
+              {/* Si es operador y completó 100% de tareas o zonas esperando validación del supervisor */}
+              {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+                (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+                estadoEfectivo !== 'COMPLETADA' &&
+                !esSupervisor && (
+                  <View style={styles.pillValidacionEsperando}>
+                    <CheckCircle2 size={13} color="#2563EB" />
+                    <Text style={styles.textoValidacionEsperando}>
+                      {tieneTareasEspecificas ? 'Tareas' : 'Zonas'} 100% listas · En espera de validación de supervisor
+                    </Text>
+                  </View>
+                )}
+
               {/* Si no tiene tareas específicas desglosadas, permitir iniciar/completar zona */}
               {!tieneTareasEspecificas && miEstadoZona === 'PENDIENTE' && (
                 <Boton
@@ -471,7 +571,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
               {((tieneTareasEspecificas &&
                 misTareas.length > 0 &&
-                misTareas.every((t) => t.completada) &&
+                misTareasCompletadas &&
                 !progresoTareas.todasCompletadas) ||
                 (!tieneTareasEspecificas &&
                   miEstadoZona === 'COMPLETADA' &&
@@ -781,5 +881,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#065F46',
+  },
+  pillValidacionEsperando: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  textoValidacionEsperando: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E40AF',
   },
 });

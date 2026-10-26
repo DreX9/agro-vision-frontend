@@ -131,6 +131,16 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
       creadaPor: nombreSupervisor,
     });
 
+    // Si la actividad estaba en COMPLETADA pero se acaba de crear una tarea pendiente,
+    // reabrir a EN_PROGRESO para mantener consistencia
+    if (actividad.estado === 'COMPLETADA' && onGuardarSeguimiento) {
+      onGuardarSeguimiento({
+        estado: 'EN_PROGRESO',
+        descripcion: actividad.descripcion || undefined,
+        observaciones: actividad.observaciones || undefined,
+      });
+    }
+
     setNuevaTareaTitulo('');
     setNuevaTareaDescripcion('');
     setNuevaTareaZona('');
@@ -141,10 +151,30 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
   const handleCompletarTarea = (tareaId: string) => {
     const nombreUsuario =
       usuario?.nombreCompleto || `${usuario?.nombres} ${usuario?.apellidos}`.trim() || 'Operador';
-    const res = completarTareaOperador(actividad.id, tareaId, nombreUsuario);
-    if (res.todasCompletadas && onGuardarSeguimiento) {
+    completarTareaOperador(actividad.id, tareaId, nombreUsuario);
+    // El operario concluye su tarea. La actividad NO se completa automáticamente;
+    // requiere que el supervisor valide y confirme la finalización.
+  };
+
+  const handleValidarYFinalizarLabor = () => {
+    if (!puedeGestionarTareas || !onGuardarSeguimiento) return;
+    onGuardarSeguimiento({
+      estado: 'COMPLETADA',
+      descripcion: actividad.descripcion || undefined,
+      observaciones: actividad.observaciones || undefined,
+    });
+  };
+
+  const handleEliminarTarea = (tareaId: string) => {
+    eliminarSubtarea(actividad.id, tareaId);
+    const progresoNuevo = obtenerProgresoTareas(actividad.id);
+    if (
+      !progresoNuevo.todasCompletadas &&
+      actividad.estado === 'COMPLETADA' &&
+      onGuardarSeguimiento
+    ) {
       onGuardarSeguimiento({
-        estado: 'COMPLETADA',
+        estado: progresoNuevo.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE',
         descripcion: actividad.descripcion || undefined,
         observaciones: actividad.observaciones || undefined,
       });
@@ -181,6 +211,42 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
     actividad.id,
     actividad.trabajadores.length,
   );
+
+  // Estado efectivo: Si hay tareas desglosadas y no todas están completadas,
+  // la labor no puede figurar como COMPLETADA.
+  const estadoEfectivo: EstadoActividadTipo = (() => {
+    if (progresoTareas.totalTareas > 0 && !progresoTareas.todasCompletadas) {
+      if (actividad.estado === 'COMPLETADA') {
+        return progresoTareas.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
+      }
+    }
+    return actividad.estado;
+  })();
+
+  // Si la actividad figura como COMPLETADA en BD pero se agregaron tareas o se eliminaron tareas
+  // dejando pendientes, sincronizar de inmediato el estado con el backend
+  useEffect(() => {
+    if (
+      actividad.estado === 'COMPLETADA' &&
+      progresoTareas.totalTareas > 0 &&
+      !progresoTareas.todasCompletadas &&
+      onGuardarSeguimiento
+    ) {
+      onGuardarSeguimiento({
+        estado: progresoTareas.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE',
+        descripcion: actividad.descripcion || undefined,
+        observaciones: actividad.observaciones || undefined,
+      });
+    }
+  }, [
+    actividad.estado,
+    progresoTareas.totalTareas,
+    progresoTareas.todasCompletadas,
+    progresoTareas.tareasCompletadas,
+    onGuardarSeguimiento,
+    actividad.descripcion,
+    actividad.observaciones,
+  ]);
 
   const [tabActivo, setTabActivo] = useState<'info' | 'cuadrilla' | 'jornada'>(
     esOperador ? 'jornada' : 'info',
@@ -396,8 +462,20 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                   <View style={styles.filaEstadoActual}>
                     <Text style={styles.etiquetaEstadoActual}>Estado actual:</Text>
                     <Badge
-                      texto={formatearEstadoTexto(actividad.estado)}
-                      variante={obtenerVarianteEstado(actividad.estado)}
+                      texto={
+                        progresoTareas.totalTareas > 0 &&
+                        progresoTareas.todasCompletadas &&
+                        actividad.estado !== 'COMPLETADA'
+                          ? 'Por Validar (100% tareas)'
+                          : formatearEstadoTexto(estadoEfectivo)
+                      }
+                      variante={
+                        progresoTareas.totalTareas > 0 &&
+                        progresoTareas.todasCompletadas &&
+                        actividad.estado !== 'COMPLETADA'
+                          ? 'alerta'
+                          : obtenerVarianteEstado(estadoEfectivo)
+                      }
                     />
                   </View>
 
@@ -535,7 +613,7 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                     const zonaFinal = asignacionStore?.zonaTrabajo || zona || 'Zona general de trabajo';
                     const estadoZona =
                       asignacionStore?.estado ||
-                      (actividad.estado === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
+                      (estadoEfectivo === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
 
                     return (
                       <View key={t.id} style={styles.tarjetaOperario}>
@@ -617,6 +695,33 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                   )}
                 </View>
               </View>
+
+              {/* Banner de Validación y Cierre por el Supervisor */}
+              {progresoTareas.totalTareas > 0 &&
+                progresoTareas.todasCompletadas &&
+                actividad.estado !== 'COMPLETADA' && (
+                  <View style={styles.bannerValidacionSupervisor}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.tituloBannerValidacion}>
+                        ⭐ ¡Cuadrilla al 100%! Tareas listas para validación
+                      </Text>
+                      <Text style={styles.subtituloBannerValidacion}>
+                        {puedeGestionarTareas
+                          ? 'Todos los operarios han concluido sus labores asignadas. Confirma para cerrar definitivamente la labor general.'
+                          : 'Todos los operarios han finalizado sus tareas. En espera de validación y confirmación por el supervisor.'}
+                      </Text>
+                    </View>
+                    {puedeGestionarTareas && (
+                      <Boton
+                        titulo="✓ Validar y Finalizar Labor"
+                        variante="primario"
+                        tamano="sm"
+                        iconoIzquierda={<CheckCircle2 size={14} color="#FFFFFF" />}
+                        onPress={handleValidarYFinalizarLabor}
+                      />
+                    )}
+                  </View>
+                )}
 
               {/* Formulario de creación y asignación de tarea por el supervisor */}
               {mostrandoFormTarea && (
@@ -857,7 +962,7 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                                   )}
                                 </Pressable>
                                 <Pressable
-                                  onPress={() => eliminarSubtarea(actividad.id, tarea.id)}
+                                  onPress={() => handleEliminarTarea(tarea.id)}
                                   style={styles.botonIconoAccion}
                                 >
                                   <Trash2 size={16} color="#EF4444" />
@@ -1267,5 +1372,28 @@ const styles = StyleSheet.create({
   },
   botonIconoAccion: {
     padding: 4,
+  },
+  bannerValidacionSupervisor: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  tituloBannerValidacion: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  subtituloBannerValidacion: {
+    fontSize: 12,
+    color: '#B45309',
+    lineHeight: 16,
   },
 });
