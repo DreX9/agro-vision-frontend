@@ -11,3 +11,4 @@ export * from './components/BoundingBoxOverlay';
 export * from './components/DiagnosticoSkeleton';
 export * from './components/SelectorDespliegueDron';
 export * from './components/HistorialDiagnosticosCampo';
+export * from './components/NotificadorAlertasAgronomo';

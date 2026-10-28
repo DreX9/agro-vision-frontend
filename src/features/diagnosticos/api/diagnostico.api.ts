@@ -132,3 +132,18 @@ export const useDiagnosticosQuery = (filtros: FiltrosDiagnosticosParams = {}) =>
     },
   });
 };
+
+/**
+ * @description Obtiene las alertas fitosanitarias más recientes emitidas en el sistema.
+ */
+export const obtenerAlertasRecientes = async (
+  desde?: string,
+): Promise<DiagnosticoCampoItem[]> => {
+  const params = new URLSearchParams();
+  if (desde) params.append('desde', desde);
+  const respuesta = await apiClient.get<DiagnosticoCampoItem[]>(
+    `/diagnosticos/alertas/recientes?${params.toString()}`,
+  );
+  return respuesta.data;
+};
+

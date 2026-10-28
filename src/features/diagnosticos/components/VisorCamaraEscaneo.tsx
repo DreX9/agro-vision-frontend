@@ -54,8 +54,16 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     if (cargando) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(animacionLaser, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(animacionLaser, { toValue: 0, duration: 1200, useNativeDriver: true }),
+          Animated.timing(animacionLaser, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.timing(animacionLaser, {
+            toValue: 0,
+            duration: 1200,
+            useNativeDriver: Platform.OS !== 'web',
+          }),
         ]),
       ).start();
     } else {

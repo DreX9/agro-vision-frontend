@@ -9,6 +9,7 @@ import {
 import { Palette } from '@/constants/theme';
 import { AlertTriangle } from 'lucide-react-native';
 import { AppLayout } from '@/shared/components/layout/app-layout';
+import { useAuthStore } from '@/features/autenticacion';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
 import {
   useEscanearImagenMutation,
@@ -43,6 +44,9 @@ export function DiagnosticoEscaneoContainer() {
   const [codigoGuardado, setCodigoGuardado] = useState<string | null>(null);
   const [errorConexion, setErrorConexion] = useState<string | null>(null);
   const [solicitandoGps, setSolicitandoGps] = useState(false);
+
+  // Usuario actualmente autenticado que realiza el escaneo
+  const usuario = useAuthStore((state) => state.usuario);
 
   // Consulta de parcelas para fallback de persistencia en caso de escaneo rápido sin selección
   const { data: datosParcelas } = useParcelasQuery({ limite: 10 });
@@ -117,6 +121,7 @@ export function DiagnosticoEscaneoContainer() {
       {
         parcelaId: parcelaDestino.parcelaId,
         sectorId: parcelaDestino.sectorId,
+        usuarioId: usuario?.id,
         latitud: latitudGuardar,
         longitud: longitudGuardar,
         estadoGeneral: diagnostico.estado_general,
