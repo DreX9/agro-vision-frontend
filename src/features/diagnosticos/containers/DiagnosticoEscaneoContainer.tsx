@@ -9,6 +9,7 @@ import {
 import { Palette } from '@/constants/theme';
 import { AlertTriangle } from 'lucide-react-native';
 import { AppLayout } from '@/shared/components/layout/app-layout';
+import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
 import {
   useEscanearImagenMutation,
   useGuardarDiagnosticoMutation,
@@ -26,8 +27,9 @@ import { SelectorDespliegueDron } from '../components/SelectorDespliegueDron';
 import { HistorialDiagnosticosCampo } from '../components/HistorialDiagnosticosCampo';
 
 /**
- * @description Contenedor que orquesta la selección de área/sector para despliegue de dron,
- * captura de video en vivo (Irium Cam), diagnóstico con IA, fijación de coordenadas del hallazgo y guardado con Google Maps.
+ * @description Contenedor que orquesta la selección de área/sector para monitoreo fitosanitario,
+ * captura de video en vivo (Irium Cam / muestras), inferencia con IA, persistencia automática en BD
+ * y clasificación explícita según si es alerta o condición normal.
  */
 export function DiagnosticoEscaneoContainer() {
   const { width } = useWindowDimensions();
@@ -37,8 +39,14 @@ export function DiagnosticoEscaneoContainer() {
   const [despliegueActual, setDespliegueActual] = useState<DespliegueDronConfig | null>(null);
   const [coordenadasHallazgo, setCoordenadasHallazgo] = useState<CoordenadasHallazgo | null>(null);
   const [guardadoExitoso, setGuardadoExitoso] = useState(false);
+  const [autoGuardado, setAutoGuardado] = useState(false);
+  const [codigoGuardado, setCodigoGuardado] = useState<string | null>(null);
   const [errorConexion, setErrorConexion] = useState<string | null>(null);
   const [solicitandoGps, setSolicitandoGps] = useState(false);
+
+  // Consulta de parcelas para fallback de persistencia en caso de escaneo rápido sin selección
+  const { data: datosParcelas } = useParcelasQuery({ limite: 10 });
+  const parcelas = datosParcelas?.items || [];
 
   const escanearMutacion = useEscanearImagenMutation();
   const guardarMutacion = useGuardarDiagnosticoMutation();
@@ -67,11 +75,82 @@ export function DiagnosticoEscaneoContainer() {
     }
   };
 
+  /**
+   * @description Persiste en PostgreSQL el diagnóstico fitosanitario con su clasificación de alerta
+   */
+  const ejecutarGuardado = (
+    diagnostico: DiagnosticoRespuesta,
+    esAuto: boolean = false,
+  ) => {
+    // Resolver parcela de destino (despliegue actual o primera parcela disponible)
+    const parcelaDestino =
+      despliegueActual ||
+      (parcelas.length > 0
+        ? {
+            parcelaId: parcelas[0].id,
+            parcelaNombre: parcelas[0].nombre,
+            sectorId: undefined,
+            latitud: Number(parcelas[0].latitudCentro ?? -11.947138),
+            longitud: Number(parcelas[0].longitudCentro ?? -76.975346),
+          }
+        : null);
+
+    if (!parcelaDestino) {
+      console.warn('No hay parcela disponible en el sistema para guardar el diagnóstico');
+      return;
+    }
+
+    const latitudGuardar = coordenadasHallazgo?.latitud ?? parcelaDestino.latitud;
+    const longitudGuardar = coordenadasHallazgo?.longitud ?? parcelaDestino.longitud;
+    const origenGuardar =
+      coordenadasHallazgo?.origen === 'GPS_DISPOSITIVO'
+        ? 'CAMARA_DISPOSITIVO'
+        : 'SISTEMA_PARCELA';
+
+    // Determinar si constituye una ALERTA fitosanitaria
+    const esAlerta =
+      diagnostico.estado_general === 'ALERTA' ||
+      diagnostico.estado_general === 'CRITICO' ||
+      diagnostico.total_plagas_detectadas > 0;
+
+    guardarMutacion.mutate(
+      {
+        parcelaId: parcelaDestino.parcelaId,
+        sectorId: parcelaDestino.sectorId,
+        latitud: latitudGuardar,
+        longitud: longitudGuardar,
+        estadoGeneral: diagnostico.estado_general,
+        saludPorcentaje: Math.round(diagnostico.salud_porcentaje),
+        totalPlagasDetectadas: diagnostico.total_plagas_detectadas,
+        esAlerta,
+        detecciones: diagnostico.detecciones,
+        recomendaciones: diagnostico.recomendaciones,
+        tiempoProcesamientoMs: diagnostico.tiempo_procesamiento_ms,
+        origenCaptura: origenGuardar,
+      },
+      {
+        onSuccess: (guardado) => {
+          setGuardadoExitoso(true);
+          setAutoGuardado(esAuto);
+          setCodigoGuardado(guardado.codigo);
+        },
+        onError: (err) => {
+          console.error('Error al guardar diagnóstico en base de datos:', err);
+          if (!esAuto) {
+            alert('No se pudo guardar el diagnóstico en la base de datos.');
+          }
+        },
+      },
+    );
+  };
+
   const handleCapturarYEscanear = async (archivo: Blob | File | string) => {
     setErrorConexion(null);
     setGuardadoExitoso(false);
+    setAutoGuardado(false);
+    setCodigoGuardado(null);
 
-    // Solicitar automáticamente la ubicación GPS en vivo del dispositivo que usa la cámara
+    // Solicitar automáticamente la ubicación GPS en vivo del dispositivo
     try {
       const coords = await obtenerCoordenadasDispositivo();
       if (coords) {
@@ -123,6 +202,9 @@ export function DiagnosticoEscaneoContainer() {
       onSuccess: (data) => {
         setDiagnosticoActual(data);
         setErrorConexion(null);
+
+        // Guardar automáticamente en la base de datos clasificado según si es alerta o no
+        ejecutarGuardado(data, true);
       },
       onError: (error) => {
         console.error('Error al ejecutar diagnóstico:', error);
@@ -134,48 +216,24 @@ export function DiagnosticoEscaneoContainer() {
   };
 
   const handleGuardarDiagnostico = () => {
-    if (!diagnosticoActual || !despliegueActual) return;
-
-    // Coordenadas a guardar: prioridad absoluta a las coordenadas fijadas en el momento del hallazgo
-    const latitudGuardar = coordenadasHallazgo?.latitud ?? despliegueActual.latitud;
-    const longitudGuardar = coordenadasHallazgo?.longitud ?? despliegueActual.longitud;
-    const origenGuardar =
-      coordenadasHallazgo?.origen === 'GPS_DISPOSITIVO'
-        ? 'CAMARA_DISPOSITIVO'
-        : 'SISTEMA_PARCELA';
-
-    guardarMutacion.mutate(
-      {
-        parcelaId: despliegueActual.parcelaId,
-        sectorId: despliegueActual.sectorId,
-        latitud: latitudGuardar,
-        longitud: longitudGuardar,
-        estadoGeneral: diagnosticoActual.estado_general,
-        saludPorcentaje: Math.round(diagnosticoActual.salud_porcentaje),
-        totalPlagasDetectadas: diagnosticoActual.total_plagas_detectadas,
-        detecciones: diagnosticoActual.detecciones,
-        recomendaciones: diagnosticoActual.recomendaciones,
-        tiempoProcesamientoMs: diagnosticoActual.tiempo_procesamiento_ms,
-        origenCaptura: origenGuardar,
-      },
-      {
-        onSuccess: () => {
-          setGuardadoExitoso(true);
-        },
-        onError: (err) => {
-          console.error('Error al guardar diagnóstico en base de datos:', err);
-          alert('No se pudo guardar el diagnóstico en la base de datos.');
-        },
-      },
-    );
+    if (!diagnosticoActual) return;
+    ejecutarGuardado(diagnosticoActual, false);
   };
 
   const handleLimpiar = () => {
     setDiagnosticoActual(null);
     setCoordenadasHallazgo(null);
     setGuardadoExitoso(false);
+    setAutoGuardado(false);
+    setCodigoGuardado(null);
     setErrorConexion(null);
   };
+
+  const esAlertaActual = diagnosticoActual
+    ? diagnosticoActual.estado_general === 'ALERTA' ||
+      diagnosticoActual.estado_general === 'CRITICO' ||
+      diagnosticoActual.total_plagas_detectadas > 0
+    : false;
 
   return (
     <AppLayout
@@ -249,6 +307,9 @@ export function DiagnosticoEscaneoContainer() {
                   onGuardarDiagnostico={handleGuardarDiagnostico}
                   guardando={guardarMutacion.isPending}
                   guardadoExitoso={guardadoExitoso}
+                  autoGuardado={autoGuardado}
+                  codigoGuardado={codigoGuardado}
+                  esAlerta={diagnosticoActual ? esAlertaActual : undefined}
                   onSolicitarGps={handleSolicitarGps}
                   solicitandoGps={solicitandoGps}
                 />

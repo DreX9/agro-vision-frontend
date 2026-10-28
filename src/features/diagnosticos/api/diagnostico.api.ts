@@ -121,6 +121,7 @@ export const useDiagnosticosQuery = (filtros: FiltrosDiagnosticosParams = {}) =>
       if (filtros.parcelaId) params.append('parcelaId', filtros.parcelaId);
       if (filtros.sectorId) params.append('sectorId', filtros.sectorId);
       if (filtros.estadoGeneral) params.append('estadoGeneral', filtros.estadoGeneral);
+      if (filtros.esAlerta !== undefined) params.append('esAlerta', String(filtros.esAlerta));
       if (filtros.pagina) params.append('pagina', String(filtros.pagina));
       if (filtros.limite) params.append('limite', String(filtros.limite));
 

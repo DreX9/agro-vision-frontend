@@ -30,6 +30,9 @@ export interface TarjetaDiagnosticoResultadoProps {
   guardadoExitoso?: boolean;
   onSolicitarGps?: () => Promise<void> | void;
   solicitandoGps?: boolean;
+  esAlerta?: boolean;
+  codigoGuardado?: string | null;
+  autoGuardado?: boolean;
 }
 
 /**
@@ -45,6 +48,9 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
   guardadoExitoso = false,
   onSolicitarGps,
   solicitandoGps = false,
+  esAlerta,
+  codigoGuardado,
+  autoGuardado = false,
 }) => {
   if (!resultado) {
     return (
@@ -91,9 +97,48 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
   };
 
   const configEstado = obtenerConfiguracionEstado(resultado.estado_general);
+  const esAlertaCalculada =
+    esAlerta !== undefined
+      ? esAlerta
+      : resultado.estado_general === 'ALERTA' ||
+        resultado.estado_general === 'CRITICO' ||
+        resultado.total_plagas_detectadas > 0;
 
   return (
     <Card estilo={styles.contenedor}>
+      {/* Banner Prominente de Clasificación: ALERTA FITOSANITARIA vs CONDICIÓN REGULAR */}
+      {esAlertaCalculada ? (
+        <View style={styles.bannerAlertaFitosanitaria}>
+          <View style={styles.iconoAlertaBanner}>
+            <AlertTriangle size={22} color="#DC2626" />
+          </View>
+          <View style={styles.textosAlertaBanner}>
+            <View style={styles.filaTagAlerta}>
+              <Text style={styles.tituloAlertaBanner}>ALERTA FITOSANITARIA DETECTADA</Text>
+              <Badge texto="PRIORIDAD ALTA" variante="peligro" />
+            </View>
+            <Text style={styles.descripcionAlertaBanner}>
+              Se detectaron signos patógenos o plagas activas en el cultivo. Este hallazgo se registra en base de datos como ALERTA fitosanitaria para intervención.
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.bannerNormalFitosanitaria}>
+          <View style={styles.iconoNormalBanner}>
+            <ShieldCheck size={22} color="#059669" />
+          </View>
+          <View style={styles.textosNormalBanner}>
+            <View style={styles.filaTagAlerta}>
+              <Text style={styles.tituloNormalBanner}>CONDICIÓN REGULAR / SIN ALERTA</Text>
+              <Badge texto="CULTIVO SANO" variante="exito" />
+            </View>
+            <Text style={styles.descripcionNormalBanner}>
+              Foliarmente óptimo sin evidencia de plagas invasoras. Este monitoreo se registra en base de datos como CONDICIÓN NORMAL.
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Cabecera de Estado y Tiempo */}
       <View style={styles.filaCabecera}>
         <View style={styles.columnaTitulo}>
@@ -270,19 +315,51 @@ export const TarjetaDiagnosticoResultado: React.FC<TarjetaDiagnosticoResultadoPr
         </View>
       </View>
 
-      {/* Botón de Guardado Persistente en Base de Datos */}
+      {/* Estado de Persistencia en Base de Datos */}
       <View style={styles.seccionAccionGuardar}>
         {guardadoExitoso ? (
-          <View style={styles.bannerGuardadoExitoso}>
-            <CheckCircle2 size={18} color="#059669" />
-            <Text style={styles.textoGuardadoExitoso}>
-              ¡Diagnóstico guardado con éxito en la base de datos con su geolocalización!
-            </Text>
+          <View
+            style={[
+              styles.bannerGuardadoExitoso,
+              esAlertaCalculada ? styles.bannerGuardadoAlerta : styles.bannerGuardadoNormal,
+            ]}
+          >
+            <CheckCircle2 size={18} color={esAlertaCalculada ? '#DC2626' : '#059669'} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={[
+                  styles.textoGuardadoExitoso,
+                  { color: esAlertaCalculada ? '#991B1B' : '#065F46' },
+                ]}
+              >
+                {autoGuardado
+                  ? 'Guardado automáticamente en Base de Datos'
+                  : 'Guardado con éxito en Base de Datos'}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: esAlertaCalculada ? '#B91C1C' : '#047857',
+                  fontWeight: '500',
+                }}
+              >
+                {codigoGuardado ? `Código: ${codigoGuardado} · ` : ''}
+                {esAlertaCalculada
+                  ? 'Registrado como: ALERTA FITOSANITARIA ⚠️'
+                  : 'Registrado como: CONDICIÓN NORMAL ✅'}
+              </Text>
+            </View>
           </View>
         ) : (
           <Boton
-            titulo={guardando ? 'Guardando en Base de Datos...' : 'Guardar Diagnóstico con Ubicación'}
-            variante="primario"
+            titulo={
+              guardando
+                ? 'Guardando en Base de Datos...'
+                : esAlertaCalculada
+                  ? 'Registrar Alerta Fitosanitaria en BD'
+                  : 'Registrar Monitoreo en BD'
+            }
+            variante={esAlertaCalculada ? 'peligro' : 'primario'}
             cargando={guardando}
             disabled={!despliegue || guardando}
             iconoIzquierda={<Save size={18} color="#FFFFFF" />}
@@ -479,6 +556,77 @@ const styles = StyleSheet.create({
     borderColor: '#A7F3D0',
     padding: 12,
     borderRadius: 8,
+  },
+  bannerGuardadoNormal: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  bannerGuardadoAlerta: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  bannerAlertaFitosanitaria: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#F87171',
+    borderRadius: 10,
+    padding: 14,
+  },
+  iconoAlertaBanner: {
+    padding: 4,
+  },
+  textosAlertaBanner: {
+    flex: 1,
+    gap: 4,
+  },
+  filaTagAlerta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  tituloAlertaBanner: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#991B1B',
+    letterSpacing: 0.5,
+  },
+  descripcionAlertaBanner: {
+    fontSize: 12,
+    color: '#7F1D1D',
+    lineHeight: 16,
+  },
+  bannerNormalFitosanitaria: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: 10,
+    padding: 14,
+  },
+  iconoNormalBanner: {
+    padding: 4,
+  },
+  textosNormalBanner: {
+    flex: 1,
+    gap: 4,
+  },
+  tituloNormalBanner: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+    letterSpacing: 0.5,
+  },
+  descripcionNormalBanner: {
+    fontSize: 12,
+    color: '#14532D',
+    lineHeight: 16,
   },
   textoGuardadoExitoso: {
     flex: 1,
