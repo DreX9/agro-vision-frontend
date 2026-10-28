@@ -21,6 +21,8 @@ import {
   Circle,
   CheckSquare,
   Square,
+  ShieldAlert,
+  Wrench,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton, Input, Select, type SelectOpcion } from '@/shared/components/ui';
@@ -436,6 +438,45 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                     </Text>
                   </View>
                 </View>
+
+                {Boolean(actividad.blancoBiologico) && (
+                  <View style={styles.itemMeta}>
+                    <ShieldAlert size={16} color="#DC2626" />
+                    <View>
+                      <Text style={styles.etiquetaMeta}>Blanco Biológico / Objetivo</Text>
+                      <Text style={styles.valorMeta}>{actividad.blancoBiologico}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {Boolean(actividad.metodoAplicacion) && (
+                  <View style={styles.itemMeta}>
+                    <Wrench size={16} color={Palette.forestGreen} />
+                    <View>
+                      <Text style={styles.etiquetaMeta}>Método de Aplicación</Text>
+                      <Text style={styles.valorMeta}>{actividad.metodoAplicacion}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {((actividad.diasCarencia !== null && actividad.diasCarencia !== undefined) ||
+                  (actividad.horasReingreso !== null && actividad.horasReingreso !== undefined)) && (
+                  <View style={styles.itemMeta}>
+                    <Clock size={16} color="#D97706" />
+                    <View>
+                      <Text style={styles.etiquetaMeta}>Seguridad Agronómica</Text>
+                      <Text style={styles.valorMeta}>
+                        {actividad.diasCarencia !== null && actividad.diasCarencia !== undefined
+                          ? `Carencia: ${actividad.diasCarencia} días`
+                          : ''}
+                        {actividad.diasCarencia && actividad.horasReingreso ? ' · ' : ''}
+                        {actividad.horasReingreso !== null && actividad.horasReingreso !== undefined
+                          ? `Reingreso: ${actividad.horasReingreso}h`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -554,12 +595,22 @@ export const ActividadDetalleTabs: React.FC<ActividadDetalleTabsProps> = ({
                       </View>
                       <View style={styles.infoRecurso}>
                         <Text style={styles.nombreRecurso}>{r.nombreInsumo}</Text>
-                        <Text style={styles.categoriaRecurso}>{r.categoriaInsumo}</Text>
-                      </View>
-                      <View style={styles.badgeCantidad}>
-                        <Text style={styles.textoCantidad}>
-                          {r.cantidadEstimada} {r.unidadMedida}
+                        <Text style={styles.categoriaRecurso}>
+                          {r.categoriaInsumo}
+                          {r.dosis ? ` · Dosis: ${r.dosis}` : ''}
                         </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <View style={styles.badgeCantidad}>
+                          <Text style={styles.textoCantidad}>
+                            {r.cantidadEstimada} {r.unidadMedida}
+                          </Text>
+                        </View>
+                        {r.cantidadReal !== null && r.cantidadReal !== undefined && (
+                          <Text style={{ fontSize: 11, color: '#059669', fontWeight: '600' }}>
+                            Consumo: {r.cantidadReal} {r.unidadMedida}
+                          </Text>
+                        )}
                       </View>
                     </View>
                   ))}

@@ -13,6 +13,8 @@ export const actividadRecursoSchema = z.object({
   insumoId: z.string().min(1, 'Debe seleccionar un insumo o equipo'),
   cantidadEstimada: z.number().positive('La cantidad debe ser mayor a 0'),
   unidadMedida: z.string().min(1, 'La unidad de medida es requerida'),
+  dosis: z.string().optional().or(z.literal('')),
+  cantidadReal: z.number().optional(),
   notas: z.string().optional(),
 });
 
@@ -52,6 +54,10 @@ export const actividadSchema = z.object({
   usuarioResponsableId: z.string().optional().or(z.literal('')),
   descripcion: z.string().optional().or(z.literal('')),
   observaciones: z.string().optional().or(z.literal('')),
+  blancoBiologico: z.string().optional().or(z.literal('')),
+  metodoAplicacion: z.string().optional().or(z.literal('')),
+  diasCarencia: z.number().min(0, 'No puede ser negativo').optional(),
+  horasReingreso: z.number().min(0, 'No puede ser negativo').optional(),
   estado: z.enum(['PENDIENTE', 'EN_PROGRESO', 'COMPLETADA', 'CANCELADA'] as const),
   trabajadores: z.array(actividadTrabajadorSchema),
   recursos: z.array(actividadRecursoSchema),

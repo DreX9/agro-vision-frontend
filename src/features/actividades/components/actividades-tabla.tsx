@@ -140,7 +140,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
       render: (a: ActividadItem) => (
         <View>
           <Text style={styles.textoTitulo}>{a.titulo}</Text>
-          <Text style={styles.textoTipo}>{formatearTipo(a.tipo)}</Text>
+          <Text style={styles.textoTipo}>{formatearTipo(a.tipo)}{a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}</Text>
         </View>
       ),
     },

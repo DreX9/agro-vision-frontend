@@ -81,6 +81,8 @@ export interface RecursoAsignado {
   categoriaInsumo: string;
   cantidadEstimada: number;
   unidadMedida: string;
+  dosis?: string | null;
+  cantidadReal?: number | null;
   notas?: string | null;
 }
 
@@ -90,6 +92,8 @@ export interface ActividadItem {
   titulo: string;
   tipo: TipoActividadTipo;
   descripcion?: string | null;
+  blancoBiologico?: string | null;
+  metodoAplicacion?: string | null;
   parcelaId: string;
   parcelaNombre?: string;
   sectorId?: string | null;
@@ -110,6 +114,10 @@ export interface ActividadItem {
 export interface ActividadDetalle extends ActividadItem {
   descripcion?: string | null;
   observaciones?: string | null;
+  blancoBiologico?: string | null;
+  metodoAplicacion?: string | null;
+  diasCarencia?: number | null;
+  horasReingreso?: number | null;
   trabajadores: TrabajadorAsignado[];
   recursos: RecursoAsignado[];
   updatedAt: string;
@@ -135,6 +143,23 @@ export interface RespuestaPaginadaActividades {
   totalPaginas: number;
 }
 
+export interface RecursoInput {
+  insumoId: string;
+  cantidadEstimada: number;
+  unidadMedida: string;
+  dosis?: string;
+  cantidadReal?: number;
+  notas?: string;
+}
+
+export interface TrabajadorInput {
+  usuarioId: string;
+  rolEnActividad?: string;
+  horaInicio?: string;
+  horaFin?: string;
+  horasAsignadas?: number;
+}
+
 export interface CrearActividadInput {
   codigo?: string;
   titulo: string;
@@ -146,9 +171,13 @@ export interface CrearActividadInput {
   usuarioResponsableId?: string;
   descripcion?: string;
   observaciones?: string;
+  blancoBiologico?: string;
+  metodoAplicacion?: string;
+  diasCarencia?: number;
+  horasReingreso?: number;
   estado?: EstadoActividadTipo;
-  trabajadores?: { usuarioId: string; rolEnActividad?: string }[];
-  recursos?: { insumoId: string; cantidadEstimada: number; unidadMedida: string; notas?: string }[];
+  trabajadores?: TrabajadorInput[];
+  recursos?: RecursoInput[];
 }
 
 export interface ActualizarActividadInput {
@@ -161,9 +190,13 @@ export interface ActualizarActividadInput {
   usuarioResponsableId?: string;
   descripcion?: string;
   observaciones?: string;
+  blancoBiologico?: string;
+  metodoAplicacion?: string;
+  diasCarencia?: number;
+  horasReingreso?: number;
   estado?: EstadoActividadTipo;
-  trabajadores?: { usuarioId: string; rolEnActividad?: string }[];
-  recursos?: { insumoId: string; cantidadEstimada: number; unidadMedida: string; notas?: string }[];
+  trabajadores?: TrabajadorInput[];
+  recursos?: RecursoInput[];
 }
 
 export interface ConflictoDisponibilidad {
@@ -184,4 +217,3 @@ export interface ValidacionDisponibilidadResultado {
   esValido: boolean;
   conflictos: ConflictoDisponibilidad[];
 }
-

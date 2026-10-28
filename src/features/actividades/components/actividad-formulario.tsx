@@ -104,6 +104,10 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       usuarioResponsableId: valoresIniciales?.usuarioResponsableId || '',
       descripcion: valoresIniciales?.descripcion || '',
       observaciones: valoresIniciales?.observaciones || '',
+      blancoBiologico: valoresIniciales?.blancoBiologico || '',
+      metodoAplicacion: valoresIniciales?.metodoAplicacion || '',
+      diasCarencia: valoresIniciales?.diasCarencia || undefined,
+      horasReingreso: valoresIniciales?.horasReingreso || undefined,
       estado: valoresIniciales?.estado || 'PENDIENTE',
       trabajadores: valoresIniciales?.trabajadores || [],
       recursos: valoresIniciales?.recursos || [],
@@ -325,7 +329,12 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       if (prev.some((r) => r.insumoId === insumo.id)) return prev;
       const nueva = [
         ...prev,
-        { insumoId: insumo.id, cantidadEstimada: 1, unidadMedida: insumo.unidadMedida },
+        {
+          insumoId: insumo.id,
+          cantidadEstimada: 1,
+          unidadMedida: insumo.unidadMedida,
+          dosis: '',
+        },
       ];
       setValue('recursos', nueva);
       return nueva;
@@ -344,6 +353,16 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     setRecursos((prev) => {
       const nueva = prev.map((r) =>
         r.insumoId === insumoId ? { ...r, cantidadEstimada: cantidad } : r,
+      );
+      setValue('recursos', nueva);
+      return nueva;
+    });
+  };
+
+  const cambiarDosisRecurso = (insumoId: string, dosis: string) => {
+    setRecursos((prev) => {
+      const nueva = prev.map((r) =>
+        r.insumoId === insumoId ? { ...r, dosis } : r,
       );
       setValue('recursos', nueva);
       return nueva;
@@ -383,6 +402,45 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
     ? `${responsableSeleccionado.nombres} ${responsableSeleccionado.apellidos}`
     : undefined;
 
+  const generarTituloAutomatico = () => {
+    const nombresLabor: Record<string, string> = {
+      RIEGO: 'Riego',
+      PODA: 'Poda',
+      COSECHA: 'Cosecha',
+      SIEMBRA: 'Siembra',
+      FERTILIZACION: 'Fertilización',
+      CONTROL_PLAGAS: 'Control Plagas',
+      DESHIERBE: 'Deshierbe',
+      MANTENIMIENTO: 'Mantenimiento',
+      MONITOREO_FITOSANITARIO: 'Monitoreo Fitosanitario',
+      AUDITORIA_CALIDAD: 'Auditoría Calidad',
+      SUPERVISION_TECNICA: 'Supervisión Técnica',
+      GESTION_ADMINISTRATIVA: 'Gestión Administrativa',
+      OTRO: 'Actividad Agrícola',
+    };
+    const etiquetaLabor = nombresLabor[tipoActual] || tipoActual;
+    const parcela = parcelas.find((p) => p.id === parcelaIdActual);
+    const nombreParcela = parcela
+      ? parcela.codigo
+        ? `[${parcela.codigo}] ${parcela.nombre}`
+        : parcela.nombre
+      : 'Parcela';
+    const sector = sectoresDisponibles.find((s) => s.id === sectorIdActual);
+    const nombreSector = sector ? ` (${sector.nombre})` : '';
+    const fecha = watch('fechaInicio') || new Date().toISOString().split('T')[0];
+    const partesFecha = fecha.split('-');
+    const fechaFormateada = partesFecha.length === 3 ? `${partesFecha[2]}/${partesFecha[1]}` : fecha;
+
+    const blanco = watch('blancoBiologico')?.trim();
+    const sufijoBlanco = blanco ? ` - ${blanco}` : '';
+
+    setValue(
+      'titulo',
+      `${etiquetaLabor}${sufijoBlanco} - ${nombreParcela}${nombreSector} - ${fechaFormateada}`,
+      { shouldValidate: true },
+    );
+  };
+
   // Bloque 1: Labor Agrícola
   const bloqueLabor = (
     <ActividadFormularioLabor
@@ -403,6 +461,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
       horaFinActual={horaFinActual}
       esSupervisor={esSupervisor}
       esAgronomo={esAgronomo}
+      onAutogenerarTitulo={generarTituloAutomatico}
       onCambiarHorario={(ini, fin) => {
         setValue('horaInicio', ini);
         setValue('horaFin', fin);
@@ -462,6 +521,7 @@ export const ActividadFormulario: React.FC<ActividadFormularioProps> = ({
         onAgregarRecurso={agregarRecurso}
         onEliminarRecurso={eliminarRecurso}
         onCambiarCantidad={cambiarCantidadRecurso}
+        onCambiarDosis={cambiarDosisRecurso}
       />
     </View>
   );

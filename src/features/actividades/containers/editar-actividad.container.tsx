@@ -1,28 +1,31 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { ActividadFormulario } from '../components/actividad-formulario';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
 import { useUsuariosQuery } from '@/features/usuarios/api/usuarios.api';
-import { useAuthStore } from '@/features/autenticacion';
 import { useInsumosQuery } from '../api/insumos.api';
 import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
 import { ActividadFormValores } from '../schemas/actividad.schema';
+import { useAuthStore } from '@/features/autenticacion';
 import { extraerRolYZona } from '../types/actividad.types';
 
+/**
+ * @description Contenedor orquestador para la edición de una actividad agrícola existente.
+ */
 export interface EditarActividadContainerProps {
-  id: string;
+  id?: string;
 }
 
-/**
- * @description Contenedor orquestador para editar una actividad agrícola existente.
- */
-export const EditarActividadContainer: React.FC<EditarActividadContainerProps> = ({ id }) => {
+export const EditarActividadContainer: React.FC<EditarActividadContainerProps> = ({ id: idProp }) => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = idProp || params.id;
   const usuario = useAuthStore((s) => s.usuario);
   const esSupervisor = usuario?.rol === 'SUPERVISOR';
+
   const { data: actividad, isLoading: cargandoActividad } = useActividadPorIdQuery(id);
   const { data: datosParcelas, isLoading: cargandoParcelas } = useParcelasQuery({ limite: 100 });
   const { data: datosUsuarios, isLoading: cargandoUsuarios } = useUsuariosQuery({ limite: 100 });
@@ -30,6 +33,8 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
   const actualizarMutation = useActualizarActividadMutation();
 
   const handleGuardar = (valores: ActividadFormValores) => {
+    if (!id) return;
+
     const fechaSolo = valores.fechaInicio.split('T')[0];
     const horaIni = valores.horaInicio || '07:00';
     const horaFin = valores.horaFin || '12:00';
@@ -68,6 +73,10 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           usuarioResponsableId: actividad.usuarioResponsableId || undefined,
           descripcion: valores.descripcion || undefined,
           observaciones: valores.observaciones || undefined,
+          blancoBiologico: actividad.blancoBiologico || undefined,
+          metodoAplicacion: actividad.metodoAplicacion || undefined,
+          diasCarencia: actividad.diasCarencia ?? undefined,
+          horasReingreso: actividad.horasReingreso ?? undefined,
           estado: valores.estado,
           trabajadores: trabajadoresFormateados,
           recursos: valores.recursos,
@@ -82,6 +91,10 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
           usuarioResponsableId: valores.usuarioResponsableId || undefined,
           descripcion: valores.descripcion || undefined,
           observaciones: valores.observaciones || undefined,
+          blancoBiologico: valores.blancoBiologico?.trim() || undefined,
+          metodoAplicacion: valores.metodoAplicacion?.trim() || undefined,
+          diasCarencia: valores.diasCarencia !== undefined ? Number(valores.diasCarencia) : undefined,
+          horasReingreso: valores.horasReingreso !== undefined ? Number(valores.horasReingreso) : undefined,
           estado: valores.estado,
           trabajadores: trabajadoresFormateados,
           recursos: valores.recursos,
@@ -169,6 +182,10 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
             usuarioResponsableId: actividad.usuarioResponsableId || '',
             descripcion: actividad.descripcion || '',
             observaciones: actividad.observaciones || '',
+            blancoBiologico: actividad.blancoBiologico || '',
+            metodoAplicacion: actividad.metodoAplicacion || '',
+            diasCarencia: actividad.diasCarencia ?? undefined,
+            horasReingreso: actividad.horasReingreso ?? undefined,
             estado: actividad.estado,
             trabajadores: actividad.trabajadores.map((t) => {
               const { rol, zona } = extraerRolYZona(t.rolEnActividad);
@@ -199,6 +216,8 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
               insumoId: r.insumoId,
               cantidadEstimada: r.cantidadEstimada,
               unidadMedida: r.unidadMedida,
+              dosis: r.dosis || '',
+              cantidadReal: r.cantidadReal ? Number(r.cantidadReal) : undefined,
               notas: r.notas || undefined,
             })),
           }}

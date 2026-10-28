@@ -66,6 +66,10 @@ export const CrearActividadContainer: React.FC = () => {
         usuarioResponsableId: valores.usuarioResponsableId || undefined,
         descripcion: valores.descripcion || undefined,
         observaciones: valores.observaciones || undefined,
+        blancoBiologico: valores.blancoBiologico?.trim() || undefined,
+        metodoAplicacion: valores.metodoAplicacion?.trim() || undefined,
+        diasCarencia: valores.diasCarencia !== undefined ? Number(valores.diasCarencia) : undefined,
+        horasReingreso: valores.horasReingreso !== undefined ? Number(valores.horasReingreso) : undefined,
         estado: valores.estado,
         trabajadores: trabajadoresFormateados,
         recursos: valores.recursos,
@@ -101,8 +105,6 @@ export const CrearActividadContainer: React.FC = () => {
             parcelas={datosParcelas?.items || []}
             usuarios={datosUsuarios?.elementos || []}
             insumos={insumos}
-            modo="crear"
-            esAgronomo={usuario?.rol === 'AGRONOMO'}
             guardando={crearMutation.isPending}
             onSubmit={handleGuardar}
             onCancelar={handleCancelar}
