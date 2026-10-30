@@ -7,3 +7,4 @@ import { DiagnosticoEscaneoContainer } from '@/features/diagnosticos';
 export default function DiagnosticoEscanerScreen() {
   return <DiagnosticoEscaneoContainer />;
 }
+
