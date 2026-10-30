@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useMutation, useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { apiClient, getDynamicHost } from '@/shared/api/api-client';
+import { obtenerHostPersonalizado } from '@/shared/stores/servidor.store';
 import {
   DiagnosticoRespuesta,
   DiagnosticoCampoItem,
@@ -20,6 +21,11 @@ export const DIAGNOSTICOS_KEYS = {
  * @description Obtiene la URL del microservicio de Visión Computacional (FastAPI) según la plataforma.
  */
 const getAiBaseUrl = (): string => {
+  const hostPersonalizado = obtenerHostPersonalizado();
+  if (hostPersonalizado) {
+    return `http://${hostPersonalizado}:8000/api/v1`;
+  }
+
   if (Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_AI_API_URL || 'http://127.0.0.1:8000/api/v1';
   }
@@ -52,6 +58,14 @@ if (__DEV__) {
 const aiApiClient = axios.create({
   baseURL: resolvedAiBaseUrl,
   timeout: 30000,
+});
+
+aiApiClient.interceptors.request.use((config) => {
+  const hostPersonalizado = obtenerHostPersonalizado();
+  if (hostPersonalizado) {
+    config.baseURL = `http://${hostPersonalizado}:8000/api/v1`;
+  }
+  return config;
 });
 
 /**

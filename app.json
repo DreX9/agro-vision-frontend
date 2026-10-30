@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.agrovision.app",
+      "usesCleartextTraffic": true,
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",

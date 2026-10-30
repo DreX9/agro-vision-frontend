@@ -28,6 +28,7 @@ import { DiagnosticoCampoItem } from '../types/diagnostico.types';
 import { obtenerAlertasRecientes } from '../api/diagnostico.api';
 import { abrirGoogleMaps } from '../utils/geolocalizacion';
 import { getDynamicHost } from '@/shared/api/api-client';
+import { obtenerHostPersonalizado } from '@/shared/stores/servidor.store';
 
 /**
  * @description Genera un tono de audio sintetizado suave para advertencia inmediata en navegadores.
@@ -104,7 +105,7 @@ export function NotificadorAlertasAgronomo() {
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.EventSource) {
       try {
-        const host = getDynamicHost() || 'localhost';
+        const host = obtenerHostPersonalizado() || getDynamicHost() || '10.251.177.8';
         const urlSse = `http://${host}:3001/api/v1/diagnosticos/alertas/en-vivo`;
 
         eventSource = new EventSource(urlSse);

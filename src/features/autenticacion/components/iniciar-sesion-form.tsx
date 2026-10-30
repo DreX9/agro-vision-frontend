@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Modal } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AlertCircle, Eye, EyeOff, Check, Sprout } from 'lucide-react-native';
+import { AlertCircle, Eye, EyeOff, Check, Sprout, Wifi, Server } from 'lucide-react-native';
+import { useServidorStore } from '@/shared/stores/servidor.store';
 import { Palette } from '@/constants/theme';
 import { Boton } from '@/shared/components/ui';
 import {
@@ -27,6 +28,10 @@ export const IniciarSesionForm: React.FC<IniciarSesionFormProps> = ({
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [passwordEnfocado, setPasswordEnfocado] = useState(false);
   const [correoEnfocado, setCorreoEnfocado] = useState(false);
+  const hostPersonalizado = useServidorStore((s) => s.hostPersonalizado);
+  const establecerHostPersonalizado = useServidorStore((s) => s.establecerHostPersonalizado);
+  const [modalServidorAbierto, setModalServidorAbierto] = useState(false);
+  const [ipInput, setIpInput] = useState(hostPersonalizado || '');
 
   const {
     control,
