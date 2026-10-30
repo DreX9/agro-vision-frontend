@@ -1,9 +1,9 @@
 import React from 'react';
-import { DiagnosticoEscaneoContainer } from '@/features/diagnosticos';
+import { DiagnosticosListaContainer } from '@/features/diagnosticos';
 
 /**
- * @description Ruta dedicada para el módulo aislado de escaneo y diagnóstico fitosanitario por IA.
+ * @description Ruta principal del módulo de diagnósticos: Lista y catálogo de detecciones fitosanitarias.
  */
-export default function DiagnosticosScreen() {
-  return <DiagnosticoEscaneoContainer />;
+export default function DiagnosticosListaScreen() {
+  return <DiagnosticosListaContainer />;
 }

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Palette } from '@/constants/theme';
 import { AlertTriangle } from 'lucide-react-native';
+import { useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { useAuthStore } from '@/features/autenticacion';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
@@ -33,6 +34,7 @@ import { HistorialDiagnosticosCampo } from '../components/HistorialDiagnosticosC
  * y clasificación explícita según si es alerta o condición normal.
  */
 export function DiagnosticoEscaneoContainer() {
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const esEscritorio = width >= 980;
 
@@ -322,8 +324,13 @@ export function DiagnosticoEscaneoContainer() {
             </View>
           </View>
 
-          {/* Historial de Diagnósticos Registrados en Base de Datos */}
-          <HistorialDiagnosticosCampo parcelaId={despliegueActual?.parcelaId} />
+          {/* Historial de Diagnósticos: En el escáner solo se muestran las últimas 2 a 3 detecciones */}
+          <HistorialDiagnosticosCampo
+            parcelaId={despliegueActual?.parcelaId}
+            limite={3}
+            modoCompacto={true}
+            onVerTodos={() => router.push('/diagnosticos' as Href)}
+          />
         </View>
       </ScrollView>
     </AppLayout>

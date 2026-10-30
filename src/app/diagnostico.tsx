@@ -1,9 +1,9 @@
 import React from 'react';
-import { DiagnosticoEscaneoContainer } from '@/features/diagnosticos';
+import { Redirect } from 'expo-router';
 
 /**
- * @description Alias en singular para facilitar la navegación a la pantalla de diagnóstico fitosanitario.
+ * @description Redirección al escáner fitosanitario desde el alias singular '/diagnostico'.
  */
 export default function DiagnosticoSingularScreen() {
-  return <DiagnosticoEscaneoContainer />;
+  return <Redirect href="/diagnosticos/escaner" />;
 }

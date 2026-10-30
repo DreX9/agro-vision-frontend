@@ -80,8 +80,9 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       'Control de checklist de subtareas y avance durante el turno.',
       'Reporte de novedades, averías o hallazgos de campo durante la jornada.',
       'Registro de punto GPS de avance de la labor para continuar al día siguiente.',
+      'Escaneo y reporte de anomalías o plagas detectadas en terreno.',
     ],
-    rutasPermitidas: ['/', '/actividades'],
+    rutasPermitidas: ['/', '/actividades', '/diagnostico', '/diagnosticos'],
   },
 };
 
