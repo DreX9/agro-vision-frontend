@@ -41,3 +41,4 @@ export const useServidorStore = create<ServidorState>((set) => ({
 export const obtenerHostPersonalizado = (): string | null => {
   return hostEnMemoria || useServidorStore.getState().hostPersonalizado;
 };
+
