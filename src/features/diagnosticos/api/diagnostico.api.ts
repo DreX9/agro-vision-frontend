@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useMutation, useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { apiClient, getDynamicHost } from '@/shared/api/api-client';
-import { obtenerHostPersonalizado } from '@/shared/stores/servidor.store';
+import { obtenerHostPersonalizado, formatearBaseUrlAI } from '@/shared/stores/servidor.store';
 import {
   DiagnosticoRespuesta,
   DiagnosticoCampoItem,
@@ -23,7 +23,7 @@ export const DIAGNOSTICOS_KEYS = {
 const getAiBaseUrl = (): string => {
   const hostPersonalizado = obtenerHostPersonalizado();
   if (hostPersonalizado) {
-    return `http://${hostPersonalizado}:8000/api/v1`;
+    const urlPersonalizada = formatearBaseUrlAI(hostPersonalizado); if (urlPersonalizada) return urlPersonalizada;
   }
 
   if (Platform.OS === 'web') {

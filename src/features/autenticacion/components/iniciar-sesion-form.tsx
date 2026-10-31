@@ -196,6 +196,20 @@ export const IniciarSesionForm: React.FC<IniciarSesionFormProps> = ({
           estilo={styles.botonSubmit}
         />
 
+        {/* Selector Dinámico de IP del Servidor Backend */}
+        <Pressable
+          onPress={() => {
+            setIpInput(hostPersonalizado || '');
+            setModalServidorAbierto(true);
+          }}
+          style={styles.botonConfigServidor}
+        >
+          <Server size={14} color={Palette.forestGreen} />
+          <Text style={styles.textoConfigServidor} numberOfLines={1}>
+            {hostPersonalizado ? `Servidor: ${hostPersonalizado}` : 'Servidor: Predeterminado (10.251.177.8)'}
+          </Text>
+        </Pressable>
+
         {/* Acceso Rápido para Pruebas / Demo por Rol */}
         <View style={styles.contenedorCuentasDemo}>
           <Text style={styles.tituloCuentasDemo}>
@@ -228,6 +242,65 @@ export const IniciarSesionForm: React.FC<IniciarSesionFormProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Modal para configurar IP del servidor en caliente */}
+      <Modal
+        visible={modalServidorAbierto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalServidorAbierto(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconBox}>
+                <Wifi size={20} color={Palette.forestGreen} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitulo}>IP del Servidor Backend</Text>
+                <Text style={styles.modalSubtitulo}>
+                  Conecta la app a la laptop cuando cambies de Wi-Fi o uses Zona Móvil
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>IP o Host del Backend:</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={ipInput}
+                onChangeText={setIpInput}
+                placeholder="Ej. 192.168.43.15 o 10.251.177.8"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.modalAyuda}>
+                Deja en blanco para restablecer a la IP por defecto de la compilación.
+              </Text>
+            </View>
+
+            <View style={styles.modalAcciones}>
+              <Pressable
+                style={styles.modalBotonCancelar}
+                onPress={() => setModalServidorAbierto(false)}
+              >
+                <Text style={styles.modalBotonCancelarTexto}>Cancelar</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.modalBotonGuardar}
+                onPress={async () => {
+                  await establecerHostPersonalizado(ipInput.trim() || null);
+                  setModalServidorAbierto(false);
+                }}
+              >
+                <Text style={styles.modalBotonGuardarTexto}>Guardar IP</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Pie de Página Institucional */}
       <View style={styles.pie}>
@@ -450,6 +523,119 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  botonConfigServidor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  textoConfigServidor: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  modalIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitulo: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalSubtitulo: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  modalBody: {
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1.2,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+  },
+  modalAyuda: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  modalAcciones: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  modalBotonCancelar: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  modalBotonCancelarTexto: {
+    fontSize: 13,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  modalBotonGuardar: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: Palette.forestGreen,
+  },
+  modalBotonGuardarTexto: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
 

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { obtenerHostPersonalizado } from '../stores/servidor.store';
+import { obtenerHostPersonalizado, formatearBaseUrlBackend } from '../stores/servidor.store';
 
 /**
  * @description Obtiene el host dinámico asignado por Metro / Expo bundler (IP local o localhost)
@@ -25,8 +25,9 @@ export const getDynamicHost = (): string | null => {
 export const getBaseUrl = (): string => {
   // 0. Si el usuario configuró una IP manual de servidor en la pantalla de inicio
   const hostPersonalizado = obtenerHostPersonalizado();
-  if (hostPersonalizado) {
-    return `http://${hostPersonalizado}:3001/api/v1`;
+  const urlPersonalizada = formatearBaseUrlBackend(hostPersonalizado);
+  if (urlPersonalizada) {
+    return urlPersonalizada;
   }
 
   if (Platform.OS === 'web') {
@@ -76,8 +77,9 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   try {
     const hostPersonalizado = obtenerHostPersonalizado();
-    if (hostPersonalizado) {
-      config.baseURL = `http://${hostPersonalizado}:3001/api/v1`;
+    const urlPersonalizada = formatearBaseUrlBackend(hostPersonalizado);
+    if (urlPersonalizada) {
+      config.baseURL = urlPersonalizada;
     }
 
     // Importación dinámica o acceso seguro al store sin dependencias circulares

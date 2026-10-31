@@ -42,3 +42,32 @@ export const obtenerHostPersonalizado = (): string | null => {
   return hostEnMemoria || useServidorStore.getState().hostPersonalizado;
 };
 
+/**
+ * @description Normaliza la IP o dominio introducido por el usuario para construir la URL base de NestJS.
+ */
+export const formatearBaseUrlBackend = (host: string | null): string | null => {
+  if (!host || !host.trim()) return null;
+  const h = host.trim().replace(/\/+$/, '');
+  if (h.startsWith('http://') || h.startsWith('https://')) {
+    return h.endsWith('/api/v1') ? h : `${h}/api/v1`;
+  }
+  if (h.includes(':')) {
+    return `http://${h}/api/v1`;
+  }
+  return `http://${h}:3001/api/v1`;
+};
+
+/**
+ * @description Normaliza la IP o dominio introducido por el usuario para construir la URL base de la IA FastAPI.
+ */
+export const formatearBaseUrlAI = (host: string | null): string | null => {
+  if (!host || !host.trim()) return null;
+  const h = host.trim().replace(/\/+$/, '');
+  if (h.startsWith('http://') || h.startsWith('https://')) {
+    return h.endsWith('/api/v1') ? h : `${h}/api/v1`;
+  }
+  if (h.includes(':')) {
+    return `http://${h}/api/v1`;
+  }
+  return `http://${h}:8000/api/v1`;
+};
