@@ -7,3 +7,4 @@ import { AsignacionCuadrillasContainer } from '@/features/actividades';
 export default function CuadrillasScreen() {
   return <AsignacionCuadrillasContainer />;
 }
+

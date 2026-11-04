@@ -56,6 +56,9 @@ export interface ProgramarActividadFormularioProps {
   guardando?: boolean;
   onSubmit: (valores: ProgramarActividadValores) => void;
   onCancelar: () => void;
+  valoresIniciales?: Partial<ProgramarActividadValores>;
+  modo?: 'crear' | 'editar';
+  textoBotonGuardar?: string;
 }
 
 interface TipoLaborOpcion {
@@ -94,6 +97,9 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
   guardando = false,
   onSubmit,
   onCancelar,
+  valoresIniciales,
+  modo = 'crear',
+  textoBotonGuardar,
 }) => {
   const { width } = useWindowDimensions();
   const esPantallaAmplia = width >= 800;
@@ -106,12 +112,16 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
   // Estado local para agregar insumos planificados
   const [insumoIdSeleccionado, setInsumoIdSeleccionado] = useState('');
   const [dosisInput, setDosisInput] = useState('2.0');
-  const [listaInsumosPlanificados, setListaInsumosPlanificados] = useState<InsumoPlanificadoValores[]>([]);
+  const [listaInsumosPlanificados, setListaInsumosPlanificados] = useState<InsumoPlanificadoValores[]>(
+    valoresIniciales?.insumos || [],
+  );
 
   // Estado local para agregar maquinaria
   const [equipoIdSeleccionado, setEquipoIdSeleccionado] = useState('');
   const [cantidadEquipoInput, setCantidadEquipoInput] = useState('1');
-  const [listaMaquinariaPlanificada, setListaMaquinariaPlanificada] = useState<MaquinariaPlanificadaValores[]>([]);
+  const [listaMaquinariaPlanificada, setListaMaquinariaPlanificada] = useState<MaquinariaPlanificadaValores[]>(
+    valoresIniciales?.maquinaria || [],
+  );
 
   // Supervisores filtrados
   const supervisoresDisponibles = useMemo(() => {
@@ -134,26 +144,55 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<ProgramarActividadValores>({
     resolver: zodResolver(programarActividadSchema),
     defaultValues: {
-      tipo: 'FERTILIZACION',
-      parcelaId: parcelas[0]?.id || '',
-      sectorId: '',
-      codigo: '',
-      titulo: '',
-      notasPlanificacion: '',
-      fechaInicio: fechaHoy,
-      fechaFin: fechaHoy,
-      turno: 'MANANA',
-      horasEstimadas: 5,
-      usuarioResponsableId: supervisoresDisponibles[0]?.id || '',
-      jornalesRequeridos: 4,
-      insumos: [],
-      maquinaria: [],
+      tipo: valoresIniciales?.tipo || 'FERTILIZACION',
+      parcelaId: valoresIniciales?.parcelaId || parcelas[0]?.id || '',
+      sectorId: valoresIniciales?.sectorId || '',
+      codigo: valoresIniciales?.codigo || '',
+      titulo: valoresIniciales?.titulo || '',
+      notasPlanificacion: valoresIniciales?.notasPlanificacion || '',
+      fechaInicio: valoresIniciales?.fechaInicio || fechaHoy,
+      fechaFin: valoresIniciales?.fechaFin || fechaHoy,
+      turno: valoresIniciales?.turno || 'MANANA',
+      horasEstimadas: valoresIniciales?.horasEstimadas || 5,
+      usuarioResponsableId: valoresIniciales?.usuarioResponsableId || supervisoresDisponibles[0]?.id || '',
+      jornalesRequeridos: valoresIniciales?.jornalesRequeridos || 4,
+      insumos: valoresIniciales?.insumos || [],
+      maquinaria: valoresIniciales?.maquinaria || [],
     },
   });
+
+  // Sincronizar formulario si los valores iniciales cambian
+  useEffect(() => {
+    if (valoresIniciales) {
+      reset({
+        tipo: valoresIniciales.tipo || 'FERTILIZACION',
+        parcelaId: valoresIniciales.parcelaId || parcelas[0]?.id || '',
+        sectorId: valoresIniciales.sectorId || '',
+        codigo: valoresIniciales.codigo || '',
+        titulo: valoresIniciales.titulo || '',
+        notasPlanificacion: valoresIniciales.notasPlanificacion || '',
+        fechaInicio: valoresIniciales.fechaInicio || fechaHoy,
+        fechaFin: valoresIniciales.fechaFin || fechaHoy,
+        turno: valoresIniciales.turno || 'MANANA',
+        horasEstimadas: valoresIniciales.horasEstimadas || 5,
+        usuarioResponsableId: valoresIniciales?.usuarioResponsableId || supervisoresDisponibles[0]?.id || '',
+        jornalesRequeridos: valoresIniciales?.jornalesRequeridos || 4,
+        insumos: valoresIniciales?.insumos || [],
+        maquinaria: valoresIniciales?.maquinaria || [],
+      });
+      if (valoresIniciales.insumos) {
+        setListaInsumosPlanificados(valoresIniciales.insumos);
+      }
+      if (valoresIniciales.maquinaria) {
+        setListaMaquinariaPlanificada(valoresIniciales.maquinaria);
+      }
+    }
+  }, [valoresIniciales, reset, fechaHoy]);
 
   const tipoActual = watch('tipo');
   const parcelaIdActual = watch('parcelaId');
@@ -870,7 +909,10 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
             estilo={{ minWidth: 120 }}
           />
           <Boton
-            titulo="Programar Actividad (PROGRAMADA)"
+            titulo={
+              textoBotonGuardar ||
+              (modo === 'editar' ? 'Guardar Cambios de Planificación' : 'Programar Actividad (PROGRAMADA)')
+            }
             variante="primario"
             cargando={guardando}
             onPress={handleSubmit(onSubmit)}

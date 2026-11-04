@@ -7,3 +7,4 @@ import { CrearActividadContainer } from '@/features/actividades';
 export default function ProgramarActividadScreen() {
   return <CrearActividadContainer />;
 }
+
