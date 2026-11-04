@@ -86,6 +86,7 @@ export interface DiagnosticoCampoItem {
   imagenUrl?: string | null;
   origenCaptura?: string | null;
   observaciones?: string | null;
+  ubicacionFueraTerreno?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,6 +107,7 @@ export interface CrearDiagnosticoPayload {
   imagenUrl?: string;
   origenCaptura?: string;
   observaciones?: string;
+  ubicacionFueraTerreno?: boolean;
 }
 
 export interface FiltrosDiagnosticosParams {

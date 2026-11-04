@@ -330,13 +330,36 @@ export function NotificadorAlertasAgronomo() {
               </View>
             </View>
 
+            {/* Banner si fue fuera de terreno */}
+            {(alertaActiva.ubicacionFueraTerreno ||
+              alertaActiva.origenCaptura === 'OPERADOR_FUERA_TERRENO' ||
+              alertaActiva.observaciones?.includes('FUERA')) && (
+              <View style={styles.cajaAlertaFuera}>
+                <AlertTriangle size={16} color="#D97706" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tituloAlertaFuera}>
+                    ⚠️ Captura emitida FUERA de los terrenos registrados
+                  </Text>
+                  <Text style={styles.subAlertaFuera}>
+                    El operario se encontraba fuera de las parcelas del fundo al reportar. Se registraron las coordenadas reales GPS.
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* Fila: Ubicación (Parcela, Sector, Coordenadas) */}
             <View style={styles.itemDetalle}>
               <View style={styles.iconoItem}>
                 <MapPin size={16} color={Palette.forestGreen} />
               </View>
               <View style={styles.textosItem}>
-                <Text style={styles.etiquetaItem}>Ubicación del Hallazgo:</Text>
+                <Text style={styles.etiquetaItem}>
+                  {alertaActiva.ubicacionFueraTerreno ||
+                  alertaActiva.origenCaptura === 'OPERADOR_FUERA_TERRENO' ||
+                  alertaActiva.observaciones?.includes('FUERA')
+                    ? 'Ubicación GPS Real (Fuera de Terreno):'
+                    : 'Ubicación del Hallazgo:'}
+                </Text>
                 <Text style={styles.valorItemPrincipal}>
                   {alertaActiva.parcelaNombre || 'Parcela'}
                   {alertaActiva.sectorNombre ? ` > ${alertaActiva.sectorNombre}` : ''}
@@ -530,6 +553,27 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#991B1B',
     fontFamily: 'monospace',
+  },
+  cajaAlertaFuera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  tituloAlertaFuera: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  subAlertaFuera: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 14,
   },
   itemDetalle: {
     flexDirection: 'row',

@@ -317,9 +317,12 @@ export function ModalAlertaRapidaOperador({
       return;
     }
 
-    // Resolver parcela en segundo plano
+    // Determinar si la captura ocurrió fuera de los terrenos registrados
+    const esFueraDeTerreno = !deteccion || deteccion.tipo === 'FUERA';
+
+    // Resolver parcela de referencia (requerida por integridad en BD)
     const parcelaIdFinal =
-      deteccion?.parcelaId ||
+      (deteccion && deteccion.tipo !== 'FUERA' ? deteccion.parcelaId : null) ||
       (parcelas.length > 0 ? parcelas[0].id : null);
 
     if (!parcelaIdFinal) {
@@ -327,9 +330,12 @@ export function ModalAlertaRapidaOperador({
       return;
     }
 
-    const sectorIdFinal = deteccion?.sectorId || undefined;
-    const lat = coords?.latitud || parcelas.find((p) => p.id === parcelaIdFinal)?.latitudCentro || -11.95;
-    const lng = coords?.longitud || parcelas.find((p) => p.id === parcelaIdFinal)?.longitudCentro || -76.98;
+    const sectorIdFinal =
+      deteccion && deteccion.tipo !== 'FUERA' ? deteccion.sectorId : undefined;
+
+    // Coordenadas reales del GPS del dispositivo
+    const lat = coords?.latitud ?? (parcelas.find((p) => p.id === parcelaIdFinal)?.latitudCentro || -11.95);
+    const lng = coords?.longitud ?? (parcelas.find((p) => p.id === parcelaIdFinal)?.longitudCentro || -76.98);
 
     const estadoGeneral = diagnosticoIa?.estado_general || 'ALERTA';
     const saludPorcentaje = diagnosticoIa?.salud_porcentaje ? Math.round(diagnosticoIa.salud_porcentaje) : 65;
@@ -345,6 +351,13 @@ export function ModalAlertaRapidaOperador({
       'Verificación urgente en terreno por el supervisor de campo asignado.',
     ];
 
+    // Si está fuera de terreno registrado, se añade la indicación explícita
+    let notaFinal = observaciones.trim();
+    if (esFueraDeTerreno) {
+      const notaFuera = `[⚠️ AVISO: Captura emitida FUERA de los terrenos/parcelas agrícolas registradas. GPS Real: ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}]`;
+      notaFinal = notaFinal ? `${notaFuera} ${notaFinal}` : notaFuera;
+    }
+
     const payload = {
       parcelaId: parcelaIdFinal,
       sectorId: sectorIdFinal,
@@ -358,8 +371,9 @@ export function ModalAlertaRapidaOperador({
       detecciones,
       recomendaciones,
       tiempoProcesamientoMs: diagnosticoIa?.tiempo_procesamiento_ms || undefined,
-      origenCaptura: 'OPERADOR_CAMPO_APP',
-      observaciones: observaciones.trim() || undefined,
+      origenCaptura: esFueraDeTerreno ? 'OPERADOR_FUERA_TERRENO' : 'OPERADOR_CAMPO_APP',
+      observaciones: notaFinal || undefined,
+      ubicacionFueraTerreno: esFueraDeTerreno,
     };
 
     try {
@@ -458,13 +472,29 @@ export function ModalAlertaRapidaOperador({
               showsVerticalScrollIndicator={true}
             >
               {/* Badge Informativo de Fondo (Ubicación Satelital y Trabajador) */}
-              <View style={styles.badgeFondoInformativo}>
+              <View
+                style={[
+                  styles.badgeFondoInformativo,
+                  (!deteccion || deteccion.tipo === 'FUERA') && styles.badgeFondoAlertaFuera,
+                ]}
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  <MapPin size={14} color={Palette.forestGreen} />
-                  <Text style={styles.textoFondoInformativo} numberOfLines={1}>
-                    {deteccion
+                  <MapPin
+                    size={14}
+                    color={!deteccion || deteccion.tipo === 'FUERA' ? '#D97706' : Palette.forestGreen}
+                  />
+                  <Text
+                    style={[
+                      styles.textoFondoInformativo,
+                      (!deteccion || deteccion.tipo === 'FUERA') && styles.textoFondoAlertaFuera,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {deteccion && deteccion.tipo !== 'FUERA'
                       ? `${deteccion.parcelaNombre || 'Parcela'} > ${deteccion.sectorNombre || 'Sector'}`
-                      : 'Adquiriendo GPS en segundo plano...'}
+                      : coords
+                        ? `⚠️ Fuera de terreno (${coords.latitud.toFixed(4)}, ${coords.longitud.toFixed(4)})`
+                        : 'Adquiriendo GPS en segundo plano...'}
                   </Text>
                 </View>
 
@@ -783,10 +813,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  badgeFondoAlertaFuera: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
   textoFondoInformativo: {
     fontSize: 11,
     fontWeight: '700',
     color: '#334155',
+  },
+  textoFondoAlertaFuera: {
+    color: '#B45309',
   },
   textoTrabajadorFondo: {
     fontSize: 11,
