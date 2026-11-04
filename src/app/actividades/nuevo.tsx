@@ -1,9 +1,9 @@
 import React from 'react';
-import { CrearActividadContainer } from '@/features/actividades';
+import { Redirect } from 'expo-router';
 
 /**
- * @description Ruta dedicada para la creación y programación de una nueva actividad agrícola.
+ * @description Ruta heredada que redirige al flujo oficial /actividades/nueva.
  */
-export default function NuevaActividadScreen() {
-  return <CrearActividadContainer />;
+export default function NuevoActividadAliasScreen() {
+  return <Redirect href="/actividades/nueva" />;
 }

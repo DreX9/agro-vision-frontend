@@ -42,7 +42,9 @@ export const useUIStore = create<UIState>()(
       submenuParcelasAbierto: true,
       submenusAbiertos: {
         '/parcelas': true,
+        '/actividades': true,
         '/cultivos': true,
+        '/diagnosticos': true,
       },
 
       toggleSidebarColapsado: () =>

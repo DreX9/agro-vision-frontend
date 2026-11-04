@@ -72,6 +72,26 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
     ruta: '/actividades',
     icono: CalendarCheck,
     rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+    subitems: [
+      {
+        nombre: 'Lista de actividades',
+        ruta: '/actividades',
+        icono: ListTree,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+      },
+      {
+        nombre: 'Programar actividad',
+        ruta: '/actividades/nueva',
+        icono: PlusCircle,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO'],
+      },
+      {
+        nombre: 'Asignación y cuadrillas',
+        ruta: '/actividades/cuadrillas',
+        icono: Users,
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
+      },
+    ],
   },
   {
     nombre: 'Cultivos',

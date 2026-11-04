@@ -13,6 +13,7 @@ export interface ActividadesTablaProps {
   onVerDetalle?: (actividad: ActividadItem) => void;
   onEditar?: (actividad: ActividadItem) => void;
   onCambiarEstado?: (actividad: ActividadItem, nuevoEstado?: EstadoActividadTipo) => void;
+  onCancelar?: (actividad: ActividadItem) => void;
   onEliminar?: (actividad: ActividadItem) => void;
   idActividadCambiandoEstado?: string;
 }
@@ -26,6 +27,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
   onVerDetalle,
   onEditar,
   onCambiarEstado,
+  onCancelar,
   onEliminar,
   idActividadCambiandoEstado,
 }) => {
@@ -276,6 +278,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
         onVerDetalle={onVerDetalle}
         onEditar={onEditar}
         onCambiarEstado={onCambiarEstado}
+        onCancelar={onCancelar}
         onEliminar={onEliminar}
       />
 

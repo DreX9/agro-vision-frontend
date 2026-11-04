@@ -18,3 +18,5 @@ export * from './containers/actividades-lista.container';
 export * from './containers/crear-actividad.container';
 export * from './containers/editar-actividad.container';
 export * from './containers/detalle-actividad.container';
+export * from './components/programar-actividad-formulario';
+export * from './containers/asignacion-cuadrillas.container';
