@@ -358,7 +358,6 @@ export function ModalAlertaRapidaOperador({
       detecciones,
       recomendaciones,
       tiempoProcesamientoMs: diagnosticoIa?.tiempo_procesamiento_ms || undefined,
-      imagenUrl: imagenPreviewUrl,
       origenCaptura: 'OPERADOR_CAMPO_APP',
       observaciones: observaciones.trim() || undefined,
     };
@@ -422,7 +421,7 @@ export function ModalAlertaRapidaOperador({
               <Text style={styles.tituloExito}>¡ALERTA ENVIADA AL SUPERVISOR!</Text>
               <Text style={styles.codigoExito}>{codigoGenerado}</Text>
               <Text style={styles.descripcionExito}>
-                Tu foto, el pre-diagnóstico de la IA y tus coordenadas GPS se han transmitido en segundo plano.
+                El pre-diagnóstico de la IA, tus coordenadas GPS y los datos de tu labor se han transmitido en segundo plano.
                 La alarma ha escalado a la pantalla de tu{' '}
                 <Text style={{ fontWeight: 'bold', color: Palette.forestGreen }}>
                   Supervisor de Campo
