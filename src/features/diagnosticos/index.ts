@@ -13,3 +13,6 @@ export * from './components/DiagnosticoSkeleton';
 export * from './components/SelectorDespliegueDron';
 export * from './components/HistorialDiagnosticosCampo';
 export * from './components/NotificadorAlertasAgronomo';
+export * from './components/BotonAlertaOperadorFlotante';
+export * from './components/ModalAlertaRapidaOperador';
+export * from './utils/detector-geografico';

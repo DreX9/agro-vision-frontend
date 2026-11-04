@@ -17,6 +17,7 @@ import { useAuthStore } from '@/features/autenticacion';
 import { tienePermisoRuta } from '@/shared/constants/roles-permisos';
 import { AccesoDenegado } from './acceso-denegado';
 import { useUIStore } from '@/shared/stores/ui.store';
+import { BotonAlertaOperadorFlotante } from '@/features/diagnosticos';
 
 export interface AppLayoutProps {
   children: React.ReactNode;
@@ -139,6 +140,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </View>
         </View>
       </View>
+      {/* Botón flotante para emisión de alertas en campo por operadores */}
+      <BotonAlertaOperadorFlotante />
     </SafeAreaView>
   );
 };

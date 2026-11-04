@@ -87,6 +87,37 @@ export function NotificadorAlertasAgronomo() {
 
     idsAlertasProcesadas.current.add(alerta.id);
 
+    // 1. Evitar alertar al mismo usuario que acaba de emitir el reporte
+    if (usuarioActual?.id && alerta.usuarioId === usuarioActual.id) {
+      return;
+    }
+
+    // 2. Control jerárquico de destinatarios:
+    // - Si reporta un OPERADOR -> Le llega a su SUPERVISOR (y ADMINISTRADOR)
+    // - Si reporta un SUPERVISOR -> Le llega al AGRONOMO (y ADMINISTRADOR)
+    // - Si reporta un AGRONOMO o sistema autónomo -> Le llega al ADMINISTRADOR y AGRONOMOS
+    const rolReportante = alerta.usuarioRol || 'OPERADOR';
+    let correspondeNotificar = false;
+
+    if (rol === 'ADMINISTRADOR') {
+      // El administrador siempre tiene supervisión y recibe todas las alertas
+      correspondeNotificar = true;
+    } else if (rol === 'SUPERVISOR') {
+      // Al supervisor le corresponden las alertas emitidas por los operarios en terreno
+      if (rolReportante === 'OPERADOR') {
+        correspondeNotificar = true;
+      }
+    } else if (rol === 'AGRONOMO') {
+      // Al agrónomo le corresponden las alertas escaladas por Supervisores o monitoreo autónomo
+      if (rolReportante === 'SUPERVISOR' || rolReportante === 'AGRONOMO' || !alerta.usuarioRol) {
+        correspondeNotificar = true;
+      }
+    }
+
+    if (!correspondeNotificar) {
+      return;
+    }
+
     // Activar modal en pantalla
     setAlertaActiva(alerta);
 
@@ -95,7 +126,7 @@ export function NotificadorAlertasAgronomo() {
     if (Platform.OS !== 'web') {
       Vibration.vibrate([0, 250, 100, 250]);
     }
-  }, []);
+  }, [rol, usuarioActual?.id]);
 
   // Efecto 1: Suscripción reactiva mediante Server-Sent Events (SSE) en Web
   useEffect(() => {
@@ -188,9 +219,21 @@ export function NotificadorAlertasAgronomo() {
     }
   };
 
+  const rolReportante = alertaActiva.usuarioRol || 'OPERADOR';
   const nombreReportante =
     alertaActiva.usuarioNombre ||
-    (alertaActiva.usuarioId ? 'Personal Técnico de Campo' : 'Operador de Campo / Dron');
+    (rolReportante === 'OPERADOR'
+      ? 'Operador de Campo'
+      : rolReportante === 'SUPERVISOR'
+        ? 'Supervisor de Campo'
+        : 'Agrónomo de Fundo');
+
+  const etiquetaJerarquia =
+    rolReportante === 'OPERADOR'
+      ? 'ALERTA DE OPERADOR EN TERRENO'
+      : rolReportante === 'SUPERVISOR'
+        ? 'ALERTA ESCALADA POR SUPERVISOR'
+        : 'ALERTA FITOSANITARIA';
 
   return (
     <Modal
@@ -235,14 +278,26 @@ export function NotificadorAlertasAgronomo() {
               <Badge texto={alertaActiva.estadoGeneral} variante="alerta" />
             </View>
 
-            {/* Fila: Quién Reportó */}
+            {/* Fila: Quién Reportó y Jerarquía */}
             <View style={styles.itemDetalle}>
               <View style={styles.iconoItem}>
                 <User size={16} color={Palette.forestGreen} />
               </View>
               <View style={styles.textosItem}>
                 <Text style={styles.etiquetaItem}>Reportado por:</Text>
-                <Text style={styles.valorItemPrincipal}>{nombreReportante}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.valorItemPrincipal}>{nombreReportante}</Text>
+                  <Badge
+                    texto={
+                      rolReportante === 'OPERADOR'
+                        ? 'Operador'
+                        : rolReportante === 'SUPERVISOR'
+                          ? 'Supervisor'
+                          : 'Agrónomo'
+                    }
+                    variante="neutro"
+                  />
+                </View>
               </View>
             </View>
 
@@ -310,6 +365,18 @@ export function NotificadorAlertasAgronomo() {
                 <Text style={styles.textoRecomendacionAlerta} numberOfLines={2}>
                   💡 {alertaActiva.recomendaciones[0]}
                 </Text>
+              )}
+
+              {/* Observaciones registradas por el operario/supervisor */}
+              {alertaActiva.observaciones && (
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FFFFFF', borderRadius: 6, borderWidth: 1, borderColor: '#FED7AA' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#9A3412', marginBottom: 2 }}>
+                    Observaciones en terreno:
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#334155' }}>
+                    {alertaActiva.observaciones}
+                  </Text>
+                </View>
               )}
             </View>
           </View>

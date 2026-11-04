@@ -67,6 +67,10 @@ export interface DiagnosticoCampoItem {
   cultivoVariedad?: string | null;
   usuarioId?: string | null;
   usuarioNombre?: string | null;
+  usuarioRol?: string | null;
+  supervisorId?: string | null;
+  supervisorNombre?: string | null;
+  destinatarioRol?: string | null;
   latitud: number;
   longitud: number;
   estadoGeneral: EstadoSaludFoliar;
