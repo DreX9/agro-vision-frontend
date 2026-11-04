@@ -71,6 +71,9 @@ export interface DiagnosticoCampoItem {
   supervisorId?: string | null;
   supervisorNombre?: string | null;
   destinatarioRol?: string | null;
+  actividadCodigo?: string | null;
+  actividadTitulo?: string | null;
+  actividadTipo?: string | null;
   latitud: number;
   longitud: number;
   estadoGeneral: EstadoSaludFoliar;

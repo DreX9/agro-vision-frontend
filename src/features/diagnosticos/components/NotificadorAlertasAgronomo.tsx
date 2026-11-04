@@ -20,6 +20,7 @@ import {
   X,
   Bug,
   ShieldAlert,
+  CalendarCheck,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge } from '@/shared/components/ui/badge';
@@ -301,6 +302,22 @@ export function NotificadorAlertasAgronomo() {
                 </View>
               </View>
             </View>
+
+            {/* Fila: Labor / Actividad en Curso que realizaba */}
+            {alertaActiva.actividadTitulo && (
+              <View style={styles.itemDetalle}>
+                <View style={styles.iconoItem}>
+                  <CalendarCheck size={16} color={Palette.forestGreen} />
+                </View>
+                <View style={styles.textosItem}>
+                  <Text style={styles.etiquetaItem}>Labor que realizaba en terreno:</Text>
+                  <Text style={styles.valorItemPrincipal}>
+                    {alertaActiva.actividadTitulo}
+                    {alertaActiva.actividadCodigo ? ` (${alertaActiva.actividadCodigo})` : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Fila: Fecha y Hora */}
             <View style={styles.itemDetalle}>
