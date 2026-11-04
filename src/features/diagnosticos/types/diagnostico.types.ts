@@ -67,6 +67,13 @@ export interface DiagnosticoCampoItem {
   cultivoVariedad?: string | null;
   usuarioId?: string | null;
   usuarioNombre?: string | null;
+  usuarioRol?: string | null;
+  supervisorId?: string | null;
+  supervisorNombre?: string | null;
+  destinatarioRol?: string | null;
+  actividadCodigo?: string | null;
+  actividadTitulo?: string | null;
+  actividadTipo?: string | null;
   latitud: number;
   longitud: number;
   estadoGeneral: EstadoSaludFoliar;
@@ -79,6 +86,7 @@ export interface DiagnosticoCampoItem {
   imagenUrl?: string | null;
   origenCaptura?: string | null;
   observaciones?: string | null;
+  ubicacionFueraTerreno?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +107,7 @@ export interface CrearDiagnosticoPayload {
   imagenUrl?: string;
   origenCaptura?: string;
   observaciones?: string;
+  ubicacionFueraTerreno?: boolean;
 }
 
 export interface FiltrosDiagnosticosParams {

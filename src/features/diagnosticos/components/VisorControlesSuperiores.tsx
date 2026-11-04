@@ -11,14 +11,13 @@ export interface VisorControlesSuperioresProps {
 }
 
 /**
- * @description Barra superior de controles del visor multimedia (cámara web, video de muestra, subir foto, pantalla completa).
+ * @description Barra superior de controles del visor multimedia (cámara web, video de muestra, pantalla completa).
  */
 export const VisorControlesSuperiores: React.FC<VisorControlesSuperioresProps> = ({
   camaraActiva,
   esPantallaCompleta,
   onToggleCamara,
   onTogglePantallaCompleta,
-  onSubirFoto,
 }) => {
   return (
     <View style={styles.barraSuperior}>
@@ -30,16 +29,6 @@ export const VisorControlesSuperiores: React.FC<VisorControlesSuperioresProps> =
       </View>
 
       <View style={styles.filaAccionesSuperiores}>
-        {onSubirFoto && Platform.OS === 'web' && (
-          <Pressable
-            onPress={onSubirFoto}
-            style={({ pressed }) => [styles.botonSubirFoto, pressed && styles.presionado]}
-          >
-            <Upload size={14} color="#FFFFFF" />
-            <Text style={styles.textoBotonSubirFoto}>Subir Foto</Text>
-          </Pressable>
-        )}
-
         {Platform.OS === 'web' && (
           <Pressable
             onPress={onToggleCamara}

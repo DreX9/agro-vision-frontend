@@ -266,7 +266,6 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
           esPantallaCompleta={esPantallaCompleta}
           onToggleCamara={toggleCamaraWeb}
           onTogglePantallaCompleta={() => setEsPantallaCompleta(!esPantallaCompleta)}
-          onSubirFoto={handleAbrirSelectorArchivo}
         />
 
         {/* Barra de Acciones Inferior */}

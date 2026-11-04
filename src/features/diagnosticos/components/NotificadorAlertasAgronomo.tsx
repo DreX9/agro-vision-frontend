@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   Vibration,
+  Image,
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import {
@@ -19,6 +20,7 @@ import {
   X,
   Bug,
   ShieldAlert,
+  CalendarCheck,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge } from '@/shared/components/ui/badge';
@@ -27,8 +29,8 @@ import { useAuthStore } from '@/features/autenticacion';
 import { DiagnosticoCampoItem } from '../types/diagnostico.types';
 import { obtenerAlertasRecientes } from '../api/diagnostico.api';
 import { abrirGoogleMaps } from '../utils/geolocalizacion';
-import { getDynamicHost } from '@/shared/api/api-client';
-import { obtenerHostPersonalizado } from '@/shared/stores/servidor.store';
+import { getBaseUrl } from '@/shared/api/api-client';
+
 
 /**
  * @description Genera un tono de audio sintetizado suave para advertencia inmediata en navegadores.
@@ -87,6 +89,37 @@ export function NotificadorAlertasAgronomo() {
 
     idsAlertasProcesadas.current.add(alerta.id);
 
+    // 1. Evitar alertar al mismo usuario que acaba de emitir el reporte
+    if (usuarioActual?.id && alerta.usuarioId === usuarioActual.id) {
+      return;
+    }
+
+    // 2. Control jerárquico de destinatarios:
+    // - Si reporta un OPERADOR -> Le llega a su SUPERVISOR (y ADMINISTRADOR)
+    // - Si reporta un SUPERVISOR -> Le llega al AGRONOMO (y ADMINISTRADOR)
+    // - Si reporta un AGRONOMO o sistema autónomo -> Le llega al ADMINISTRADOR y AGRONOMOS
+    const rolReportante = alerta.usuarioRol || 'OPERADOR';
+    let correspondeNotificar = false;
+
+    if (rol === 'ADMINISTRADOR') {
+      // El administrador siempre tiene supervisión y recibe todas las alertas
+      correspondeNotificar = true;
+    } else if (rol === 'SUPERVISOR') {
+      // Al supervisor le corresponden las alertas emitidas por los operarios en terreno
+      if (rolReportante === 'OPERADOR') {
+        correspondeNotificar = true;
+      }
+    } else if (rol === 'AGRONOMO') {
+      // Al agrónomo le corresponden las alertas escaladas por Supervisores o monitoreo autónomo
+      if (rolReportante === 'SUPERVISOR' || rolReportante === 'AGRONOMO' || !alerta.usuarioRol) {
+        correspondeNotificar = true;
+      }
+    }
+
+    if (!correspondeNotificar) {
+      return;
+    }
+
     // Activar modal en pantalla
     setAlertaActiva(alerta);
 
@@ -95,7 +128,7 @@ export function NotificadorAlertasAgronomo() {
     if (Platform.OS !== 'web') {
       Vibration.vibrate([0, 250, 100, 250]);
     }
-  }, []);
+  }, [rol, usuarioActual?.id]);
 
   // Efecto 1: Suscripción reactiva mediante Server-Sent Events (SSE) en Web
   useEffect(() => {
@@ -105,8 +138,8 @@ export function NotificadorAlertasAgronomo() {
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.EventSource) {
       try {
-        const host = obtenerHostPersonalizado() || getDynamicHost() || '10.251.177.8';
-        const urlSse = `http://${host}:3001/api/v1/diagnosticos/alertas/en-vivo`;
+
+        const urlSse = `${getBaseUrl()}/diagnosticos/alertas/en-vivo`;
 
         eventSource = new EventSource(urlSse);
 
@@ -188,9 +221,21 @@ export function NotificadorAlertasAgronomo() {
     }
   };
 
+  const rolReportante = alertaActiva.usuarioRol || 'OPERADOR';
   const nombreReportante =
     alertaActiva.usuarioNombre ||
-    (alertaActiva.usuarioId ? 'Personal Técnico de Campo' : 'Operador de Campo / Dron');
+    (rolReportante === 'OPERADOR'
+      ? 'Operador de Campo'
+      : rolReportante === 'SUPERVISOR'
+        ? 'Supervisor de Campo'
+        : 'Agrónomo de Fundo');
+
+  const etiquetaJerarquia =
+    rolReportante === 'OPERADOR'
+      ? 'ALERTA DE OPERADOR EN TERRENO'
+      : rolReportante === 'SUPERVISOR'
+        ? 'ALERTA ESCALADA POR SUPERVISOR'
+        : 'ALERTA FITOSANITARIA';
 
   return (
     <Modal
@@ -235,16 +280,44 @@ export function NotificadorAlertasAgronomo() {
               <Badge texto={alertaActiva.estadoGeneral} variante="alerta" />
             </View>
 
-            {/* Fila: Quién Reportó */}
+            {/* Fila: Quién Reportó y Jerarquía */}
             <View style={styles.itemDetalle}>
               <View style={styles.iconoItem}>
                 <User size={16} color={Palette.forestGreen} />
               </View>
               <View style={styles.textosItem}>
                 <Text style={styles.etiquetaItem}>Reportado por:</Text>
-                <Text style={styles.valorItemPrincipal}>{nombreReportante}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.valorItemPrincipal}>{nombreReportante}</Text>
+                  <Badge
+                    texto={
+                      rolReportante === 'OPERADOR'
+                        ? 'Operador'
+                        : rolReportante === 'SUPERVISOR'
+                          ? 'Supervisor'
+                          : 'Agrónomo'
+                    }
+                    variante="neutro"
+                  />
+                </View>
               </View>
             </View>
+
+            {/* Fila: Labor / Actividad en Curso que realizaba */}
+            {alertaActiva.actividadTitulo && (
+              <View style={styles.itemDetalle}>
+                <View style={styles.iconoItem}>
+                  <CalendarCheck size={16} color={Palette.forestGreen} />
+                </View>
+                <View style={styles.textosItem}>
+                  <Text style={styles.etiquetaItem}>Labor que realizaba en terreno:</Text>
+                  <Text style={styles.valorItemPrincipal}>
+                    {alertaActiva.actividadTitulo}
+                    {alertaActiva.actividadCodigo ? ` (${alertaActiva.actividadCodigo})` : ''}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Fila: Fecha y Hora */}
             <View style={styles.itemDetalle}>
@@ -257,13 +330,36 @@ export function NotificadorAlertasAgronomo() {
               </View>
             </View>
 
+            {/* Banner si fue fuera de terreno */}
+            {(alertaActiva.ubicacionFueraTerreno ||
+              alertaActiva.origenCaptura === 'OPERADOR_FUERA_TERRENO' ||
+              alertaActiva.observaciones?.includes('FUERA')) && (
+              <View style={styles.cajaAlertaFuera}>
+                <AlertTriangle size={16} color="#D97706" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tituloAlertaFuera}>
+                    ⚠️ Captura emitida FUERA de los terrenos registrados
+                  </Text>
+                  <Text style={styles.subAlertaFuera}>
+                    El operario se encontraba fuera de las parcelas del fundo al reportar. Se registraron las coordenadas reales GPS.
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* Fila: Ubicación (Parcela, Sector, Coordenadas) */}
             <View style={styles.itemDetalle}>
               <View style={styles.iconoItem}>
                 <MapPin size={16} color={Palette.forestGreen} />
               </View>
               <View style={styles.textosItem}>
-                <Text style={styles.etiquetaItem}>Ubicación del Hallazgo:</Text>
+                <Text style={styles.etiquetaItem}>
+                  {alertaActiva.ubicacionFueraTerreno ||
+                  alertaActiva.origenCaptura === 'OPERADOR_FUERA_TERRENO' ||
+                  alertaActiva.observaciones?.includes('FUERA')
+                    ? 'Ubicación GPS Real (Fuera de Terreno):'
+                    : 'Ubicación del Hallazgo:'}
+                </Text>
                 <Text style={styles.valorItemPrincipal}>
                   {alertaActiva.parcelaNombre || 'Parcela'}
                   {alertaActiva.sectorNombre ? ` > ${alertaActiva.sectorNombre}` : ''}
@@ -310,6 +406,28 @@ export function NotificadorAlertasAgronomo() {
                 <Text style={styles.textoRecomendacionAlerta} numberOfLines={2}>
                   💡 {alertaActiva.recomendaciones[0]}
                 </Text>
+              )}
+
+              {/* Observaciones registradas por el operario/supervisor */}
+              {alertaActiva.observaciones && (
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FFFFFF', borderRadius: 6, borderWidth: 1, borderColor: '#FED7AA' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#9A3412', marginBottom: 2 }}>
+                    Observaciones en terreno:
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#334155' }}>
+                    {alertaActiva.observaciones}
+                  </Text>
+                </View>
+              )}
+
+              {/* Foto de la planta capturada por la cámara del operador */}
+              {alertaActiva.imagenUrl && (
+                <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#CBD5E1' }}>
+                  <Image
+                    source={{ uri: alertaActiva.imagenUrl }}
+                    style={{ width: '100%', height: 140, resizeMode: 'cover' }}
+                  />
+                </View>
               )}
             </View>
           </View>
@@ -435,6 +553,27 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#991B1B',
     fontFamily: 'monospace',
+  },
+  cajaAlertaFuera: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  tituloAlertaFuera: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  subAlertaFuera: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 14,
   },
   itemDetalle: {
     flexDirection: 'row',
