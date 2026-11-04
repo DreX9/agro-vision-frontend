@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { obtenerHostPersonalizado, formatearBaseUrlBackend } from '../stores/servidor.store';
 
 /**
  * @description Obtiene el host dinámico asignado por Metro / Expo bundler (IP local o localhost)
@@ -22,6 +23,13 @@ export const getDynamicHost = (): string | null => {
  * @description Obtiene la URL base adecuada según la plataforma (Web, Emulador Android, Dispositivo físico).
  */
 export const getBaseUrl = (): string => {
+  // 0. Si el usuario configuró una IP manual de servidor en la pantalla de inicio
+  const hostPersonalizado = obtenerHostPersonalizado();
+  const urlPersonalizada = formatearBaseUrlBackend(hostPersonalizado);
+  if (urlPersonalizada) {
+    return urlPersonalizada;
+  }
+
   if (Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
   }
@@ -64,10 +72,16 @@ export const apiClient = axios.create({
 });
 
 /**
- * @description Interceptor para inyectar token JWT de sesión activa en cada petición.
+ * @description Interceptor para inyectar dinámicamente el host del servidor y el token JWT de sesión.
  */
 apiClient.interceptors.request.use((config) => {
   try {
+    const hostPersonalizado = obtenerHostPersonalizado();
+    const urlPersonalizada = formatearBaseUrlBackend(hostPersonalizado);
+    if (urlPersonalizada) {
+      config.baseURL = urlPersonalizada;
+    }
+
     // Importación dinámica o acceso seguro al store sin dependencias circulares
     const authStoreData =
       typeof window !== 'undefined' && window.localStorage
@@ -101,4 +115,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-

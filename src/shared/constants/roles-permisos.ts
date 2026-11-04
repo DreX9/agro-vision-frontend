@@ -50,7 +50,9 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       '/cultivos',
       '/cultivos/nuevo',
       '/actividades',
+      '/actividades/nueva',
       '/actividades/nuevo',
+      '/actividades/cuadrillas',
       '/diagnostico',
       '/diagnosticos',
     ],
@@ -67,7 +69,7 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       'Monitoreo del estado general del fundo desde el Dashboard.',
       'Consulta y registro de diagnósticos fitosanitarios de campo.',
     ],
-    rutasPermitidas: ['/', '/actividades', '/diagnostico', '/diagnosticos'],
+    rutasPermitidas: ['/', '/actividades', '/actividades/cuadrillas', '/diagnostico', '/diagnosticos'],
   },
   OPERADOR: {
     rol: 'OPERADOR',
@@ -80,8 +82,9 @@ export const MATRIZ_ROLES: Record<RolSistema, DefinicionRol> = {
       'Control de checklist de subtareas y avance durante el turno.',
       'Reporte de novedades, averías o hallazgos de campo durante la jornada.',
       'Registro de punto GPS de avance de la labor para continuar al día siguiente.',
+      'Escaneo y reporte de anomalías o plagas detectadas en terreno.',
     ],
-    rutasPermitidas: ['/', '/actividades'],
+    rutasPermitidas: ['/', '/actividades', '/actividades/cuadrillas', '/diagnostico', '/diagnosticos'],
   },
 };
 
@@ -107,7 +110,7 @@ export function tienePermisoRuta(rol: string | undefined | null, ruta: string): 
 
   // Restricción explícita: La creación de nuevas actividades está reservada para Administrador y Agrónomo
   if (
-    rutaLimpia === '/actividades/nuevo' &&
+    (rutaLimpia === '/actividades/nuevo' || rutaLimpia === '/actividades/nueva') &&
     rolNormalizado !== 'ADMINISTRADOR' &&
     rolNormalizado !== 'AGRONOMO'
   ) {

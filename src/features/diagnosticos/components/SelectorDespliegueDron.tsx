@@ -46,6 +46,13 @@ export const SelectorDespliegueDron: React.FC<SelectorDespliegueDronProps> = ({
   const parcelaActiva = parcelas.find((p) => p.id === parcelaId);
   const sectorActivo = sectores.find((s) => s.id === sectorId);
 
+  // Auto-seleccionar la primera parcela disponible por defecto si no hay ninguna seleccionada
+  useEffect(() => {
+    if (parcelas.length > 0 && !parcelaId) {
+      setParcelaId(parcelas[0].id);
+    }
+  }, [parcelas, parcelaId]);
+
   // Sincronizar configuración de despliegue al cambiar parcela o sector
   useEffect(() => {
     if (!parcelaId || !parcelaActiva) {

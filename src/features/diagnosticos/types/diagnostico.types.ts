@@ -72,6 +72,7 @@ export interface DiagnosticoCampoItem {
   estadoGeneral: EstadoSaludFoliar;
   saludPorcentaje: number;
   totalPlagasDetectadas: number;
+  esAlerta: boolean;
   detecciones: DeteccionPlaga[];
   recomendaciones: string[];
   tiempoProcesamientoMs?: number | null;
@@ -91,6 +92,7 @@ export interface CrearDiagnosticoPayload {
   estadoGeneral: EstadoSaludFoliar;
   saludPorcentaje: number;
   totalPlagasDetectadas: number;
+  esAlerta?: boolean;
   detecciones?: DeteccionPlaga[];
   recomendaciones?: string[];
   tiempoProcesamientoMs?: number;
@@ -103,6 +105,7 @@ export interface FiltrosDiagnosticosParams {
   parcelaId?: string;
   sectorId?: string;
   estadoGeneral?: string;
+  esAlerta?: boolean;
   pagina?: number;
   limite?: number;
 }
@@ -114,4 +117,3 @@ export interface RespuestaPaginadaDiagnosticos {
   limite: number;
   totalPaginas: number;
 }
-

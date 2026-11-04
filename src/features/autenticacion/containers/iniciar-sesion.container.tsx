@@ -37,6 +37,12 @@ export const IniciarSesionContainer: React.FC = () => {
       onError: (error: unknown) => {
         if (axios.isAxiosError(error) && error.response?.data?.message) {
           setErrorMensaje(String(error.response.data.message));
+        } else if (axios.isAxiosError(error)) {
+          const urlIntentada = error.config?.baseURL || error.config?.url || 'URL no disponible';
+          const codigo = error.code ? ` (${error.code})` : '';
+          setErrorMensaje(
+            `No se pudo conectar con el servidor${codigo}.\nDestino: ${urlIntentada}\nToca 'Servidor' abajo para ajustar la IP de tu PC o verifica tu conexión Wi-Fi.`
+          );
         } else {
           setErrorMensaje('No se pudo conectar con el servidor. Revisa tu conexión.');
         }

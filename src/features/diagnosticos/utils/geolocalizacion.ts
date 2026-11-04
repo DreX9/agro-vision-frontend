@@ -7,17 +7,49 @@ export interface CoordenadasGps {
   precision?: number | null;
 }
 
+// Bandera en memoria para evitar spam de llamadas si el usuario denegó geolocalización en navegador web
+let permisoDenegadoWeb = false;
+
+/**
+ * @description Solicita los permisos necesarios de ubicación en la app móvil.
+ * Se invoca automáticamente en la primera ejecución o al acceder a la cámara.
+ */
+export async function solicitarPermisosUbicacion(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return true;
+  }
+
+  try {
+    const { status: statusActual } = await Location.getForegroundPermissionsAsync();
+    if (statusActual === 'granted') {
+      return true;
+    }
+
+    const { status: nuevoStatus } = await Location.requestForegroundPermissionsAsync();
+    return nuevoStatus === 'granted';
+  } catch (error) {
+    console.warn('[AgroVision GPS] Error al solicitar permisos nativos:', error);
+    return false;
+  }
+}
+
 /**
  * @description Obtiene las coordenadas GPS del dispositivo o navegador en tiempo real.
- * Si está en Web, consulta navigator.geolocation; en móvil consulta expo-location.
+ * Si está en Web, consulta navigator.geolocation con manejo silencioso de denegación.
+ * En móvil nativo consulta expo-location previa comprobación de permisos.
  */
 export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | null> {
   try {
     if (Platform.OS === 'web') {
+      if (permisoDenegadoWeb) {
+        return null;
+      }
+
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
         return new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
+              permisoDenegadoWeb = false;
               resolve({
                 latitud: pos.coords.latitude,
                 longitud: pos.coords.longitude,
@@ -25,7 +57,14 @@ export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | 
               });
             },
             (err) => {
-              console.warn('GPS de alta precisión no disponible o demoró, reintentando con ubicación de red/Wi-Fi:', err.message);
+              // Si el usuario denegó expresamente el permiso (código 1 - PERMISSION_DENIED)
+              if (err.code === 1 || err.message?.toLowerCase().includes('denied')) {
+                permisoDenegadoWeb = true;
+                resolve(null);
+                return;
+              }
+
+              // Si fue por timeout o precisión, reintentar una sola vez con Wi-Fi/red
               navigator.geolocation.getCurrentPosition(
                 (posNet) => {
                   resolve({
@@ -34,20 +73,19 @@ export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | 
                     precision: posNet.coords.accuracy,
                   });
                 },
-                (errNet) => {
-                  console.warn('Error definitivo al obtener geolocalización:', errNet.message);
+                () => {
                   resolve(null);
                 },
                 {
                   enableHighAccuracy: false,
-                  timeout: 10000,
+                  timeout: 6000,
                   maximumAge: 300000,
                 },
               );
             },
             {
               enableHighAccuracy: true,
-              timeout: 6000,
+              timeout: 5000,
               maximumAge: 60000,
             },
           );
@@ -56,15 +94,14 @@ export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | 
       return null;
     }
 
-    // Entorno móvil nativo (Android / iOS)
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      console.warn('Permiso de geolocalización denegado en el dispositivo.');
+    // Entorno móvil nativo (Android APK / iOS)
+    const tienePermiso = await solicitarPermisosUbicacion();
+    if (!tienePermiso) {
       return null;
     }
 
     const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.Balanced,
     });
 
     return {
@@ -72,8 +109,7 @@ export async function obtenerCoordenadasDispositivo(): Promise<CoordenadasGps | 
       longitud: loc.coords.longitude,
       precision: loc.coords.accuracy,
     };
-  } catch (error) {
-    console.warn('Excepción al consultar GPS del dispositivo:', error);
+  } catch {
     return null;
   }
 }
@@ -93,4 +129,3 @@ export function abrirGoogleMaps(latitud: number, longitud: number) {
     });
   }
 }
-

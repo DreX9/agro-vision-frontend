@@ -46,7 +46,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const cerrarSesion = useAuthStore((state) => state.cerrarSesion);
 
   const esRutaActiva = (ruta: string): boolean => {
-    if (ruta === '/') return rutaActual === '/' || rutaActual === '/index';
+    if (ruta === "/") return rutaActual === "/" || rutaActual === "/index";
+    if (ruta === "/actividades/nueva") {
+      return rutaActual === "/actividades/nueva" || rutaActual === "/actividades/nuevo";
+    }
+    if (ruta === "/actividades") {
+      return (
+        rutaActual === "/actividades" ||
+        (!rutaActual.startsWith("/actividades/nueva") &&
+          !rutaActual.startsWith("/actividades/nuevo") &&
+          !rutaActual.startsWith("/actividades/cuadrillas") &&
+          rutaActual.startsWith("/actividades"))
+      );
+    }
     return rutaActual === ruta;
   };
 

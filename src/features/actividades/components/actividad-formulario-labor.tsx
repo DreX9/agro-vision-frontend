@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Controller, Control, FieldErrors } from 'react-hook-form';
-import { Lock } from 'lucide-react-native';
+import { Lock, Sparkles, ShieldAlert, Bug, Wrench } from 'lucide-react-native';
 import { Boton, Input, Select, SelectOpcion, SelectorFecha, SelectorHora } from '@/shared/components/ui';
 import { Palette } from '@/constants/theme';
 import { SectorParcelaItem } from '@/features/parcelas/types/sector-parcela.types';
@@ -47,11 +47,13 @@ export interface ActividadFormularioLaborProps {
   onCambiarHorario?: (inicio: string, fin: string) => void;
   esSupervisor?: boolean;
   esAgronomo?: boolean;
+  onAutogenerarTitulo?: () => void;
 }
 
 /**
  * @description Sección de formulario para la información agronómica de la labor a programar,
- * con diferenciación entre labores operativas de campo y labores administrativas/técnicas.
+ * con diferenciación entre labores operativas de campo y labores administrativas/técnicas,
+ * parámetros de aplicación fitosanitaria y asistencia de autotitulado.
  */
 export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> = ({
   control,
@@ -72,6 +74,7 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
   onCambiarHorario,
   esSupervisor = false,
   esAgronomo = false,
+  onAutogenerarTitulo,
 }) => {
   const [categoriaTab, setCategoriaTab] = React.useState<'CAMPO' | 'ADMIN'>(() => {
     return esLaborCampo(tipoActual) ? 'CAMPO' : 'ADMIN';
@@ -88,7 +91,15 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
 
   return (
     <View style={styles.tarjeta}>
-      <Text style={styles.tituloSeccion}>Información de la Labor Agrícola</Text>
+      <View style={styles.filaTituloAccion}>
+        <Text style={styles.tituloSeccion}>Información de la Labor Agrícola</Text>
+        {!esSupervisor && onAutogenerarTitulo && (
+          <Pressable onPress={onAutogenerarTitulo} style={styles.botonAutogenerar}>
+            <Sparkles size={12} color="#15803D" />
+            <Text style={styles.textoBotonAutogenerar}>Autogenerar Título</Text>
+          </Pressable>
+        )}
+      </View>
 
       <Controller
         control={control}
@@ -116,7 +127,7 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             </View>
           )}
         </View>
-        
+
         {/* Selector de categoría de labor */}
         <View style={styles.selectorCategoria}>
           <Pressable
@@ -276,6 +287,80 @@ export const ActividadFormularioLabor: React.FC<ActividadFormularioLaborProps> =
             </Text>
           </View>
         ) : null}
+      </View>
+
+      {/* Sección: Parámetros Agronómicos y Seguridad */}
+      <View style={styles.tarjetaTurno}>
+        <View style={styles.cabeceraTurno}>
+          <Text style={styles.tituloTurno}>🌱 Parámetros Agronómicos y Seguridad</Text>
+        </View>
+
+        <Controller
+          control={control}
+          name="blancoBiologico"
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Blanco Biológico u Objetivo Agronómico"
+              placeholder="Ej. Oídium, Mosca de la fruta, Deficiencia N-P-K, Maleza..."
+              value={value || ''}
+              onChangeText={onChange}
+              editable={!esSupervisor}
+              iconoIzquierda={esSupervisor ? <Lock size={15} color="#9CA3AF" /> : undefined}
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="metodoAplicacion"
+          render={({ field: { onChange, value } }) => (
+            <Input
+              label="Método o Equipo de Aplicación"
+              placeholder="Ej. Foliar con mochila, Tractor / Nebulizadora, Fertirriego..."
+              value={value || ''}
+              onChangeText={onChange}
+              editable={!esSupervisor}
+              iconoIzquierda={esSupervisor ? <Lock size={15} color="#9CA3AF" /> : undefined}
+            />
+          )}
+        />
+
+        {(tipoActual === 'CONTROL_PLAGAS' || tipoActual === 'FERTILIZACION') && (
+          <View style={styles.filaDosColumnas}>
+            <View style={styles.columna}>
+              <Controller
+                control={control}
+                name="diasCarencia"
+                render={({ field: { onChange, value } }) => (
+                  <Input
+                    label="Período Carencia (Días)"
+                    placeholder="Ej. 7"
+                    keyboardType="numeric"
+                    value={value !== undefined && value !== null ? String(value) : ''}
+                    onChangeText={(v) => onChange(v ? Number(v) : undefined)}
+                    editable={!esSupervisor}
+                  />
+                )}
+              />
+            </View>
+            <View style={styles.columna}>
+              <Controller
+                control={control}
+                name="horasReingreso"
+                render={({ field: { onChange, value } }) => (
+                  <Input
+                    label="Reingreso Seguro (Horas)"
+                    placeholder="Ej. 24"
+                    keyboardType="numeric"
+                    value={value !== undefined && value !== null ? String(value) : ''}
+                    onChangeText={(v) => onChange(v ? Number(v) : undefined)}
+                    editable={!esSupervisor}
+                  />
+                )}
+              />
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Selector interactivo de Fechas (Calendario) */}

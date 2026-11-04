@@ -37,7 +37,7 @@ export default function DashboardScreen() {
   const puedeAccederParcelas = tienePermisoRuta(rolActual, '/parcelas');
   const puedeAccederCultivos = tienePermisoRuta(rolActual, '/cultivos');
   const puedeAccederUsuarios = tienePermisoRuta(rolActual, '/usuarios');
-  const puedeAccederDiagnosticos = tienePermisoRuta(rolActual, '/diagnostico');
+  const puedeAccederDiagnosticos = tienePermisoRuta(rolActual, '/diagnosticos');
   const puedeAccederActividades = tienePermisoRuta(rolActual, '/actividades');
 
   const { data: parcelasData, isLoading: cargandoParcelas } = useParcelasQuery({ limite: 100 });
@@ -100,7 +100,7 @@ export default function DashboardScreen() {
                 titulo="Ver Diagnósticos"
                 variante="primario"
                 iconoDerecha={<ArrowRight size={16} color={Palette.white} />}
-                onPress={() => router.push('/diagnostico' as Href)}
+                onPress={() => router.push('/diagnosticos' as Href)}
               />
             </View>
           ) : null}
@@ -192,7 +192,7 @@ export default function DashboardScreen() {
           ) : puedeAccederDiagnosticos ? (
             <Pressable
               style={styles.columnaMetrica}
-              onPress={() => router.push('/diagnostico' as Href)}
+              onPress={() => router.push('/diagnosticos' as Href)}
             >
               <Card estilo={styles.tarjetaMetrica}>
                 <View style={styles.iconoMetricaWrapper}>
@@ -347,7 +347,7 @@ export default function DashboardScreen() {
           {puedeAccederDiagnosticos && (
             <Pressable
               style={styles.columnaAcceso}
-              onPress={() => router.push('/diagnostico' as Href)}
+              onPress={() => router.push('/diagnosticos/escaner' as Href)}
             >
               <Card estilo={styles.tarjetaAcceso}>
                 <View style={styles.iconoAccesoContenedor}>

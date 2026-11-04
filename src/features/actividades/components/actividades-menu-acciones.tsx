@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { Eye, Pencil, Power, Trash2 } from 'lucide-react-native';
+import { Eye, Pencil, Power, Trash2, Ban } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { ActividadItem } from '../types/actividad.types';
 
@@ -17,6 +17,7 @@ export interface ActividadesMenuAccionesProps {
   onVerDetalle?: (actividad: ActividadItem) => void;
   onEditar?: (actividad: ActividadItem) => void;
   onCambiarEstado?: (actividad: ActividadItem) => void;
+  onCancelar?: (actividad: ActividadItem) => void;
   onEliminar?: (actividad: ActividadItem) => void;
 }
 
@@ -31,6 +32,7 @@ export const ActividadesMenuAcciones: React.FC<ActividadesMenuAccionesProps> = (
   onVerDetalle,
   onEditar,
   onCambiarEstado,
+  onCancelar,
   onEliminar,
 }) => {
   if (!visible || !actividad) return null;
@@ -75,6 +77,19 @@ export const ActividadesMenuAcciones: React.FC<ActividadesMenuAccionesProps> = (
             >
               <Power size={15} color="#D97706" />
               <Text style={styles.textoOpcion}>Cambiar estado</Text>
+            </Pressable>
+          )}
+
+          {onCancelar && actividad.estado !== 'CANCELADA' && (
+            <Pressable
+              style={({ pressed }) => [styles.opcionMenu, pressed && styles.opcionPresionada]}
+              onPress={() => {
+                onCerrar();
+                onCancelar(actividad);
+              }}
+            >
+              <Ban size={15} color="#DC2626" />
+              <Text style={[styles.textoOpcion, { color: '#DC2626' }]}>Cancelar actividad</Text>
             </Pressable>
           )}
 

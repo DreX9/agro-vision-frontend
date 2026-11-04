@@ -11,6 +11,7 @@ import { styles } from './actividad-formulario-cuadrilla.styles';
 export interface TrabajadorAsignadoInput {
   usuarioId: string;
   rolEnActividad?: string;
+  zonaTrabajo?: string;
   horaInicio?: string;
   horaFin?: string;
   horasAsignadas?: number;
@@ -29,6 +30,7 @@ export interface ActividadFormularioCuadrillaProps {
   };
   onAlternarTrabajador: (usuarioId: string) => void;
   onCambiarRol: (usuarioId: string, rol: string) => void;
+  onCambiarZona?: (usuarioId: string, zona: string) => void;
   onCambiarHoras?: (usuarioId: string, horas: number) => void;
   esSupervisor?: boolean;
   esAgronomo?: boolean;
@@ -324,6 +326,7 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   turnoHorasLabor,
   onAlternarTrabajador,
   onCambiarRol,
+  onCambiarZona,
   onCambiarHoras,
   esSupervisor = false,
   esAgronomo = false,
@@ -725,6 +728,55 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                             </Pressable>
                           );
                         })}
+                      </View>
+
+                      {/* Zona de Trabajo o Subtarea asignada a este operador */}
+                      <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#E5E7EB', gap: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: Palette.forestGreen }}>
+                            📍 Zona de Trabajo / Subtarea Designada:
+                          </Text>
+                          {esAgronomo && (
+                            <Text style={{ fontSize: 10, color: '#92400E', fontWeight: '600' }}>
+                              🔒 Designación a cargo del Supervisor
+                            </Text>
+                          )}
+                        </View>
+
+                        {!esAgronomo && (
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                            {['Hilera 1-10', 'Hilera 11-20', 'Hilera 21-30', 'Sector Norte', 'Sector Sur', 'Cabecera / Mezcla'].map((sug) => {
+                              const activa = asignado?.zonaTrabajo === sug;
+                              return (
+                                <Pressable
+                                  key={sug}
+                                  onPress={() => onCambiarZona && onCambiarZona(usuario.id, sug)}
+                                  style={{
+                                    paddingHorizontal: 7,
+                                    paddingVertical: 2,
+                                    borderRadius: 4,
+                                    backgroundColor: activa ? '#EDF4E8' : '#F9FAFB',
+                                    borderWidth: 1,
+                                    borderColor: activa ? Palette.forestGreen : '#E5E7EB',
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 10, fontWeight: '600', color: activa ? Palette.forestGreen : '#4B5563' }}>
+                                    {sug}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        )}
+
+                        <Input
+                          placeholder="Ej: Hilera 1 a 15, Válvulas 3 y 4, Lote B..."
+                          value={asignado?.zonaTrabajo || ''}
+                          editable={!esAgronomo}
+                          onChangeText={(texto) => onCambiarZona && onCambiarZona(usuario.id, texto)}
+                          contenedorEstilo={{ marginBottom: 0 }}
+                          style={{ fontSize: 12, minHeight: 32 }}
+                        />
                       </View>
 
                       {/* Horario y Horas asignadas a este trabajador */}

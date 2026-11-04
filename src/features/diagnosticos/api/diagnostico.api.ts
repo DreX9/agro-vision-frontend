@@ -2,6 +2,7 @@ import axios from 'axios';
 import { useMutation, useQuery, useQueryClient, UseMutationResult } from '@tanstack/react-query';
 import { Platform } from 'react-native';
 import { apiClient, getDynamicHost } from '@/shared/api/api-client';
+import { obtenerHostPersonalizado, formatearBaseUrlAI } from '@/shared/stores/servidor.store';
 import {
   DiagnosticoRespuesta,
   DiagnosticoCampoItem,
@@ -20,6 +21,11 @@ export const DIAGNOSTICOS_KEYS = {
  * @description Obtiene la URL del microservicio de Visión Computacional (FastAPI) según la plataforma.
  */
 const getAiBaseUrl = (): string => {
+  const hostPersonalizado = obtenerHostPersonalizado();
+  if (hostPersonalizado) {
+    const urlPersonalizada = formatearBaseUrlAI(hostPersonalizado); if (urlPersonalizada) return urlPersonalizada;
+  }
+
   if (Platform.OS === 'web') {
     return process.env.EXPO_PUBLIC_AI_API_URL || 'http://127.0.0.1:8000/api/v1';
   }
@@ -52,6 +58,14 @@ if (__DEV__) {
 const aiApiClient = axios.create({
   baseURL: resolvedAiBaseUrl,
   timeout: 30000,
+});
+
+aiApiClient.interceptors.request.use((config) => {
+  const hostPersonalizado = obtenerHostPersonalizado();
+  if (hostPersonalizado) {
+    config.baseURL = `http://${hostPersonalizado}:8000/api/v1`;
+  }
+  return config;
 });
 
 /**
@@ -121,6 +135,7 @@ export const useDiagnosticosQuery = (filtros: FiltrosDiagnosticosParams = {}) =>
       if (filtros.parcelaId) params.append('parcelaId', filtros.parcelaId);
       if (filtros.sectorId) params.append('sectorId', filtros.sectorId);
       if (filtros.estadoGeneral) params.append('estadoGeneral', filtros.estadoGeneral);
+      if (filtros.esAlerta !== undefined) params.append('esAlerta', String(filtros.esAlerta));
       if (filtros.pagina) params.append('pagina', String(filtros.pagina));
       if (filtros.limite) params.append('limite', String(filtros.limite));
 
@@ -131,3 +146,18 @@ export const useDiagnosticosQuery = (filtros: FiltrosDiagnosticosParams = {}) =>
     },
   });
 };
+
+/**
+ * @description Obtiene las alertas fitosanitarias más recientes emitidas en el sistema.
+ */
+export const obtenerAlertasRecientes = async (
+  desde?: string,
+): Promise<DiagnosticoCampoItem[]> => {
+  const params = new URLSearchParams();
+  if (desde) params.append('desde', desde);
+  const respuesta = await apiClient.get<DiagnosticoCampoItem[]>(
+    `/diagnosticos/alertas/recientes?${params.toString()}`,
+  );
+  return respuesta.data;
+};
+
