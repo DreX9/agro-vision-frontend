@@ -7,10 +7,8 @@ import {
   Pressable,
   ScrollView,
   TextInput,
-  ActivityIndicator,
   Platform,
   Animated,
-  useWindowDimensions,
   Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -27,7 +25,6 @@ import {
   RotateCcw,
   Scan,
   User,
-  ShieldCheck,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge } from '@/shared/components/ui/badge';
@@ -53,14 +50,14 @@ const URL_VIDEO_MUESTRA =
 
 /**
  * @description Modal de Alerta Fitosanitaria para el Operador en Terreno.
- * Incorpora la cámara de diagnóstico en vivo (como en el módulo de diagnóstico)
- * con inferencia automática de IA y reconocimiento de fondo de trabajador, GPS y labor.
+ * Incorpora la cámara de escaneo en vivo (idéntica a la vista de diagnóstico)
+ * con inferencia automática de IA, opción de reescaneo instantáneo y transmisión
+ * automática de metadatos (operador, parcela, GPS y labor activa).
  */
 export function ModalAlertaRapidaOperador({
   visible,
   onCerrar,
 }: ModalAlertaRapidaOperadorProps) {
-  const { width: windowWidth } = useWindowDimensions();
   const usuarioActual = useAuthStore((s) => s.usuario);
   const guardarMutation = useGuardarDiagnosticoMutation();
   const escanearMutation = useEscanearImagenMutation();
@@ -76,7 +73,6 @@ export function ModalAlertaRapidaOperador({
   // Estados de cámara y escaneo
   const [permisoAndroid, solicitarPermisoAndroid] = useCameraPermissions();
   const [camaraWebActiva, setCamaraWebActiva] = useState(false);
-  const [imagenCapturadaBlob, setImagenCapturadaBlob] = useState<Blob | File | string | null>(null);
   const [imagenPreviewUrl, setImagenPreviewUrl] = useState<string | null>(null);
 
   // Refs de cámara Web y Android
@@ -178,7 +174,6 @@ export function ModalAlertaRapidaOperador({
     if (visible) {
       setAlertaEnviadaConExito(false);
       setCodigoGenerado('');
-      setImagenCapturadaBlob(null);
       setImagenPreviewUrl(null);
       setDiagnosticoIa(null);
       setErrorIa(null);
@@ -230,33 +225,26 @@ export function ModalAlertaRapidaOperador({
     });
   };
 
-  // Capturar fotograma en Web
+  // Capturar fotograma en Web manteniendo proporciones reales
   const capturarFrameWeb = async () => {
-    if (escanearMutation.isPending || Platform.OS !== 'web') return;
+    if (escanearMutation.isPending || Platform.OS !== 'web' || !videoWebRef.current) return;
     try {
+      const vWidth = videoWebRef.current.videoWidth || 1280;
+      const vHeight = videoWebRef.current.videoHeight || 720;
       const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 640;
+      canvas.width = vWidth;
+      canvas.height = vHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        if (camaraWebActiva && videoWebRef.current) {
-          ctx.drawImage(videoWebRef.current, 0, 0, 640, 640);
-        } else if (videoWebRef.current) {
-          ctx.drawImage(videoWebRef.current, 0, 0, 640, 640);
-        } else {
-          ctx.fillStyle = '#1e3a17';
-          ctx.fillRect(0, 0, 640, 640);
-        }
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        ctx.drawImage(videoWebRef.current, 0, 0, vWidth, vHeight);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
         setImagenPreviewUrl(dataUrl);
 
         canvas.toBlob((blob) => {
           if (blob) {
-            setImagenCapturadaBlob(blob);
             enviarIaParaPreEvaluacion(blob);
           }
-        }, 'image/jpeg', 0.85);
+        }, 'image/jpeg', 0.88);
       }
     } catch (e) {
       console.error('Error al capturar frame en web:', e);
@@ -268,13 +256,12 @@ export function ModalAlertaRapidaOperador({
     if (escanearMutation.isPending || !cameraAndroidRef.current) return;
     try {
       const foto = await cameraAndroidRef.current.takePictureAsync({
-        quality: 0.75,
+        quality: 0.8,
         skipProcessing: false,
       });
 
       if (foto?.uri) {
         setImagenPreviewUrl(foto.uri);
-        setImagenCapturadaBlob(foto.uri);
         enviarIaParaPreEvaluacion(foto.uri);
       }
     } catch (err) {
@@ -290,8 +277,8 @@ export function ModalAlertaRapidaOperador({
     }
   };
 
-  const handleReiniciarToma = () => {
-    setImagenCapturadaBlob(null);
+  // Permite reescanear instantáneamente si no detectó a la primera
+  const handleReescanear = () => {
     setImagenPreviewUrl(null);
     setDiagnosticoIa(null);
     setErrorIa(null);
@@ -303,7 +290,7 @@ export function ModalAlertaRapidaOperador({
   // Enviar el reporte de alerta fitosanitaria al supervisor
   const handleSubmitAlerta = async () => {
     if (!imagenPreviewUrl) {
-      alert('Por favor enfoca la planta y pulsa "Escanear Planta con IA" para registrar la captura.');
+      alert('Por favor enfoca la planta y pulsa "Empezar a escanear" para registrar la captura con IA.');
       return;
     }
 
@@ -368,7 +355,7 @@ export function ModalAlertaRapidaOperador({
 
   const translateY = animacionLaser.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 260],
+    outputRange: [0, 240],
   });
 
   return (
@@ -443,7 +430,11 @@ export function ModalAlertaRapidaOperador({
               />
             </View>
           ) : (
-            <ScrollView style={styles.cuerpoScroll} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.cuerpoScroll}
+              contentContainerStyle={styles.cuerpoScrollContenido}
+              showsVerticalScrollIndicator={true}
+            >
               {/* Badge Informativo de Fondo (Ubicación Satelital y Trabajador) */}
               <View style={styles.badgeFondoInformativo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -463,12 +454,15 @@ export function ModalAlertaRapidaOperador({
                 </View>
               </View>
 
-              {/* VISOR DE CÁMARA DE DIAGNÓSTICO EN VIVO */}
+              {/* VISOR DE CÁMARA DE DIAGNÓSTICO EN VIVO (Idéntico al módulo de escaneo) */}
               <View style={styles.contenedorVisorCamara}>
                 <View style={styles.visorMedia}>
-                  {/* Vista de imagen capturada estática si ya se tomó la foto */}
+                  {/* Vista de imagen capturada estática o stream en vivo */}
                   {imagenPreviewUrl ? (
-                    <Image source={{ uri: imagenPreviewUrl }} style={styles.fotoCapturada} />
+                    <Image
+                      source={{ uri: imagenPreviewUrl }}
+                      style={styles.fotoCapturada}
+                    />
                   ) : Platform.OS === 'web' ? (
                     <video
                       ref={videoWebRef}
@@ -490,6 +484,19 @@ export function ModalAlertaRapidaOperador({
                     </View>
                   )}
 
+                  {/* Badge de estado en la esquina superior izquierda del visor */}
+                  <View style={styles.badgeEnVivo}>
+                    <View
+                      style={[
+                        styles.puntoGrabando,
+                        !imagenPreviewUrl && styles.puntoActivo,
+                      ]}
+                    />
+                    <Text style={styles.textoEnVivo}>
+                      {imagenPreviewUrl ? 'CAPTURA FITOSANITARIA' : 'CÁMARA EN VIVO'}
+                    </Text>
+                  </View>
+
                   {/* Efecto de Escáner Láser animado durante inferencia */}
                   {escanearMutation.isPending && (
                     <Animated.View style={[styles.lineaLaser, { transform: [{ translateY }] }]}>
@@ -502,35 +509,42 @@ export function ModalAlertaRapidaOperador({
                     <BoundingBoxOverlay detecciones={diagnosticoIa.detecciones} />
                   )}
 
-                  {/* Botón de reintento si ya hay una captura */}
-                  {imagenPreviewUrl && (
-                    <Pressable onPress={handleReiniciarToma} style={styles.botonReintentarFlotante}>
-                      <RotateCcw size={14} color="#FFFFFF" />
-                      <Text style={styles.textoReintentar}>Otra toma</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Botón central de disparo / escaneo (como en Diagnóstico) */}
-                {!imagenPreviewUrl && (
-                  <View style={styles.barraDisparoCamara}>
-                    <Pressable
-                      onPress={handleDispararEscaneo}
-                      disabled={escanearMutation.isPending}
-                      style={({ pressed }) => [
-                        styles.botonDispararEscaneo,
-                        escanearMutation.isPending && styles.botonDispararCargando,
-                        pressed && styles.presionado,
-                      ]}
-                    >
-                      <Scan size={20} color="#FFFFFF" />
-                      <Text style={styles.textoBotonDisparar}>
-                        {escanearMutation.isPending ? 'Escaneando planta...' : 'Escanear Planta con IA'}
-                      </Text>
-                      <Sparkles size={16} color="#6EE7B7" />
-                    </Pressable>
+                  {/* Botón flotante central de escaneo / reescaneo directo en el visor */}
+                  <View style={styles.barraInferiorFlotante}>
+                    {imagenPreviewUrl ? (
+                      <Pressable
+                        onPress={handleReescanear}
+                        disabled={escanearMutation.isPending}
+                        style={({ pressed }) => [
+                          styles.botonReescanear,
+                          pressed && styles.presionado,
+                        ]}
+                      >
+                        <RotateCcw size={18} color="#FFFFFF" />
+                        <Text style={styles.textoBotonEscanear}>
+                          {escanearMutation.isPending ? 'Escaneando...' : 'Reescanear planta'}
+                        </Text>
+                        <Sparkles size={16} color="#6EE7B7" />
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={handleDispararEscaneo}
+                        disabled={escanearMutation.isPending}
+                        style={({ pressed }) => [
+                          styles.botonEscanear,
+                          escanearMutation.isPending && styles.botonEscanearCargando,
+                          pressed && styles.presionado,
+                        ]}
+                      >
+                        <Scan size={20} color="#FFFFFF" />
+                        <Text style={styles.textoBotonEscanear}>
+                          {escanearMutation.isPending ? 'Escaneando planta...' : 'Empezar a escanear'}
+                        </Text>
+                        <Sparkles size={16} color="#6EE7B7" />
+                      </Pressable>
+                    )}
                   </View>
-                )}
+                </View>
               </View>
 
               {/* RESULTADO DE LA PRE-EVALUACIÓN DE IA */}
@@ -585,6 +599,13 @@ export function ModalAlertaRapidaOperador({
                   {Array.isArray(diagnosticoIa.recomendaciones) && diagnosticoIa.recomendaciones.length > 0 && (
                     <Text style={styles.textoRecomendacion}>
                       💡 {diagnosticoIa.recomendaciones[0]}
+                    </Text>
+                  )}
+
+                  {diagnosticoIa.total_plagas_detectadas === 0 && (
+                    <Text style={styles.textoTipReescanear}>
+                      💡 Si observas alguna anomalía o plaga que no fue detectada, acércate más a la hoja y pulsa{' '}
+                      <Text style={{ fontWeight: '700' }}>"Reescanear planta"</Text>.
                     </Text>
                   )}
                 </View>
@@ -652,7 +673,7 @@ export function ModalAlertaRapidaOperador({
 const styles = StyleSheet.create({
   overlayFondo: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 14,
@@ -663,7 +684,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     width: '100%',
     maxWidth: 580,
-    maxHeight: '94%',
+    maxHeight: '92%',
+    display: 'flex',
+    flexDirection: 'column',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
@@ -711,10 +734,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   presionado: {
-    opacity: 0.75,
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
   cuerpoScroll: {
-    padding: 14,
+    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+  },
+  cuerpoScrollContenido: {
+    paddingBottom: 20,
   },
   badgeFondoInformativo: {
     flexDirection: 'row',
@@ -739,19 +770,19 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   contenedorVisorCamara: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#0F172A',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   visorMedia: {
     width: '100%',
-    height: 280,
+    height: 250,
     position: 'relative',
     backgroundColor: '#0F172A',
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   videoWeb: {
     width: '100%',
@@ -762,14 +793,95 @@ const styles = StyleSheet.create({
   fotoCapturada: {
     width: '100%',
     height: '100%',
-    resizeMode: 'contain',
+    resizeMode: 'cover',
+    // @ts-ignore Web support
+    objectFit: 'cover',
     backgroundColor: '#0F172A',
+  },
+  badgeEnVivo: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    zIndex: 25,
+  },
+  puntoGrabando: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EAB308',
+  },
+  puntoActivo: {
+    backgroundColor: '#22C55E',
+  },
+  textoEnVivo: {
+    color: '#F8FAFC',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  barraInferiorFlotante: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 25,
+  },
+  botonEscanear: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Palette.forestGreen,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  botonEscanearCargando: {
+    backgroundColor: '#065F46',
+    opacity: 0.85,
+  },
+  botonReescanear: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(30, 41, 59, 0.92)',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  textoBotonEscanear: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   cajaPermisoAndroid: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
     gap: 8,
+    flex: 1,
   },
   permisoTitulo: {
     color: '#F8FAFC',
@@ -798,58 +910,9 @@ const styles = StyleSheet.create({
   },
   brilloLaser: {
     width: '100%',
-    height: '100%',
-    shadowColor: '#10B981',
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  botonReintentarFlotante: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    zIndex: 25,
-  },
-  textoReintentar: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  barraDisparoCamara: {
-    padding: 10,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-  },
-  botonDispararEscaneo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Palette.forestGreen,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    shadowColor: Palette.forestGreen,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  botonDispararCargando: {
-    backgroundColor: '#065F46',
-    opacity: 0.85,
-  },
-  textoBotonDisparar: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    height: 24,
+    marginTop: -12,
+    backgroundColor: 'rgba(16, 185, 129, 0.3)',
   },
   tarjetaResultadoIa: {
     borderRadius: 10,
@@ -924,6 +987,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
+  textoTipReescanear: {
+    fontSize: 11,
+    color: '#15803D',
+    lineHeight: 15,
+    backgroundColor: '#DCFCE7',
+    padding: 6,
+    borderRadius: 6,
+    marginTop: 6,
+  },
   cajaErrorIa: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -954,10 +1026,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 8,
-    padding: 8,
+    padding: 10,
     fontSize: 12,
     color: '#1E293B',
     textAlignVertical: 'top',
+    minHeight: 52,
   },
   pieAcciones: {
     flexDirection: 'row',

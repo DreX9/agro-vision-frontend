@@ -43,7 +43,6 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
   const videoWebRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraAndroidRef = useRef<CameraView | null>(null);
-  const inputArchivoWebRef = useRef<HTMLInputElement | null>(null);
   const animacionLaser = useRef(new Animated.Value(0)).current;
 
   // Permisos para cámara nativa en Android
@@ -122,28 +121,6 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     }
   };
 
-  // Manejo de selección de archivo local en web
-  const handleAbrirSelectorArchivo = () => {
-    if (inputArchivoWebRef.current) {
-      inputArchivoWebRef.current.value = '';
-      inputArchivoWebRef.current.click();
-    }
-  };
-
-  const handleArchivoSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (camaraActiva && streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-        setCamaraActiva(false);
-      }
-      const url = URL.createObjectURL(file);
-      setImagenPreviewUrl(url);
-      onCapturarYEscanear(file);
-    }
-  };
-
   // Capturar frame desde Canvas (Web)
   const ejecutarEscaneoWeb = async () => {
     if (cargando || Platform.OS !== 'web') return;
@@ -209,16 +186,6 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
   return (
     <View style={[styles.contenedor, esPantallaCompleta && [styles.pantallaCompleta, { width: windowWidth, height: windowHeight }]]}>
       <View style={styles.visorMedia}>
-        {Platform.OS === 'web' && (
-          <input
-            type="file"
-            ref={inputArchivoWebRef}
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleArchivoSeleccionado}
-          />
-        )}
-
         {Platform.OS === 'web' ? (
           imagenPreviewUrl && !camaraActiva ? (
             <img
@@ -266,7 +233,6 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
           esPantallaCompleta={esPantallaCompleta}
           onToggleCamara={toggleCamaraWeb}
           onTogglePantallaCompleta={() => setEsPantallaCompleta(!esPantallaCompleta)}
-          onSubirFoto={handleAbrirSelectorArchivo}
         />
 
         {/* Barra de Acciones Inferior */}
