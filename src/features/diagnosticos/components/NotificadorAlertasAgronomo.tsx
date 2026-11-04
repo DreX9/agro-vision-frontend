@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   Vibration,
+  Image,
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import {
@@ -376,6 +377,16 @@ export function NotificadorAlertasAgronomo() {
                   <Text style={{ fontSize: 12, color: '#334155' }}>
                     {alertaActiva.observaciones}
                   </Text>
+                </View>
+              )}
+
+              {/* Foto de la planta capturada por la cámara del operador */}
+              {alertaActiva.imagenUrl && (
+                <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#CBD5E1' }}>
+                  <Image
+                    source={{ uri: alertaActiva.imagenUrl }}
+                    style={{ width: '100%', height: 140, resizeMode: 'cover' }}
+                  />
                 </View>
               )}
             </View>

@@ -123,19 +123,19 @@ export const ITEMS_MENU_SIDEBAR: ItemNavegacion[] = [
     nombre: 'Diagnósticos',
     ruta: '/diagnosticos',
     icono: ScanLine,
-    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+    rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
     subitems: [
       {
         nombre: 'Escáner fitosanitario',
         ruta: '/diagnosticos/escaner',
         icono: ScanLine,
-        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
       },
       {
         nombre: 'Lista de detecciones',
         ruta: '/diagnosticos',
         icono: ListTree,
-        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR', 'OPERADOR'],
+        rolesPermitidos: ['ADMINISTRADOR', 'AGRONOMO', 'SUPERVISOR'],
       },
     ],
   },

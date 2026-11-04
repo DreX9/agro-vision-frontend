@@ -52,7 +52,7 @@ export function BotonAlertaOperadorFlotante() {
           {!esMovil && (
             <View style={styles.textosBoton}>
               <Text style={styles.textoPrincipal}>¡Alerta en Campo!</Text>
-              <Text style={styles.textoSecundario}>Avisar a Supervisor</Text>
+              <Text style={styles.textoSecundario}>Cámara IA &gt; Supervisor</Text>
             </View>
           )}
 
@@ -132,3 +132,4 @@ const styles = StyleSheet.create({
     borderColor: '#DC2626',
   },
 });
+

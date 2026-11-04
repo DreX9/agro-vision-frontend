@@ -156,3 +156,4 @@ export async function detectarUbicacionEnFundo(
     mensaje: `Coordenadas (${coords.latitud.toFixed(6)}, ${coords.longitud.toFixed(6)}) fuera de las parcelas registradas.`,
   };
 }
+
