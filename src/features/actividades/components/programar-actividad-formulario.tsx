@@ -29,9 +29,10 @@ import {
   Wrench,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
-import { Boton, Input, Select, Badge, Card } from '@/shared/components/ui';
+import { Boton, Input, Select, Badge, Card, ModalConfirmacion } from '@/shared/components/ui';
 import { ParcelaItem } from '@/features/parcelas/types/parcela.types';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { InsumoItem } from '../types/insumo.types';
@@ -48,6 +49,7 @@ import {
   type MaquinariaPlanificadaValores,
 } from '../schemas/actividad.schema';
 import { useSectoresPorParcelaQuery } from '@/features/parcelas/api/sectores.api';
+import { useActividadesQuery } from '../api/actividades.api';
 
 export interface ProgramarActividadFormularioProps {
   parcelas: ParcelaItem[];
@@ -200,6 +202,79 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
   const fechaInicioActual = watch('fechaInicio');
   const turnoActual = watch('turno');
   const jornalesActual = watch('jornalesRequeridos');
+  const usuarioResponsableIdActual = watch('usuarioResponsableId');
+
+  // Consulta de actividades existentes para validación de conflictos de horario del supervisor
+  const { data: datosActividades } = useActividadesQuery({ limite: 100 });
+  const [modalConflictoSupervisor, setModalConflictoSupervisor] = useState(false);
+
+  // Detección proactiva de conflicto de disponibilidad del supervisor en el mismo lapso de tiempo
+  const conflictoSupervisor = useMemo(() => {
+    if (!usuarioResponsableIdActual || !fechaInicioActual) return null;
+    const supervisor = supervisoresDisponibles.find((s) => s.id === usuarioResponsableIdActual);
+    if (!supervisor) return null;
+
+    const fechaSolo = fechaInicioActual.split('T')[0];
+
+    const actividadConflicto = (datosActividades?.items || []).find((act) => {
+      // Excluir la misma actividad si estamos editando
+      if (valoresIniciales?.codigo && act.codigo === valoresIniciales.codigo) return false;
+      if (valoresIniciales?.titulo && act.titulo === valoresIniciales.titulo) return false;
+      if (act.estado === 'CANCELADA') return false;
+
+      // Mismo supervisor
+      if (act.usuarioResponsableId !== usuarioResponsableIdActual) return false;
+
+      // Misma fecha
+      const actFechaSolo = act.fechaInicio ? act.fechaInicio.split('T')[0] : '';
+      if (actFechaSolo !== fechaSolo) return false;
+
+      // Turno de la actividad existente
+      let actTurno = 'MANANA';
+      if (act.observaciones) {
+        const m = act.observaciones.match(/\[TURNO:(MANANA|TARDE|JORNADA_COMPLETA|PERSONALIZADO)\]/i);
+        if (m && m[1]) actTurno = m[1].toUpperCase();
+      } else if (act.fechaInicio) {
+        const d = new Date(act.fechaInicio);
+        if (!isNaN(d.getTime()) && d.getHours() >= 13) actTurno = 'TARDE';
+      }
+
+      // Solapamiento de turno:
+      if (turnoActual === 'JORNADA_COMPLETA' || actTurno === 'JORNADA_COMPLETA') {
+        return true;
+      }
+      return turnoActual === actTurno;
+    });
+
+    if (!actividadConflicto) return null;
+
+    const nombreSup = `${supervisor.nombres} ${supervisor.apellidos}`;
+    const codigoConflicto = actividadConflicto.codigo || actividadConflicto.titulo;
+    const parcelaConflicto = actividadConflicto.parcelaNombre || 'otra parcela';
+    const sectorConflicto = actividadConflicto.sectorNombre || actividadConflicto.sectorCodigo;
+
+    return {
+      supervisorNombre: nombreSup,
+      actividadCodigo: codigoConflicto,
+      parcela: parcelaConflicto,
+      mensaje: `En ese lapso, el supervisor ${nombreSup} ya ha sido designado a la labor "${codigoConflicto}" en ${parcelaConflicto}${sectorConflicto ? ` (${sectorConflicto})` : ''}.`,
+    };
+  }, [
+    usuarioResponsableIdActual,
+    fechaInicioActual,
+    turnoActual,
+    datosActividades,
+    supervisoresDisponibles,
+    valoresIniciales,
+  ]);
+
+  const handleIntentoSubmit = (valores: ProgramarActividadValores) => {
+    if (conflictoSupervisor) {
+      setModalConflictoSupervisor(true);
+      return;
+    }
+    onSubmit(valores);
+  };
 
   // Consulta de sectores por parcela seleccionada
   const { data: resumenSectores, isLoading: cargandoSectores } =
@@ -665,6 +740,20 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
                       />
                     )}
                   />
+
+                  {conflictoSupervisor && (
+                    <View style={styles.alertaConflictoSupervisor}>
+                      <AlertTriangle size={16} color="#DC2626" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.tituloConflictoSupervisor}>
+                          Aviso de Disponibilidad del Supervisor
+                        </Text>
+                        <Text style={styles.mensajeConflictoSupervisor}>
+                          {conflictoSupervisor.mensaje}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.columnaFlex}>
@@ -915,12 +1004,27 @@ export const ProgramarActividadFormulario: React.FC<ProgramarActividadFormulario
             }
             variante="primario"
             cargando={guardando}
-            onPress={handleSubmit(onSubmit)}
+            onPress={handleSubmit(handleIntentoSubmit)}
             iconoIzquierda={<CheckCircle2 size={18} color="#FFFFFF" />}
             estilo={{ minWidth: 260 }}
           />
         </View>
       </View>
+
+      {/* Modal de Advertencia por Conflicto de Supervisor */}
+      <ModalConfirmacion
+        visible={modalConflictoSupervisor}
+        tipo="advertencia"
+        titulo="Supervisor ya Designado en este Horario"
+        mensaje={
+          conflictoSupervisor
+            ? `${conflictoSupervisor.mensaje}\n\nUn supervisor no puede tener múltiples actividades a su cargo en un mismo lapso de tiempo. Por favor elija otro supervisor disponible o ajuste el turno o fecha de la labor.`
+            : 'El supervisor seleccionado ya tiene una labor a su cargo en ese lapso.'
+        }
+        textoConfirmar="Entendido / Cambiar"
+        onConfirmar={() => setModalConflictoSupervisor(false)}
+        onCancelar={() => setModalConflictoSupervisor(false)}
+      />
     </ScrollView>
   );
 };
@@ -1315,6 +1419,28 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
     flexWrap: 'wrap',
+  },
+  alertaConflictoSupervisor: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+  },
+  tituloConflictoSupervisor: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  mensajeConflictoSupervisor: {
+    fontSize: 12,
+    color: '#B91C1C',
+    lineHeight: 16,
   },
 });
 

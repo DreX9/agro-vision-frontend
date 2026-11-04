@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
+import { ModalConfirmacion } from '@/shared/components/ui';
 import { ProgramarActividadFormulario } from '../components/programar-actividad-formulario';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
@@ -28,6 +29,7 @@ export const CrearActividadContainer: React.FC = () => {
   const { data: datosUsuarios, isLoading: cargandoUsuarios } = useUsuariosQuery({ limite: 100 });
   const { data: insumos = [], isLoading: cargandoInsumos } = useInsumosQuery();
   const crearMutation = useCrearActividadMutation();
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const handleGuardar = (valores: ProgramarActividadValores) => {
     const fechaSolo = valores.fechaInicio.split('T')[0];
@@ -85,6 +87,14 @@ export const CrearActividadContainer: React.FC = () => {
         onSuccess: () => {
           router.replace('/actividades' as Href);
         },
+        onError: (err: any) => {
+          const mensaje =
+            err?.response?.data?.message ||
+            (err?.response?.data?.error ? `${err.response.data.error}: ${err.response.data.message}` : null) ||
+            err?.message ||
+            'Error al programar la actividad.';
+          setModalError(Array.isArray(mensaje) ? mensaje.join('\n\n') : String(mensaje));
+        },
       },
     );
   };
@@ -114,6 +124,17 @@ export const CrearActividadContainer: React.FC = () => {
           onCancelar={handleCancelar}
         />
       )}
+
+      {/* Modal de Error / Conflicto */}
+      <ModalConfirmacion
+        visible={Boolean(modalError)}
+        titulo="Conflicto al Programar Actividad"
+        mensaje={modalError || ''}
+        textoConfirmar="Entendido"
+        tipo="peligro"
+        onConfirmar={() => setModalError(null)}
+        onCancelar={() => setModalError(null)}
+      />
     </AppLayout>
   );
 };

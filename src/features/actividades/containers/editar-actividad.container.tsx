@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { AppLayout } from '@/shared/components/layout/app-layout';
+import { ModalConfirmacion } from '@/shared/components/ui';
 import { ProgramarActividadFormulario } from '../components/programar-actividad-formulario';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
 import { useParcelasQuery } from '@/features/parcelas/api/parcelas.api';
@@ -36,6 +37,7 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
   const { data: datosUsuarios, isLoading: cargandoUsuarios } = useUsuariosQuery({ limite: 100 });
   const { data: insumos = [], isLoading: cargandoInsumos } = useInsumosQuery();
   const actualizarMutation = useActualizarActividadMutation();
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Mapeo seguro de la labor existente hacia los valores iniciales del formulario desacoplado
   const valoresIniciales: Partial<ProgramarActividadValores> | undefined = useMemo(() => {
@@ -214,6 +216,14 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
         onSuccess: () => {
           router.replace('/actividades' as Href);
         },
+        onError: (err: any) => {
+          const mensaje =
+            err?.response?.data?.message ||
+            (err?.response?.data?.error ? `${err.response.data.error}: ${err.response.data.message}` : null) ||
+            err?.message ||
+            'Error al actualizar la planificación de la actividad.';
+          setModalError(Array.isArray(mensaje) ? mensaje.join('\n\n') : String(mensaje));
+        },
       },
     );
   };
@@ -257,6 +267,17 @@ export const EditarActividadContainer: React.FC<EditarActividadContainerProps> =
         guardando={actualizarMutation.isPending}
         onSubmit={handleGuardar}
         onCancelar={handleCancelar}
+      />
+
+      {/* Modal de Error / Conflicto */}
+      <ModalConfirmacion
+        visible={Boolean(modalError)}
+        titulo="Conflicto al Guardar Planificación"
+        mensaje={modalError || ''}
+        textoConfirmar="Entendido"
+        tipo="peligro"
+        onConfirmar={() => setModalError(null)}
+        onCancelar={() => setModalError(null)}
       />
     </AppLayout>
   );

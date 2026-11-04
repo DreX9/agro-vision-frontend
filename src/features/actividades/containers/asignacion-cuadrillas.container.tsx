@@ -24,6 +24,7 @@ import {
   Filter,
   Check,
   ShieldAlert,
+  AlertTriangle,
   Sprout,
   Sparkles,
 } from 'lucide-react-native';
@@ -66,11 +67,16 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
     usuarioActual?.rol === 'SUPERVISOR' ? usuarioActual.id : '',
   );
 
+  // Control de permisos por rol
+  const rolUsuario = usuarioActual?.rol || 'OPERADOR';
+  const puedeProgramarLabor = rolUsuario === 'ADMINISTRADOR' || rolUsuario === 'AGRONOMO';
+
   // Modal de Asignación de Cuadrilla
   const [actividadSeleccionada, setActividadSeleccionada] = useState<ActividadItem | null>(null);
   const [operariosSeleccionadosIds, setOperariosSeleccionadosIds] = useState<string[]>([]);
   const [busquedaOperario, setBusquedaOperario] = useState('');
   const [modalExito, setModalExito] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Consultas
   const estadoQuery =
@@ -88,6 +94,9 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
     limite: 50,
   });
 
+  // Consulta global de actividades para detección proactiva de solapamientos
+  const { data: todasLasActividadesData } = useActividadesQuery({ limite: 100 });
+
   const { data: datosParcelas } = useParcelasQuery({ limite: 100 });
   const { data: datosSupervisores } = useUsuariosQuery({ rol: 'SUPERVISOR', limite: 100 });
   const { data: datosOperarios, isLoading: cargandoOperarios } = useUsuariosQuery({
@@ -101,6 +110,34 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
   const actividades = useMemo(() => {
     return datosActividades?.items || [];
   }, [datosActividades]);
+
+  const todasLasActividades = useMemo(() => {
+    return todasLasActividadesData?.items || [];
+  }, [todasLasActividadesData]);
+
+  // Mapa de conflictos de operarios asignados en otras labores para la misma fecha
+  const conflictosOperarios = useMemo(() => {
+    if (!actividadSeleccionada) return new Map<string, { labor: string; parcela: string }>();
+    const mapa = new Map<string, { labor: string; parcela: string }>();
+    const fechaLabor = actividadSeleccionada.fechaInicio ? actividadSeleccionada.fechaInicio.split('T')[0] : '';
+
+    for (const act of todasLasActividades) {
+      if (act.id === actividadSeleccionada.id) continue;
+      if (act.estado === 'CANCELADA') continue;
+      const fechaAct = act.fechaInicio ? act.fechaInicio.split('T')[0] : '';
+      if (fechaAct !== fechaLabor) continue;
+
+      if (act.trabajadores && Array.isArray(act.trabajadores)) {
+        for (const t of act.trabajadores) {
+          mapa.set(t.usuarioId, {
+            labor: act.codigo || act.titulo,
+            parcela: act.parcelaNombre || 'otra parcela',
+          });
+        }
+      }
+    }
+    return mapa;
+  }, [actividadSeleccionada, todasLasActividades]);
 
   const operariosTotales = useMemo(() => {
     return (datosOperarios?.elementos || []).filter((u: Usuario) => u.activo !== false);
@@ -134,13 +171,15 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
   const handleGuardarCuadrilla = (avanzarAEnEjecucion = false) => {
     if (!actividadSeleccionada) return;
 
-    const fechaSolo = actividadSeleccionada.fechaInicio.split('T')[0];
+    const fechaInicioAct = actividadSeleccionada.fechaInicio;
+    const fechaFinAct = actividadSeleccionada.fechaFin || actividadSeleccionada.fechaInicio;
+
     const trabajadoresFormateados = operariosSeleccionadosIds.map((uid) => {
       return {
         usuarioId: uid,
         rolEnActividad: 'Operario de Campo',
-        horaInicio: `${fechaSolo}T07:00:00.000Z`,
-        horaFin: `${fechaSolo}T12:00:00.000Z`,
+        horaInicio: fechaInicioAct,
+        horaFin: fechaFinAct,
         horasAsignadas: 5,
       };
     });
@@ -164,6 +203,15 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
               : `Cuadrilla actualizada exitosamente (${cant} operarios) para la labor "${nombreAct}".`,
           );
         },
+        onError: (err: any) => {
+          const mensaje =
+            err?.response?.data?.message ||
+            (err?.response?.data?.error ? `${err.response.data.error}: ${err.response.data.message}` : null) ||
+            err?.message ||
+            'Conflicto de disponibilidad detectado al asignar operarios a la cuadrilla.';
+          const mensajeTexto = Array.isArray(mensaje) ? mensaje.join('\n\n') : String(mensaje);
+          setModalError(mensajeTexto);
+        },
       },
     );
   };
@@ -178,6 +226,10 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
         onSuccess: () => {
           setModalExito(`La labor "${actividad.titulo}" ha pasado a estado EN EJECUCIÓN.`);
         },
+        onError: (err: any) => {
+          const mensaje = err?.response?.data?.message || err?.message || 'Error al iniciar la jornada.';
+          setModalError(Array.isArray(mensaje) ? mensaje.join('\n\n') : String(mensaje));
+        },
       },
     );
   };
@@ -187,11 +239,13 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
       titulo="Asignación y Cuadrillas de Campo"
       subtitulo="Gestión operativa para que el supervisor asigne operarios nominales a las labores en estado Programada antes de iniciar la jornada."
       accionEncabezado={
-        <Boton
-          titulo="Programar Nueva Labor"
-          variante="secundario"
-          onPress={() => router.push('/actividades/nueva' as Href)}
-        />
+        puedeProgramarLabor ? (
+          <Boton
+            titulo="Programar Nueva Labor"
+            variante="secundario"
+            onPress={() => router.push('/actividades/nueva' as Href)}
+          />
+        ) : undefined
       }
     >
       <ScrollView
@@ -542,6 +596,15 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
                             <Text style={styles.datosOperarioModal}>
                               {op.codigoEmpleado || 'OP-000'} {op.telefono ? `• Tel: ${op.telefono}` : ''}
                             </Text>
+
+                            {conflictosOperarios.has(op.id) && (
+                              <View style={styles.badgeConflictoOperario}>
+                                <AlertTriangle size={12} color="#DC2626" />
+                                <Text style={styles.textoConflictoOperario}>
+                                  Asignado a {conflictosOperarios.get(op.id)?.labor} ({conflictosOperarios.get(op.id)?.parcela})
+                                </Text>
+                              </View>
+                            )}
                           </View>
 
                           <Badge texto="Operador" variante="neutro" />
@@ -551,6 +614,16 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
                   </View>
                 )}
               </ScrollView>
+
+              {/* Advertencia si hay operarios con solapamiento seleccionados */}
+              {operariosSeleccionadosIds.some((id) => conflictosOperarios.has(id)) && (
+                <View style={styles.alertaConflictoModal}>
+                  <AlertCircle size={16} color="#DC2626" />
+                  <Text style={styles.textoAlertaConflictoModal}>
+                    Advertencia: Ha seleccionado operarios que ya figuran en otra labor para esta fecha. Si hay cruce de horarios, el sistema rechazará la asignación.
+                  </Text>
+                </View>
+              )}
 
               {/* Acciones del Modal */}
               <View style={styles.modalAcciones}>
@@ -592,6 +665,17 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
         tipo="exito"
         onConfirmar={() => setModalExito(null)}
         onCancelar={() => setModalExito(null)}
+      />
+
+      {/* Modal de Error / Conflicto de Disponibilidad */}
+      <ModalConfirmacion
+        visible={Boolean(modalError)}
+        titulo="Conflicto de Disponibilidad"
+        mensaje={modalError || ''}
+        textoConfirmar="Entendido"
+        tipo="peligro"
+        onConfirmar={() => setModalError(null)}
+        onCancelar={() => setModalError(null)}
       />
     </AppLayout>
   );
@@ -935,5 +1019,40 @@ const styles = StyleSheet.create({
     borderTopColor: '#F3F4F6',
     backgroundColor: '#FAFAFA',
     flexWrap: 'wrap',
+  },
+  badgeConflictoOperario: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  textoConflictoOperario: {
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '500',
+  },
+  alertaConflictoModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+  },
+  textoAlertaConflictoModal: {
+    fontSize: 12,
+    color: '#991B1B',
+    flex: 1,
   },
 });
