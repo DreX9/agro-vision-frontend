@@ -50,9 +50,8 @@ const URL_VIDEO_MUESTRA =
 
 /**
  * @description Modal de Alerta Fitosanitaria para el Operador en Terreno.
- * Incorpora la cámara de escaneo en vivo (idéntica a la vista de diagnóstico)
- * con inferencia automática de IA, opción de reescaneo instantáneo y transmisión
- * automática de metadatos (operador, parcela, GPS y labor activa).
+ * Incorpora la cámara de escaneo en vivo (sin interrupciones ni pantallas negras)
+ * con inferencia de IA, compresión optimizada de imagen y reescaneo instantáneo.
  */
 export function ModalAlertaRapidaOperador({
   visible,
@@ -133,6 +132,13 @@ export function ModalAlertaRapidaOperador({
   const iniciarCamaraWeb = useCallback(async () => {
     if (Platform.OS !== 'web') return;
     try {
+      if (streamRef.current && videoWebRef.current) {
+        videoWebRef.current.srcObject = streamRef.current;
+        await videoWebRef.current.play().catch(() => {});
+        setCamaraWebActiva(true);
+        return;
+      }
+
       if (navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -147,12 +153,11 @@ export function ModalAlertaRapidaOperador({
           streamRef.current = stream;
           videoWebRef.current.removeAttribute('src');
           videoWebRef.current.srcObject = stream;
-          await videoWebRef.current.play();
+          await videoWebRef.current.play().catch(() => {});
           setCamaraWebActiva(true);
         }
       }
     } catch {
-      // Si la cámara web no está disponible o se deniega permiso, el video de muestra sirve de fallback
       if (videoWebRef.current) {
         videoWebRef.current.src = URL_VIDEO_MUESTRA;
         videoWebRef.current.play().catch(() => {});
@@ -225,26 +230,40 @@ export function ModalAlertaRapidaOperador({
     });
   };
 
-  // Capturar fotograma en Web manteniendo proporciones reales
+  // Capturar fotograma en Web manteniendo proporciones y comprimiendo a resolución óptima (~50KB)
   const capturarFrameWeb = async () => {
     if (escanearMutation.isPending || Platform.OS !== 'web' || !videoWebRef.current) return;
     try {
-      const vWidth = videoWebRef.current.videoWidth || 1280;
-      const vHeight = videoWebRef.current.videoHeight || 720;
+      const rawW = videoWebRef.current.videoWidth || 1280;
+      const rawH = videoWebRef.current.videoHeight || 720;
+
+      if (rawW === 0 || rawH === 0) {
+        console.warn('[ModalAlertaOperador] Cámara web aún sin fotogramas listos.');
+        return;
+      }
+
+      // Escalar manteniendo proporción (máximo 800px de ancho)
+      const maxW = 800;
+      const scale = rawW > maxW ? maxW / rawW : 1;
+      const vWidth = Math.round(rawW * scale);
+      const vHeight = Math.round(rawH * scale);
+
       const canvas = document.createElement('canvas');
       canvas.width = vWidth;
       canvas.height = vHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoWebRef.current, 0, 0, vWidth, vHeight);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+        // Calidad 0.75 genera un JPEG ultra liviano (~50KB) que no satura el servidor
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
         setImagenPreviewUrl(dataUrl);
 
         canvas.toBlob((blob) => {
           if (blob) {
             enviarIaParaPreEvaluacion(blob);
           }
-        }, 'image/jpeg', 0.88);
+        }, 'image/jpeg', 0.75);
       }
     } catch (e) {
       console.error('Error al capturar frame en web:', e);
@@ -256,7 +275,7 @@ export function ModalAlertaRapidaOperador({
     if (escanearMutation.isPending || !cameraAndroidRef.current) return;
     try {
       const foto = await cameraAndroidRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.65,
         skipProcessing: false,
       });
 
@@ -277,13 +296,17 @@ export function ModalAlertaRapidaOperador({
     }
   };
 
-  // Permite reescanear instantáneamente si no detectó a la primera
+  // Permite reescanear instantáneamente si no detectó a la primera (remueve el congelado y vuelve a la cámara)
   const handleReescanear = () => {
     setImagenPreviewUrl(null);
     setDiagnosticoIa(null);
     setErrorIa(null);
-    if (Platform.OS === 'web' && !camaraWebActiva) {
-      iniciarCamaraWeb();
+    if (Platform.OS === 'web') {
+      if (videoWebRef.current && videoWebRef.current.paused) {
+        videoWebRef.current.play().catch(() => {});
+      } else if (!camaraWebActiva) {
+        iniciarCamaraWeb();
+      }
     }
   };
 
@@ -454,16 +477,10 @@ export function ModalAlertaRapidaOperador({
                 </View>
               </View>
 
-              {/* VISOR DE CÁMARA DE DIAGNÓSTICO EN VIVO (Idéntico al módulo de escaneo) */}
+              {/* VISOR DE CÁMARA DE DIAGNÓSTICO EN VIVO (Mantiene el stream activo permanentemente) */}
               <View style={styles.contenedorVisorCamara}>
                 <View style={styles.visorMedia}>
-                  {/* Vista de imagen capturada estática o stream en vivo */}
-                  {imagenPreviewUrl ? (
-                    <Image
-                      source={{ uri: imagenPreviewUrl }}
-                      style={styles.fotoCapturada}
-                    />
-                  ) : Platform.OS === 'web' ? (
+                  {Platform.OS === 'web' ? (
                     <video
                       ref={videoWebRef}
                       autoPlay
@@ -482,6 +499,14 @@ export function ModalAlertaRapidaOperador({
                         <Text style={styles.textoBotonPermiso}>Habilitar Cámara</Text>
                       </Pressable>
                     </View>
+                  )}
+
+                  {/* Superposición de la captura congelada sin desmontar la cámara base */}
+                  {imagenPreviewUrl && (
+                    <Image
+                      source={{ uri: imagenPreviewUrl }}
+                      style={styles.fotoCapturada}
+                    />
                   )}
 
                   {/* Badge de estado en la esquina superior izquierda del visor */}
@@ -791,12 +816,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
   },
   fotoCapturada: {
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
     // @ts-ignore Web support
     objectFit: 'cover',
     backgroundColor: '#0F172A',
+    zIndex: 10,
   },
   badgeEnVivo: {
     position: 'absolute',
@@ -906,7 +933,7 @@ const styles = StyleSheet.create({
     top: 0,
     height: 3,
     backgroundColor: '#10B981',
-    zIndex: 15,
+    zIndex: 20,
   },
   brilloLaser: {
     width: '100%',
