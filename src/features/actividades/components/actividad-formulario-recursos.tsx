@@ -9,6 +9,8 @@ export interface RecursoAsignadoInput {
   insumoId: string;
   cantidadEstimada: number;
   unidadMedida: string;
+  dosis?: string;
+  cantidadReal?: number;
   notas?: string;
 }
 
@@ -18,6 +20,7 @@ export interface ActividadFormularioRecursosProps {
   onAgregarRecurso: (insumo: InsumoItem) => void;
   onEliminarRecurso: (insumoId: string) => void;
   onCambiarCantidad: (insumoId: string, cantidad: number) => void;
+  onCambiarDosis?: (insumoId: string, dosis: string) => void;
 }
 
 /**
@@ -29,6 +32,7 @@ export const ActividadFormularioRecursos: React.FC<ActividadFormularioRecursosPr
   onAgregarRecurso,
   onEliminarRecurso,
   onCambiarCantidad,
+  onCambiarDosis,
 }) => {
   return (
     <View style={styles.contenedor}>
@@ -39,7 +43,7 @@ export const ActividadFormularioRecursos: React.FC<ActividadFormularioRecursosPr
         </View>
       </View>
       <Text style={styles.subtitulo}>
-        Seleccione los materiales del catálogo y defina las cantidades necesarias para la labor.
+        Seleccione los materiales del catálogo y defina las dosis técnicas y cantidades totales necesarias.
       </Text>
 
       {/* Catálogo de chips disponibles para agregar */}
@@ -71,31 +75,23 @@ export const ActividadFormularioRecursos: React.FC<ActividadFormularioRecursosPr
         })}
       </View>
 
-      {/* Lista de recursos ya agregados con selector de cantidad */}
+      {/* Lista de recursos ya agregados con selector de cantidad y dosis */}
       {recursosSeleccionados.length > 0 && (
         <View style={styles.listaAgregados}>
           <Text style={styles.etiquetaAgregados}>Insumos planificados:</Text>
           {recursosSeleccionados.map((rec) => {
             const insumoInfo = insumosDisponibles.find((i) => i.id === rec.insumoId);
             return (
-              <View key={rec.insumoId} style={styles.filaRecurso}>
-                <View style={styles.infoRecurso}>
-                  <Text style={styles.nombreRecurso}>
-                    {insumoInfo?.nombre || 'Insumo agrícola'}
-                  </Text>
-                  <Text style={styles.categoriaRecurso}>
-                    {insumoInfo?.categoria} • Unidad: {rec.unidadMedida}
-                  </Text>
-                </View>
-
-                <View style={styles.controlCantidad}>
-                  <Input
-                    label="Cantidad"
-                    keyboardType="numeric"
-                    value={String(rec.cantidadEstimada || '')}
-                    onChangeText={(val) => onCambiarCantidad(rec.insumoId, Number(val) || 0)}
-                    contenedorEstilo={styles.inputCantidad}
-                  />
+              <View key={rec.insumoId} style={styles.tarjetaRecurso}>
+                <View style={styles.filaRecursoCabecera}>
+                  <View style={styles.infoRecurso}>
+                    <Text style={styles.nombreRecurso}>
+                      {insumoInfo?.nombre || 'Insumo agrícola'}
+                    </Text>
+                    <Text style={styles.categoriaRecurso}>
+                      {insumoInfo?.categoria} • Unidad: {rec.unidadMedida}
+                    </Text>
+                  </View>
 
                   <Pressable
                     onPress={() => onEliminarRecurso(rec.insumoId)}
@@ -103,6 +99,26 @@ export const ActividadFormularioRecursos: React.FC<ActividadFormularioRecursosPr
                   >
                     <Trash2 size={16} color="#DC2626" />
                   </Pressable>
+                </View>
+
+                <View style={styles.filaControles}>
+                  <View style={styles.columnaControlDosis}>
+                    <Input
+                      label="Dosis Técnica (ej. 1.5 L/ha)"
+                      placeholder="Ej. 2 L/ha o 200 ml/cil"
+                      value={rec.dosis || ''}
+                      onChangeText={(val) => onCambiarDosis?.(rec.insumoId, val)}
+                    />
+                  </View>
+
+                  <View style={styles.columnaControlCantidad}>
+                    <Input
+                      label={`Total (${rec.unidadMedida}) *`}
+                      keyboardType="numeric"
+                      value={String(rec.cantidadEstimada || '')}
+                      onChangeText={(val) => onCambiarCantidad(rec.insumoId, Number(val) || 0)}
+                    />
+                  </View>
                 </View>
               </View>
             );
@@ -147,26 +163,36 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   etiquetaAgregados: { fontSize: 12, fontWeight: '700', color: '#374151' },
-  filaRecurso: {
+  tarjetaRecurso: {
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 10,
+  },
+  filaRecursoCabecera: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    padding: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 12,
   },
   infoRecurso: { flex: 1 },
   nombreRecurso: { fontSize: 13, fontWeight: '700', color: '#111827' },
   categoriaRecurso: { fontSize: 11, color: '#6B7280' },
-  controlCantidad: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  inputCantidad: { width: 90 },
   botonEliminar: {
-    padding: 8,
+    padding: 6,
     borderRadius: 6,
     backgroundColor: '#FEE2E2',
-    marginTop: 18,
+  },
+  filaControles: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  columnaControlDosis: {
+    flex: 1.4,
+  },
+  columnaControlCantidad: {
+    flex: 1,
   },
 });

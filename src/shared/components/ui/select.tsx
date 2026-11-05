@@ -9,7 +9,7 @@ import {
   Platform,
   ViewStyle,
 } from 'react-native';
-import { ChevronDown, Check, X } from 'lucide-react-native';
+import { ChevronDown, Check, X, Lock } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 
 export interface SelectOpcion {
@@ -96,7 +96,11 @@ export const Select: React.FC<SelectProps> = ({
               alignItems: 'center',
             }}
           >
-            <ChevronDown size={16} color="#6B7280" />
+            {deshabilitado ? (
+              <Lock size={15} color="#9CA3AF" />
+            ) : (
+              <ChevronDown size={16} color="#6B7280" />
+            )}
           </div>
         </div>
         {error && <Text style={styles.textoError}>{error}</Text>}
@@ -120,7 +124,11 @@ export const Select: React.FC<SelectProps> = ({
         <Text style={[styles.textoValor, !opcionSeleccionada && styles.textoPlaceholder]}>
           {opcionSeleccionada ? opcionSeleccionada.label : placeholder}
         </Text>
-        <ChevronDown size={18} color="#6B7280" />
+        {deshabilitado ? (
+          <Lock size={16} color="#9CA3AF" />
+        ) : (
+          <ChevronDown size={18} color="#6B7280" />
+        )}
       </Pressable>
 
       {error && <Text style={styles.textoError}>{error}</Text>}

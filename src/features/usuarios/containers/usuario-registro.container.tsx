@@ -68,24 +68,22 @@ export const UsuarioRegistroContainer: React.FC = () => {
         </Pressable>
       }
     >
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <View style={styles.contenedor}>
         <UsuarioFormulario
           onEnviar={handleEnviar}
           onCancelar={handleCancelar}
           estaCargando={crearMutation.isPending}
           errorMensaje={errorMensaje}
         />
-      </ScrollView>
+      </View>
     </AppLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    paddingBottom: 40,
+  contenedor: {
+    flex: 1,
+    width: '100%',
   },
   botonVolver: {
     flexDirection: 'row',

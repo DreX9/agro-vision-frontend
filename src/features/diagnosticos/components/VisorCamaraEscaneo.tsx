@@ -26,7 +26,7 @@ const URL_VIDEO_MUESTRA =
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
 
 /**
- * @description Visor multimedia adaptativo con video/webcam en Web y CameraView en vivo continuo en Android.
+ * @description Visor multimedia adaptativo con video/webcam en Web, carga de fotos locales y CameraView en vivo continuo en Android.
  */
 export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
   detecciones,
@@ -37,11 +37,13 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [esPantallaCompleta, setEsPantallaCompleta] = useState(false);
   const [camaraActiva, setCamaraActiva] = useState(false);
+  const [imagenPreviewUrl, setImagenPreviewUrl] = useState<string | null>(null);
 
   // Refs Web y Android
   const videoWebRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const cameraAndroidRef = useRef<CameraView | null>(null);
+  const inputArchivoWebRef = useRef<HTMLInputElement | null>(null);
   const animacionLaser = useRef(new Animated.Value(0)).current;
 
   // Permisos para cámara nativa en Android
@@ -52,8 +54,16 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     if (cargando) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(animacionLaser, { toValue: 1, duration: 1200, useNativeDriver: true }),
-          Animated.timing(animacionLaser, { toValue: 0, duration: 1200, useNativeDriver: true }),
+          Animated.timing(animacionLaser, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.timing(animacionLaser, {
+            toValue: 0,
+            duration: 1200,
+            useNativeDriver: Platform.OS !== 'web',
+          }),
         ]),
       ).start();
     } else {
@@ -69,7 +79,7 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     };
   }, []);
 
-  // Manejo de cámara web en navegadores PC / Laptop (NO TOCAR)
+  // Manejo de cámara web en navegadores PC / Laptop
   const toggleCamaraWeb = async () => {
     if (Platform.OS !== 'web') return;
 
@@ -100,6 +110,7 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
 
       if (stream && videoWebRef.current) {
         streamRef.current = stream;
+        setImagenPreviewUrl(null);
         videoWebRef.current.removeAttribute('src');
         videoWebRef.current.srcObject = stream;
         await videoWebRef.current.play();
@@ -108,6 +119,28 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     } catch (err) {
       console.error('Error al encender cámara web:', err);
       alert('No se pudo acceder a la cámara. Verifica los permisos.');
+    }
+  };
+
+  // Manejo de selección de archivo local en web
+  const handleAbrirSelectorArchivo = () => {
+    if (inputArchivoWebRef.current) {
+      inputArchivoWebRef.current.value = '';
+      inputArchivoWebRef.current.click();
+    }
+  };
+
+  const handleArchivoSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (camaraActiva && streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        setCamaraActiva(false);
+      }
+      const url = URL.createObjectURL(file);
+      setImagenPreviewUrl(url);
+      onCapturarYEscanear(file);
     }
   };
 
@@ -122,6 +155,14 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
       if (ctx) {
         if (camaraActiva && videoWebRef.current) {
           ctx.drawImage(videoWebRef.current, 0, 0, 640, 640);
+        } else if (imagenPreviewUrl) {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = imagenPreviewUrl;
+          await new Promise((res) => {
+            img.onload = res;
+          });
+          ctx.drawImage(img, 0, 0, 640, 640);
         } else {
           ctx.fillStyle = '#2d5a27';
           ctx.fillRect(0, 0, 640, 640);
@@ -155,6 +196,11 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
     }
   };
 
+  const handleLimpiarTodo = () => {
+    setImagenPreviewUrl(null);
+    onLimpiar();
+  };
+
   const translateY = animacionLaser.interpolate({
     inputRange: [0, 1],
     outputRange: [0, esPantallaCompleta ? windowHeight - 120 : 380],
@@ -163,16 +209,34 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
   return (
     <View style={[styles.contenedor, esPantallaCompleta && [styles.pantallaCompleta, { width: windowWidth, height: windowHeight }]]}>
       <View style={styles.visorMedia}>
-        {Platform.OS === 'web' ? (
-          <video
-            ref={videoWebRef}
-            autoPlay
-            playsInline
-            muted
-            loop
-            style={styles.videoWeb}
-            src={!camaraActiva ? URL_VIDEO_MUESTRA : undefined}
+        {Platform.OS === 'web' && (
+          <input
+            type="file"
+            ref={inputArchivoWebRef}
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleArchivoSeleccionado}
           />
+        )}
+
+        {Platform.OS === 'web' ? (
+          imagenPreviewUrl && !camaraActiva ? (
+            <img
+              src={imagenPreviewUrl}
+              alt="Captura cargada"
+              style={styles.videoWeb as any}
+            />
+          ) : (
+            <video
+              ref={videoWebRef}
+              autoPlay
+              playsInline
+              muted
+              loop
+              style={styles.videoWeb}
+              src={!camaraActiva ? URL_VIDEO_MUESTRA : undefined}
+            />
+          )
         ) : permisoAndroid?.granted ? (
           <CameraView ref={cameraAndroidRef} facing="back" style={StyleSheet.absoluteFill} />
         ) : (
@@ -207,7 +271,7 @@ export const VisorCamaraEscaneo: React.FC<VisorCamaraEscaneoProps> = ({
         {/* Barra de Acciones Inferior */}
         <View style={styles.barraInferiorFlotante}>
           {detecciones.length > 0 && (
-            <Pressable onPress={onLimpiar} style={({ pressed }) => [styles.botonReiniciar, pressed && styles.presionado]}>
+            <Pressable onPress={handleLimpiarTodo} style={({ pressed }) => [styles.botonReiniciar, pressed && styles.presionado]}>
               <RotateCcw size={16} color="#FFFFFF" />
               <Text style={styles.textoBotonReiniciar}>Limpiar</Text>
             </Pressable>

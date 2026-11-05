@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { Pencil, Power, Trash2 } from 'lucide-react-native';
+import { Eye, Pencil, Power, Trash2 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { ParcelaItem } from '../types/parcela.types';
 
@@ -14,6 +14,7 @@ export interface ParcelasMenuAccionesProps {
   posicion: PosicionMenu;
   visible: boolean;
   onCerrar: () => void;
+  onVerDetalle?: (parcela: ParcelaItem) => void;
   onEditar?: (parcela: ParcelaItem) => void;
   onCambiarEstado?: (parcela: ParcelaItem) => void;
   onEliminar?: (parcela: ParcelaItem) => void;
@@ -27,6 +28,7 @@ export const ParcelasMenuAcciones: React.FC<ParcelasMenuAccionesProps> = ({
   posicion,
   visible,
   onCerrar,
+  onVerDetalle,
   onEditar,
   onCambiarEstado,
   onEliminar,
@@ -37,6 +39,18 @@ export const ParcelasMenuAcciones: React.FC<ParcelasMenuAccionesProps> = ({
     <Modal visible={visible} transparent animationType="none" onRequestClose={onCerrar}>
       <Pressable style={styles.fondoTransparente} onPress={onCerrar}>
         <View style={[styles.menuFlotante, { top: posicion.top, left: posicion.left }]}>
+          {onVerDetalle && (
+            <Pressable
+              style={({ pressed }) => [styles.opcionMenu, pressed && styles.opcionPresionada]}
+              onPress={() => {
+                onCerrar();
+                onVerDetalle(parcela);
+              }}
+            >
+              <Eye size={15} color="#2563EB" />
+              <Text style={styles.textoOpcion}>Ver Ficha / Mapa</Text>
+            </Pressable>
+          )}
           {onEditar && (
             <Pressable
               style={({ pressed }) => [styles.opcionMenu, pressed && styles.opcionPresionada]}

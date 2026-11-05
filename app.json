@@ -11,6 +11,18 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.agrovision.app",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,11 +50,24 @@
         {
           "cameraPermission": "Permite a Agro Vision acceder a la cámara para escanear cultivos y detectar anomalías foliares."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite a Agro Vision registrar la ubicación GPS del lote durante el monitoreo fitosanitario.",
+          "locationWhenInUsePermission": "Permite a Agro Vision georreferenciar las alertas de plagas en campo."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "016259ce-2074-4404-a047-5c3a89f71610"
+      }
     }
   }
 }

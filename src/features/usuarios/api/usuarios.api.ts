@@ -144,6 +144,27 @@ export const useCambiarEstadoUsuarioMutation = () => {
 };
 
 /**
+ * @description Petición HTTP para obtener sugerencia del siguiente código correlativo según el rol.
+ */
+export const obtenerSiguienteCodigoApi = async (rol: string): Promise<string> => {
+  const respuesta = await apiClient.get<{ codigo: string }>('/usuarios/siguiente-codigo', {
+    params: { rol },
+  });
+  return respuesta.data.codigo;
+};
+
+/**
+ * @description Hook de consulta para obtener el siguiente código sugerido según el rol.
+ */
+export const useSiguienteCodigoQuery = (rol?: string, habilitado = false) => {
+  return useQuery({
+    queryKey: [...USUARIOS_QUERY_KEY, 'siguiente-codigo', rol],
+    queryFn: () => obtenerSiguienteCodigoApi(rol!),
+    enabled: Boolean(rol) && habilitado,
+  });
+};
+
+/**
  * @description Hook de mutación para eliminar usuario e invalidar caché.
  */
 export const useEliminarUsuarioMutation = () => {

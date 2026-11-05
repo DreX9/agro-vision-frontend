@@ -37,6 +37,11 @@ export const IniciarSesionContainer: React.FC = () => {
       onError: (error: unknown) => {
         if (axios.isAxiosError(error) && error.response?.data?.message) {
           setErrorMensaje(String(error.response.data.message));
+        } else if (axios.isAxiosError(error)) {
+          const urlIntentada = error.config?.baseURL || error.config?.url || '';
+          setErrorMensaje(
+            `No se pudo conectar con el servidor (${urlIntentada || 'ERR_NETWORK'}). Verifica que el backend esté en ejecución o revisa tu conexión.`
+          );
         } else {
           setErrorMensaje('No se pudo conectar con el servidor. Revisa tu conexión.');
         }

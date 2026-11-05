@@ -1,12 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { Search } from 'lucide-react-native';
-import { Select, Input, Boton } from '@/shared/components/ui';
+import React, { useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Select } from '@/shared/components/ui';
 import { DEPARTAMENTOS_PERU } from '@/shared/constants/ubigeo-peru';
-import {
-  buscarCoordenadasDistrito,
-  geocodificarDireccion,
-} from '@/shared/utils/geocodificacion';
+import { buscarCoordenadasDistrito } from '@/shared/utils/geocodificacion';
 
 export interface ParcelaUbicacionSelectorProps {
   departamento?: string;
@@ -19,12 +15,11 @@ export interface ParcelaUbicacionSelectorProps {
   onSeleccionarProvincia: (prov: string) => void;
   onSeleccionarDistrito: (dist: string) => void;
   onCentroSugerido?: (centro: { lat: number; lng: number }, zoom?: number) => void;
-  onDireccionAutocompletada?: (direccion: string) => void;
 }
 
 /**
  * @description Selector territorial jerárquico en cascada para los 25 departamentos de Perú
- * con centrado geográfico por distrito y buscador de dirección o fundo exacto.
+ * con centrado geográfico automático por distrito en el mapa satelital.
  */
 export const ParcelaUbicacionSelector: React.FC<ParcelaUbicacionSelectorProps> = ({
   departamento = '',
@@ -37,12 +32,7 @@ export const ParcelaUbicacionSelector: React.FC<ParcelaUbicacionSelectorProps> =
   onSeleccionarProvincia,
   onSeleccionarDistrito,
   onCentroSugerido,
-  onDireccionAutocompletada,
 }) => {
-  const [textoBusqueda, setTextoBusqueda] = useState('');
-  const [buscando, setBuscando] = useState(false);
-  const [mensajeBusqueda, setMensajeBusqueda] = useState<string | null>(null);
-
   const opcionesDepartamentos = useMemo(() => {
     return DEPARTAMENTOS_PERU.map((d) => ({
       label: d.nombre,
@@ -115,92 +105,8 @@ export const ParcelaUbicacionSelector: React.FC<ParcelaUbicacionSelectorProps> =
     }
   };
 
-  const manejarBusquedaDireccion = async () => {
-    if (!textoBusqueda.trim()) return;
-    setBuscando(true);
-    setMensajeBusqueda(null);
-
-    try {
-      const resultado = await geocodificarDireccion(textoBusqueda);
-      if (resultado) {
-        if (onCentroSugerido) {
-          onCentroSugerido({ lat: resultado.lat, lng: resultado.lng }, 17);
-        }
-        if (onDireccionAutocompletada) {
-          onDireccionAutocompletada(textoBusqueda);
-        }
-
-        // Si Nominatim devuelve departamento / provincia que coinciden con nuestro catálogo
-        if (resultado.departamento) {
-          const depMatch = DEPARTAMENTOS_PERU.find(
-            (d) => resultado.departamento?.toLowerCase().includes(d.nombre.toLowerCase()) ||
-                   d.nombre.toLowerCase().includes(resultado.departamento?.toLowerCase() || ''),
-          );
-          if (depMatch) {
-            onSeleccionarDepartamento(depMatch.nombre);
-            if (resultado.provincia) {
-              const provMatch = depMatch.provincias.find(
-                (p) => resultado.provincia?.toLowerCase().includes(p.nombre.toLowerCase()) ||
-                       p.nombre.toLowerCase().includes(resultado.provincia?.toLowerCase() || ''),
-              );
-              if (provMatch) {
-                onSeleccionarProvincia(provMatch.nombre);
-                if (resultado.distrito) {
-                  const distMatch = provMatch.distritos.find(
-                    (dist) => resultado.distrito?.toLowerCase().includes(dist.toLowerCase()) ||
-                             dist.toLowerCase().includes(resultado.distrito?.toLowerCase() || ''),
-                  );
-                  if (distMatch) {
-                    onSeleccionarDistrito(distMatch);
-                  }
-                }
-              }
-            }
-          }
-        }
-        setMensajeBusqueda('Ubicación localizada en el mapa satelital');
-      } else {
-        setMensajeBusqueda('No se encontraron coordenadas para la dirección ingresada');
-      }
-    } finally {
-      setBuscando(false);
-    }
-  };
-
   return (
     <View style={styles.contenedor}>
-      {/* Buscador de dirección o fundo exacto */}
-      <View style={styles.cajaBuscadorDireccion}>
-        <Text style={styles.etiquetaBusqueda}>Localizar por Dirección o Fundo</Text>
-        <View style={styles.filaBuscador}>
-          <View style={styles.inputBuscadorFlex}>
-            <Input
-              placeholder="Ej. Fundo San Pedro, Imperial, Cañete..."
-              value={textoBusqueda}
-              onChangeText={setTextoBusqueda}
-              onSubmitEditing={manejarBusquedaDireccion}
-            />
-          </View>
-          <Boton
-            titulo="Localizar"
-            iconoIzquierda={<Search size={15} color="#FFFFFF" />}
-            onPress={manejarBusquedaDireccion}
-            cargando={buscando}
-            disabled={!textoBusqueda.trim()}
-          />
-        </View>
-        {mensajeBusqueda && (
-          <Text
-            style={[
-              styles.textoMensajeBusqueda,
-              mensajeBusqueda.includes('No se') ? styles.textoErrorBusqueda : styles.textoExitoBusqueda,
-            ]}
-          >
-            {mensajeBusqueda}
-          </Text>
-        )}
-      </View>
-
       {/* Selectores Jerárquicos Departamento -> Provincia -> Distrito */}
       <View style={styles.filaTresColumnas}>
         <View style={styles.columna}>
@@ -243,21 +149,7 @@ export const ParcelaUbicacionSelector: React.FC<ParcelaUbicacionSelectorProps> =
 };
 
 const styles = StyleSheet.create({
-  contenedor: { gap: 14 },
-  cajaBuscadorDireccion: {
-    backgroundColor: '#F7FBF4',
-    borderWidth: 1,
-    borderColor: '#D7E7D1',
-    borderRadius: 8,
-    padding: 12,
-    gap: 8,
-  },
-  etiquetaBusqueda: { fontSize: 12, fontWeight: '700', color: '#2E7D32' },
-  filaBuscador: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
-  inputBuscadorFlex: { flex: 1 },
-  textoMensajeBusqueda: { fontSize: 11, fontWeight: '600' },
-  textoExitoBusqueda: { color: '#2E7D32' },
-  textoErrorBusqueda: { color: '#DC2626' },
+  contenedor: { gap: 10 },
   filaTresColumnas: {
     flexDirection: 'row',
     gap: 10,

@@ -191,21 +191,37 @@ export const IniciarSesionForm: React.FC<IniciarSesionFormProps> = ({
           estilo={styles.botonSubmit}
         />
 
-        {/* Acceso Rápido para Pruebas / Demo */}
-        <Pressable
-          onPress={rellenarCredencialesDemo}
-          style={({ pressed }) => [
-            styles.bannerDemo,
-            pressed && styles.bannerDemoPresionado,
-          ]}
-        >
-          <Text style={styles.bannerDemoTexto}>
-            Demo:{' '}
-            <Text style={styles.bannerDemoCode}>admin@santaelena.pe</Text> /{' '}
-            <Text style={styles.bannerDemoCode}>1234</Text>
+        {/* Acceso Rápido para Pruebas / Demo por Rol */}
+        <View style={styles.contenedorCuentasDemo}>
+          <Text style={styles.tituloCuentasDemo}>
+            Accesos de prueba por rol (Clave: <Text style={styles.textoClaveDemo}>1234</Text>):
           </Text>
-          <Text style={styles.bannerDemoAyuda}>(Toca para autocompletar)</Text>
-        </Pressable>
+          <View style={styles.gridCuentasDemo}>
+            {[
+              { rol: 'Admin', correo: 'admin@santaelena.pe' },
+              { rol: 'Agrónomo', correo: 'rpalma@santaelena.pe' },
+              { rol: 'Supervisor', correo: 'lmorales@santaelena.pe' },
+              { rol: 'Operador', correo: 'cmendoza@santaelena.pe' },
+            ].map((cuenta) => (
+              <Pressable
+                key={cuenta.rol}
+                onPress={() => {
+                  setValue('correo', cuenta.correo, { shouldValidate: true });
+                  setValue('password', '1234', { shouldValidate: true });
+                }}
+                style={({ pressed }) => [
+                  styles.chipDemo,
+                  pressed && styles.chipDemoPresionado,
+                ]}
+              >
+                <Text style={styles.chipDemoRol}>{cuenta.rol}</Text>
+                <Text style={styles.chipDemoCorreo} numberOfLines={1}>
+                  {cuenta.correo.split('@')[0]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
       </View>
 
       {/* Pie de Página Institucional */}
@@ -371,36 +387,58 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginTop: 4,
   },
-  bannerDemo: {
-    marginTop: 20,
-    backgroundColor: '#F3F6F0',
+  contenedorCuentasDemo: {
+    marginTop: 18,
+    backgroundColor: '#F4F7F1',
     borderWidth: 1,
-    borderColor: '#E0EAD8',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderColor: '#DFE8D7',
+    borderRadius: 12,
+    padding: 12,
+  },
+  tituloCuentasDemo: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  textoClaveDemo: {
+    color: Palette.forestGreen,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  gridCuentasDemo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  chipDemo: {
+    flexBasis: '48%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D4E2CC',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     alignItems: 'center',
   },
-  bannerDemoPresionado: {
-    opacity: 0.8,
+  chipDemoPresionado: {
+    backgroundColor: '#E8F2E2',
+    transform: [{ scale: 0.98 }],
   },
-  bannerDemoTexto: {
-    fontSize: 13,
-    color: Palette.text,
-    fontWeight: '500',
-  },
-  bannerDemoCode: {
-    fontFamily: 'monospace',
+  chipDemoRol: {
+    fontSize: 12,
     fontWeight: '700',
     color: Palette.forestGreen,
   },
-  bannerDemoAyuda: {
-    fontSize: 11,
-    color: Palette.textSecondary,
+  chipDemoCorreo: {
+    fontSize: 10,
+    color: '#6B7280',
     marginTop: 2,
   },
   pie: {
-    marginTop: 24,
+    marginTop: 20,
     alignItems: 'center',
   },
   pieTexto: {

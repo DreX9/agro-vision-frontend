@@ -23,6 +23,20 @@ export function useCultivosQuery() {
 }
 
 /**
+ * @description Hook TanStack Query para consultar el detalle de un cultivo por ID.
+ */
+export function useCultivoPorIdQuery(id: string) {
+  return useQuery({
+    queryKey: CULTIVOS_KEYS.detalle(id),
+    queryFn: async (): Promise<CultivoItem> => {
+      const respuesta = await apiClient.get<CultivoItem>(`/cultivos/${id}`);
+      return respuesta.data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+/**
  * @description Hook para registrar un nuevo cultivo en el catálogo.
  */
 export function useCrearCultivoMutation() {

@@ -32,3 +32,97 @@ export interface EscaneoCamaraEstado {
   escaneando: boolean;
   error?: string | null;
 }
+
+export interface DespliegueDronConfig {
+  parcelaId: string;
+  parcelaNombre: string;
+  parcelaCodigo?: string;
+  sectorId?: string;
+  sectorNombre?: string;
+  sectorCodigo?: string;
+  cultivoNombre?: string;
+  cultivoVariedad?: string;
+  latitud: number;
+  longitud: number;
+}
+
+export interface CoordenadasHallazgo {
+  latitud: number;
+  longitud: number;
+  origen: 'GPS_DISPOSITIVO' | 'PARCELA_REFERENCIA';
+  precision?: number | null;
+  timestamp?: number;
+}
+
+export interface DiagnosticoCampoItem {
+  id: string;
+  codigo: string;
+  parcelaId: string;
+  parcelaNombre?: string | null;
+  parcelaCodigo?: string | null;
+  sectorId?: string | null;
+  sectorNombre?: string | null;
+  sectorCodigo?: string | null;
+  cultivoNombre?: string | null;
+  cultivoVariedad?: string | null;
+  usuarioId?: string | null;
+  usuarioNombre?: string | null;
+  usuarioRol?: string | null;
+  supervisorId?: string | null;
+  supervisorNombre?: string | null;
+  destinatarioRol?: string | null;
+  actividadCodigo?: string | null;
+  actividadTitulo?: string | null;
+  actividadTipo?: string | null;
+  latitud: number;
+  longitud: number;
+  estadoGeneral: EstadoSaludFoliar;
+  saludPorcentaje: number;
+  totalPlagasDetectadas: number;
+  esAlerta: boolean;
+  detecciones: DeteccionPlaga[];
+  recomendaciones: string[];
+  tiempoProcesamientoMs?: number | null;
+  imagenUrl?: string | null;
+  origenCaptura?: string | null;
+  observaciones?: string | null;
+  ubicacionFueraTerreno?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrearDiagnosticoPayload {
+  parcelaId: string;
+  sectorId?: string;
+  usuarioId?: string;
+  latitud: number;
+  longitud: number;
+  estadoGeneral: EstadoSaludFoliar;
+  saludPorcentaje: number;
+  totalPlagasDetectadas: number;
+  esAlerta?: boolean;
+  detecciones?: DeteccionPlaga[];
+  recomendaciones?: string[];
+  tiempoProcesamientoMs?: number;
+  imagenUrl?: string;
+  origenCaptura?: string;
+  observaciones?: string;
+  ubicacionFueraTerreno?: boolean;
+}
+
+export interface FiltrosDiagnosticosParams {
+  parcelaId?: string;
+  sectorId?: string;
+  estadoGeneral?: string;
+  esAlerta?: boolean;
+  pagina?: number;
+  limite?: number;
+}
+
+export interface RespuestaPaginadaDiagnosticos {
+  items: DiagnosticoCampoItem[];
+  total: number;
+  pagina: number;
+  limite: number;
+  totalPaginas: number;
+}

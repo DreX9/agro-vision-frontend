@@ -1,24 +1,56 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, Pressable, Text } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { ArrowLeft, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Pencil, ClipboardCheck } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { AppLayout } from '@/shared/components/layout/app-layout';
 import { Boton } from '@/shared/components/ui';
 import { ActividadDetalleTabs } from '../components/actividad-detalle-tabs';
 import { ActividadesSkeleton } from '../components/actividades-skeleton';
-import { useActividadPorIdQuery } from '../api/actividades.api';
+import { useActividadPorIdQuery, useActualizarActividadMutation } from '../api/actividades.api';
+import { EstadoActividadTipo } from '../types/actividad.types';
+
+import { useAuthStore } from '@/features/autenticacion';
 
 export interface DetalleActividadContainerProps {
   id: string;
 }
 
 /**
- * @description Contenedor para la ficha técnica y visualización de cuadrilla/insumos de una actividad.
+ * @description Contenedor para la ficha técnica, bitácora y visualización de cuadrilla/insumos de una actividad.
  */
 export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps> = ({ id }) => {
   const router = useRouter();
+  const usuario = useAuthStore((s) => s.usuario);
+  const rol = usuario?.rol || 'OPERADOR';
+  const puedeEditar = rol === 'ADMINISTRADOR' || rol === 'SUPERVISOR' || rol === 'AGRONOMO';
+  const esOperador = rol === 'OPERADOR';
+
+  const [editandoSeguimiento, setEditandoSeguimiento] = useState(false);
   const { data: actividad, isLoading } = useActividadPorIdQuery(id);
+  const actualizarMutation = useActualizarActividadMutation();
+
+  const handleGuardarSeguimiento = (datos: {
+    estado: EstadoActividadTipo;
+    descripcion?: string;
+    observaciones?: string;
+  }) => {
+    actualizarMutation.mutate(
+      {
+        id,
+        datos: {
+          estado: datos.estado,
+          descripcion: datos.descripcion,
+          observaciones: datos.observaciones,
+        },
+      },
+      {
+        onSuccess: () => {
+          setEditandoSeguimiento(false);
+        },
+      },
+    );
+  };
 
   if (isLoading) {
     return (
@@ -36,10 +68,14 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
     );
   }
 
+  const subtitulo = esOperador
+    ? actividad.descripcion || `${actividad.parcelaNombre || 'Parcela'} · ${actividad.tipo.replace(/_/g, ' ')}`
+    : actividad.titulo;
+
   return (
     <AppLayout
-      titulo={`Ficha Técnica: ${actividad.codigo}`}
-      subtitulo={actividad.titulo}
+      titulo={`Labor: ${actividad.codigo}`}
+      subtitulo={subtitulo}
       accionEncabezado={
         <View style={styles.accionesEncabezado}>
           <Pressable
@@ -50,17 +86,36 @@ export const DetalleActividadContainer: React.FC<DetalleActividadContainerProps>
             <Text style={styles.textoVolver}>Volver al listado</Text>
           </Pressable>
 
-          <Boton
-            titulo="Editar Labor"
-            variante="primario"
-            iconoIzquierda={<Pencil size={16} color={Palette.white} />}
-            onPress={() => router.push(`/actividades/${id}/editar` as Href)}
-          />
+          {!esOperador && (
+            <Boton
+              titulo="Actualizar Seguimiento"
+              variante="secundario"
+              tamano="sm"
+              iconoIzquierda={<ClipboardCheck size={14} color={Palette.forestGreen} />}
+              onPress={() => setEditandoSeguimiento(true)}
+            />
+          )}
+
+          {puedeEditar && (
+            <Boton
+              titulo="Editar Labor Completa"
+              variante="primario"
+              tamano="sm"
+              iconoIzquierda={<Pencil size={14} color={Palette.white} />}
+              onPress={() => router.push(`/actividades/${id}/editar` as Href)}
+            />
+          )}
         </View>
       }
     >
       <View style={styles.contenedor}>
-        <ActividadDetalleTabs actividad={actividad} />
+        <ActividadDetalleTabs
+          actividad={actividad}
+          onGuardarSeguimiento={handleGuardarSeguimiento}
+          guardandoSeguimiento={actualizarMutation.isPending}
+          editandoSeguimientoDirecto={editandoSeguimiento}
+          onCerrarEdicionSeguimiento={() => setEditandoSeguimiento(false)}
+        />
       </View>
     </AppLayout>
   );
