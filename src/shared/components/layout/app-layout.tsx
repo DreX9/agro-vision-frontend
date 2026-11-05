@@ -17,7 +17,7 @@ import { useAuthStore } from '@/features/autenticacion';
 import { tienePermisoRuta } from '@/shared/constants/roles-permisos';
 import { AccesoDenegado } from './acceso-denegado';
 import { useUIStore } from '@/shared/stores/ui.store';
-import { BotonAlertaOperadorFlotante } from '@/features/diagnosticos';
+import { BotonAlertaOperadorFlotante } from '@/features/diagnosticos/components/BotonAlertaOperadorFlotante';
 
 export interface AppLayoutProps {
   children: React.ReactNode;
@@ -51,7 +51,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const tienePermiso = tienePermisoRuta(usuario?.rol, rutaLimpia);
 
   return (
-    <SafeAreaView style={styles.contenedorRaiz}>
+    <SafeAreaView style={styles.contenedorRaiz} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.layoutPrincipal}>
         {/* Sidebar en Desktop / Tablet */}
         {esPantallaAmplia && (

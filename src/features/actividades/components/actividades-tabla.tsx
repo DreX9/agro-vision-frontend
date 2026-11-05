@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from '
 import { MoreVertical, Users, Calendar, MapPin, ChevronDown } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Tabla, ColumnaTabla } from '@/shared/components/ui';
-import { ActividadItem, EstadoActividadTipo } from '../types/actividad.types';
+import { ActividadItem, EstadoActividadTipo, obtenerInfoTipoLabor } from '../types/actividad.types';
 import { ActividadesMenuAcciones, PosicionMenu } from './actividades-menu-acciones';
 import { ActividadEstadoPopover, PosicionPopover } from './actividad-estado-popover';
 
@@ -132,38 +132,62 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'codigo',
       encabezado: 'Código',
-      anchoMinimo: 90,
-      render: (a: ActividadItem) => <Text style={styles.textoCodigo}>{a.codigo}</Text>,
+      anchoMinimo: 135,
+      render: (a: ActividadItem) => (
+        <Text style={styles.textoCodigo}>
+          {a.codigo}
+        </Text>
+      ),
     },
     {
       id: 'labor',
-      encabezado: 'Labor / Título',
+      encabezado: 'Labor Agrícola',
       anchoMinimo: 180,
-      render: (a: ActividadItem) => (
-        <View>
-          <Text style={styles.textoTitulo}>{a.titulo}</Text>
-          <Text style={styles.textoTipo}>{formatearTipo(a.tipo)}{a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}</Text>
-        </View>
-      ),
+      render: (a: ActividadItem) => {
+        const info = obtenerInfoTipoLabor(a.tipo);
+        const tieneTituloPersonalizado = Boolean(a.titulo && a.titulo.trim() !== a.codigo.trim());
+
+        return (
+          <View style={styles.filaLaborTabla}>
+            <View
+              style={[
+                styles.avatarIconoLaborTabla,
+                { backgroundColor: info.tema.bg, borderColor: info.tema.border },
+              ]}
+            >
+              <Text style={styles.emojiLaborTabla}>{info.icono}</Text>
+            </View>
+            <View style={styles.infoLaborTabla}>
+              <Text style={[styles.textoNombreLaborTabla, { color: info.tema.text }]}>
+                {info.label}
+              </Text>
+              <Text style={styles.textoSubtituloLaborTabla} numberOfLines={2}>
+                {tieneTituloPersonalizado ? a.titulo : info.descripcion}
+                {a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}
+              </Text>
+            </View>
+          </View>
+        );
+      },
     },
     {
       id: 'parcela',
       encabezado: 'Parcela & Cultivo',
-      flex: 1.4,
-      anchoMinimo: 200,
+      flex: 1.3,
+      anchoMinimo: 165,
       render: (a: ActividadItem) => (
         <View style={styles.filaUbicacion}>
           <MapPin size={13} color={Palette.forestGreen} style={{ marginTop: 2 }} />
           <View style={styles.contenedorTextoUbicacion}>
-            <Text style={styles.textoParcela} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={styles.textoParcela} numberOfLines={2}>
               {a.parcelaNombre || 'Parcela'}
             </Text>
             {a.sectorNombre ? (
-              <Text style={styles.textoCultivo} numberOfLines={2} ellipsizeMode="tail">
+              <Text style={styles.textoCultivo} numberOfLines={2}>
                 {a.sectorNombre}{a.cultivoNombre ? ` (${a.cultivoNombre})` : ''}
               </Text>
             ) : a.cultivoNombre ? (
-              <Text style={styles.textoCultivo} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={styles.textoCultivo} numberOfLines={1}>
                 ({a.cultivoNombre})
               </Text>
             ) : null}
@@ -174,7 +198,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'fecha',
       encabezado: 'Fecha Programada',
-      anchoMinimo: 140,
+      anchoMinimo: 115,
       render: (a: ActividadItem) => (
         <View style={styles.filaFecha}>
           <Calendar size={13} color="#6B7280" />
@@ -190,7 +214,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'cuadrilla',
       encabezado: 'Personal Asignado',
-      anchoMinimo: 140,
+      anchoMinimo: 120,
       render: (a: ActividadItem) => (
         <View style={styles.filaCuadrilla}>
           <Users size={14} color={Palette.forestGreen} />
@@ -203,7 +227,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'estado',
       encabezado: 'Estado',
-      anchoMinimo: 140,
+      anchoMinimo: 135,
       render: (a: ActividadItem) => {
         let badgeRef: View | null = null;
         const estaCambiando = idActividadCambiandoEstado === a.id;
@@ -268,6 +292,9 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
         claveExtractor={(item) => item.id}
         cargando={cargando}
         mensajeVacio="No se encontraron actividades agrícolas registradas."
+        vistaInicialMovil="tabla"
+        permitirCambioVistaMovil={false}
+        mostrarSelectorVistas={false}
       />
 
       <ActividadesMenuAcciones
@@ -303,10 +330,39 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'web' ? 'monospace' : 'monospace',
     fontWeight: '700',
     color: Palette.forestGreen,
-    fontSize: 13,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  textoTitulo: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
-  textoTipo: { fontSize: 11, color: '#4B5563', fontWeight: '500', textTransform: 'capitalize' },
+  filaLaborTabla: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarIconoLaborTabla: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLaborTabla: {
+    fontSize: 15,
+  },
+  infoLaborTabla: {
+    flex: 1,
+    gap: 2,
+  },
+  textoNombreLaborTabla: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  textoSubtituloLaborTabla: {
+    fontSize: 11,
+    color: '#6B7280',
+    lineHeight: 15,
+  },
   filaUbicacion: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -319,10 +375,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     maxWidth: '100%',
-    overflow: 'hidden',
   },
-  textoParcela: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  textoCultivo: { fontSize: 11, color: '#6B7280', flexShrink: 1 },
+  textoParcela: { fontSize: 13, fontWeight: '600', color: '#111827', lineHeight: 17 },
+  textoCultivo: { fontSize: 11, color: '#6B7280', lineHeight: 15, flexShrink: 1 },
   filaFecha: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   textoFecha: { fontSize: 12, color: '#374151', fontWeight: '500' },
   filaCuadrilla: { flexDirection: 'row', alignItems: 'center', gap: 6 },

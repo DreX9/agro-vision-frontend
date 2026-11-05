@@ -140,11 +140,11 @@ export const ParcelasTabla: React.FC<ParcelasTablaProps> = ({
     {
       id: 'responsable',
       encabezado: 'Responsable',
-      anchoMinimo: 150,
+      anchoMinimo: 140,
       render: (p: ParcelaItem) => (
         <View style={styles.filaUsuario}>
           <User size={13} color="#6B7280" />
-          <Text style={styles.textoResponsable} numberOfLines={1}>
+          <Text style={styles.textoResponsable} numberOfLines={2}>
             {p.usuarioResponsableNombre || 'Sin asignar'}
           </Text>
         </View>

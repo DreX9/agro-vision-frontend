@@ -97,38 +97,45 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
 
   return (
     <View style={styles.contenedor}>
-      {/* Selector de pestañas */}
-      <View style={styles.barraTabs}>
-        <Pressable
-          onPress={() => setTabActivo('info')}
-          style={[styles.botonTab, tabActivo === 'info' && styles.botonTabActivo]}
-        >
-          <Info size={16} color={tabActivo === 'info' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'info' && styles.textoTabActivo]}>
-            Información Agronómica y Predio
-          </Text>
-        </Pressable>
+      {/* Selector de pestañas deslizable */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollBarraTabs}
+        style={styles.wrapperBarraTabs}
+      >
+        <View style={styles.barraTabs}>
+          <Pressable
+            onPress={() => setTabActivo('info')}
+            style={[styles.botonTab, tabActivo === 'info' && styles.botonTabActivo]}
+          >
+            <Info size={16} color={tabActivo === 'info' ? Palette.forestGreen : '#6B7280'} />
+            <Text style={[styles.textoTab, tabActivo === 'info' && styles.textoTabActivo]}>
+              Información Agronómica y Predio
+            </Text>
+          </Pressable>
 
-        <Pressable
-          onPress={() => setTabActivo('mapa')}
-          style={[styles.botonTab, tabActivo === 'mapa' && styles.botonTabActivo]}
-        >
-          <MapIcon size={16} color={tabActivo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'mapa' && styles.textoTabActivo]}>
-            Georreferenciación ({puntosPoligono.length} vértices)
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => setTabActivo('mapa')}
+            style={[styles.botonTab, tabActivo === 'mapa' && styles.botonTabActivo]}
+          >
+            <MapIcon size={16} color={tabActivo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
+            <Text style={[styles.textoTab, tabActivo === 'mapa' && styles.textoTabActivo]}>
+              Georreferenciación ({puntosPoligono.length} vértices)
+            </Text>
+          </Pressable>
 
-        <Pressable
-          onPress={() => setTabActivo('sectores')}
-          style={[styles.botonTab, tabActivo === 'sectores' && styles.botonTabActivo]}
-        >
-          <Layers size={16} color={tabActivo === 'sectores' ? Palette.forestGreen : '#6B7280'} />
-          <Text style={[styles.textoTab, tabActivo === 'sectores' && styles.textoTabActivo]}>
-            Sectores y Cultivos ({sectores.length})
-          </Text>
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => setTabActivo('sectores')}
+            style={[styles.botonTab, tabActivo === 'sectores' && styles.botonTabActivo]}
+          >
+            <Layers size={16} color={tabActivo === 'sectores' ? Palette.forestGreen : '#6B7280'} />
+            <Text style={[styles.textoTab, tabActivo === 'sectores' && styles.textoTabActivo]}>
+              Sectores y Cultivos ({sectores.length})
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
 
       {/* Contenido según pestaña activa */}
       <ScrollView
@@ -437,6 +444,8 @@ export const ParcelaDetalleTabs: React.FC<ParcelaDetalleTabsProps> = ({ parcela 
 const styles = StyleSheet.create({
   contenedor: { flex: 1 },
   scroll: { flex: 1, width: '100%' },
+  wrapperBarraTabs: { flexGrow: 0, width: '100%', backgroundColor: '#FFFFFF' },
+  scrollBarraTabs: { flexGrow: 0 },
   barraTabs: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
