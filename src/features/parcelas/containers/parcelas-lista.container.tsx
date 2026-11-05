@@ -128,7 +128,7 @@ export const ParcelasListaContainer: React.FC = () => {
                     vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
                   ]}
                 >
-                  Vista Tabla ({data?.total ?? 0})
+                  Listado ({data?.total ?? 0})
                 </Text>
               </Pressable>
 

@@ -132,13 +132,17 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'codigo',
       encabezado: 'Código',
-      anchoMinimo: 90,
-      render: (a: ActividadItem) => <Text style={styles.textoCodigo}>{a.codigo}</Text>,
+      anchoMinimo: 180,
+      render: (a: ActividadItem) => (
+        <Text style={styles.textoCodigo} numberOfLines={1}>
+          {a.codigo}
+        </Text>
+      ),
     },
     {
       id: 'labor',
       encabezado: 'Labor Agrícola',
-      anchoMinimo: 220,
+      anchoMinimo: 210,
       render: (a: ActividadItem) => {
         const info = obtenerInfoTipoLabor(a.tipo);
         const tieneTituloPersonalizado = Boolean(a.titulo && a.titulo.trim() !== a.codigo.trim());
@@ -170,7 +174,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
       id: 'parcela',
       encabezado: 'Parcela & Cultivo',
       flex: 1.4,
-      anchoMinimo: 200,
+      anchoMinimo: 180,
       render: (a: ActividadItem) => (
         <View style={styles.filaUbicacion}>
           <MapPin size={13} color={Palette.forestGreen} style={{ marginTop: 2 }} />
@@ -194,7 +198,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'fecha',
       encabezado: 'Fecha Programada',
-      anchoMinimo: 140,
+      anchoMinimo: 130,
       render: (a: ActividadItem) => (
         <View style={styles.filaFecha}>
           <Calendar size={13} color="#6B7280" />
@@ -210,7 +214,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'cuadrilla',
       encabezado: 'Personal Asignado',
-      anchoMinimo: 140,
+      anchoMinimo: 130,
       render: (a: ActividadItem) => (
         <View style={styles.filaCuadrilla}>
           <Users size={14} color={Palette.forestGreen} />
@@ -288,6 +292,9 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
         claveExtractor={(item) => item.id}
         cargando={cargando}
         mensajeVacio="No se encontraron actividades agrícolas registradas."
+        vistaInicialMovil="tabla"
+        permitirCambioVistaMovil={false}
+        mostrarSelectorVistas={false}
       />
 
       <ActividadesMenuAcciones

@@ -32,10 +32,11 @@ export interface TablaProps<T> {
   estilo?: ViewStyle;
   vistaInicialMovil?: 'tarjetas' | 'tabla';
   permitirCambioVistaMovil?: boolean;
+  mostrarSelectorVistas?: boolean;
 }
 
 /**
- * @description Componente de tabla de datos responsiva con vista automática en tarjetas para móviles
+ * @description Componente de tabla de datos responsiva con vista en tarjetas 2x2 compactas para móviles
  * y vista tabular completa con scroll horizontal optimizado.
  */
 export function Tabla<T>({
@@ -47,28 +48,36 @@ export function Tabla<T>({
   estilo,
   vistaInicialMovil = 'tarjetas',
   permitirCambioVistaMovil = true,
+  mostrarSelectorVistas = true,
 }: TablaProps<T>) {
   const { width } = useWindowDimensions();
   const esMovil = width < 768;
+  const esPantallaMuyPequena = width < 340;
   const [vistaMovil, setVistaMovil] = useState<'tarjetas' | 'tabla'>(vistaInicialMovil);
 
-  // Identificar columnas especiales para la vista de tarjetas en móvil
+  // Identificar columnas especiales
   const colAcciones = columnas.find(
     (c) => c.id === 'acciones' || c.encabezado.toLowerCase().includes('acci'),
   );
   const colEstado = columnas.find(
     (c) => c.id === 'estado' || c.encabezado.toLowerCase() === 'estado',
   );
-  // Columna principal (primera columna)
+  // Columna principal (código o primera columna)
   const colPrincipal = columnas[0];
 
-  // Columnas intermedias para la tarjeta móvil
+  // Si la segunda columna es nombre, labor o título, mostrarla destacada bajo la cabecera
+  const tieneColSecundaria =
+    columnas.length > 1 &&
+    (columnas[1].id === 'nombre' || columnas[1].id === 'labor' || columnas[1].id === 'titulo');
+  const colSecundaria = tieneColSecundaria ? columnas[1] : undefined;
+
+  // Columnas intermedias restantes en formato compacto
   const columnasIntermedias = columnas.filter(
-    (c) => c !== colPrincipal && c !== colAcciones && c !== colEstado,
+    (c) => c !== colPrincipal && c !== colSecundaria && c !== colAcciones && c !== colEstado,
   );
 
   const renderSelectorVistas = (enTabla = false) => {
-    if (!permitirCambioVistaMovil) return null;
+    if (!mostrarSelectorVistas || !permitirCambioVistaMovil) return null;
     return (
       <View style={enTabla ? styles.barraToggleMovilEnTabla : styles.barraToggleMovil}>
         {!enTabla && (
@@ -85,7 +94,7 @@ export function Tabla<T>({
             ]}
           >
             <LayoutGrid
-              size={13}
+              size={12}
               color={vistaMovil === 'tarjetas' ? '#FFFFFF' : '#4B5563'}
             />
             <Text
@@ -94,7 +103,7 @@ export function Tabla<T>({
                 vistaMovil === 'tarjetas' && styles.textoBotonToggleActivo,
               ]}
             >
-              Fichas
+              Cards (2x2)
             </Text>
           </Pressable>
 
@@ -106,7 +115,7 @@ export function Tabla<T>({
             ]}
           >
             <ListTree
-              size={13}
+              size={12}
               color={vistaMovil === 'tabla' ? '#FFFFFF' : '#4B5563'}
             />
             <Text
@@ -122,7 +131,7 @@ export function Tabla<T>({
 
         {enTabla && (
           <View style={styles.avisoDeslizar}>
-            <ArrowRightLeft size={12} color="#6B7280" />
+            <ArrowRightLeft size={11} color="#6B7280" />
             <Text style={styles.textoAvisoDeslizar}>Desliza para ver más</Text>
           </View>
         )}
@@ -130,13 +139,13 @@ export function Tabla<T>({
     );
   };
 
-  // VISTA MÓVIL EN MODO TARJETA (FICHAS VERTICALES LEGIBLES)
+  // VISTA MÓVIL EN MODO TARJETA (GRID 2x2 COMPACTO)
   if (esMovil && vistaMovil === 'tarjetas') {
     return (
       <View style={[styles.contenedorMovil, estilo]}>
         {renderSelectorVistas(false)}
 
-        {/* Listado de Tarjetas Responsivas */}
+        {/* Listado de Tarjetas en Cuadrícula 2x2 */}
         {cargando ? (
           <View style={styles.filaVacia}>
             <ActivityIndicator size="small" color={Palette.forestGreen} />
@@ -145,63 +154,63 @@ export function Tabla<T>({
         ) : datos.length > 0 ? (
           <View style={styles.listaTarjetasMovil}>
             {datos.map((item, index) => (
-              <View key={claveExtractor(item)} style={styles.tarjetaMovil}>
-                {/* Cabecera de la Tarjeta: Identificador Principal + Estado */}
-                <View style={styles.cabeceraTarjetaMovil}>
-                  <View style={styles.columnaPrincipalMovil}>
-                    <Text style={styles.etiquetaPrincipalMovil}>
+              <View
+                key={claveExtractor(item)}
+                style={[
+                  styles.tarjetaMovil2Col,
+                  esPantallaMuyPequena && { width: '100%' },
+                ]}
+              >
+                {/* Cabecera Compacta: Identificador + (Estado & Acciones a la derecha) */}
+                <View style={styles.cabecera2Col}>
+                  <View style={styles.idWrapper2Col}>
+                    <Text style={styles.etiquetaId2Col} numberOfLines={1}>
                       {colPrincipal.encabezado}
                     </Text>
-                    <View style={styles.valorPrincipalMovil}>
+                    <View style={styles.valorId2Col}>
                       {colPrincipal.render(item, index)}
                     </View>
                   </View>
 
-                  {colEstado && (
-                    <View style={styles.badgeEstadoMovil}>
-                      {colEstado.render(item, index)}
-                    </View>
-                  )}
+                  <View style={styles.estadoYAccion2Col}>
+                    {colEstado && (
+                      <View style={styles.badgeEstado2Col}>
+                        {colEstado.render(item, index)}
+                      </View>
+                    )}
+                    {colAcciones && (
+                      <View style={styles.botonAccion2Col}>
+                        {colAcciones.render(item, index)}
+                      </View>
+                    )}
+                  </View>
                 </View>
 
-                {/* Campos de datos intermedios */}
-                {columnasIntermedias.length > 0 && (
-                  <View style={styles.cuerpoCamposMovil}>
-                    {columnasIntermedias.map((col) => {
-                      const esCampoLargo =
-                        (col.anchoMinimo && col.anchoMinimo >= 180) ||
-                        col.id === 'labor' ||
-                        col.id === 'parcela' ||
-                        col.id === 'variedades' ||
-                        col.id === 'correo' ||
-                        col.id === 'descripcion';
-
-                      if (esCampoLargo) {
-                        return (
-                          <View key={col.id} style={styles.bloqueCampoLargo}>
-                            <Text style={styles.etiquetaCampoLargo}>{col.encabezado}</Text>
-                            <View style={styles.valorCampoLargo}>{col.render(item, index)}</View>
-                          </View>
-                        );
-                      }
-
-                      return (
-                        <View key={col.id} style={styles.filaCampoCorto}>
-                          <Text style={styles.etiquetaCampoCorto}>{col.encabezado}</Text>
-                          <View style={styles.valorCampoCorto}>{col.render(item, index)}</View>
-                        </View>
-                      );
-                    })}
+                {/* Bloque Secundario Destacado (Nombre de Lote / Labor) */}
+                {colSecundaria && (
+                  <View style={styles.bloqueSecundario2Col}>
+                    <Text style={styles.etiquetaSecundaria2Col} numberOfLines={1}>
+                      {colSecundaria.encabezado}
+                    </Text>
+                    <View style={styles.valorSecundario2Col}>
+                      {colSecundaria.render(item, index)}
+                    </View>
                   </View>
                 )}
 
-                {/* Barra inferior de acciones */}
-                {colAcciones && (
-                  <View style={styles.pieAccionesMovil}>
-                    <Text style={styles.etiquetaAccionesMovil}>Acciones</Text>
-                    <View style={styles.valorAccionesMovil}>
-                      {colAcciones.render(item, index)}
-                    </View>
+                {/* Campos restantes en formato ultra-compacto */}
+                {columnasIntermedias.length > 0 && (
+                  <View style={styles.cuerpoCampos2Col}>
+                    {columnasIntermedias.map((col) => (
+                      <View key={col.id} style={styles.filaCampo2Col}>
+                        <Text style={styles.etiquetaCampo2Col} numberOfLines={1}>
+                          {col.encabezado}:
+                        </Text>
+                        <View style={styles.valorCampo2Col}>
+                          {col.render(item, index)}
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 )}
               </View>
@@ -219,12 +228,12 @@ export function Tabla<T>({
   // VISTA TABULAR COMPLETA (Desktop o Modo Tabla seleccionado en Móvil)
   return (
     <View style={[styles.contenedor, estilo]}>
-      {/* En móvil con modo tabla activo, mostrar selector y aviso de deslizamiento */}
+      {/* En móvil con modo tabla activo, mostrar selector si está permitido */}
       {esMovil && renderSelectorVistas(true)}
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={Platform.OS === 'web'}
+        showsHorizontalScrollIndicator={true}
         contentContainerStyle={styles.scrollContenido}
         style={styles.scrollWrapper}
       >
@@ -234,7 +243,7 @@ export function Tabla<T>({
             {columnas.map((col) => {
               const anchoEstilo = {
                 flex: col.flex ?? 1,
-                minWidth: col.anchoMinimo ?? 120,
+                minWidth: col.anchoMinimo ?? 130,
               };
               const alineacionEstilo = {
                 alignItems:
@@ -276,7 +285,7 @@ export function Tabla<T>({
                   {columnas.map((col) => {
                     const anchoEstilo = {
                       flex: col.flex ?? 1,
-                      minWidth: col.anchoMinimo ?? 120,
+                      minWidth: col.anchoMinimo ?? 130,
                     };
                     const alineacionEstilo = {
                       alignItems:
@@ -321,7 +330,7 @@ const styles = StyleSheet.create({
   },
   contenedorMovil: {
     width: '100%',
-    gap: 10,
+    gap: 8,
   },
   barraToggleMovil: {
     flexDirection: 'row',
@@ -329,20 +338,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   barraToggleMovilEnTabla: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
     borderBottomColor: Palette.border,
   },
   textoRegistrosMovil: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -356,9 +365,9 @@ const styles = StyleSheet.create({
   botonToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 6,
   },
   botonToggleActivo: {
@@ -376,116 +385,109 @@ const styles = StyleSheet.create({
   avisoDeslizar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   textoAvisoDeslizar: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
     fontWeight: '500',
   },
   listaTarjetasMovil: {
-    gap: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     width: '100%',
   },
-  tarjetaMovil: {
+  tarjetaMovil2Col: {
+    width: '48.7%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 14,
-    gap: 10,
+    padding: 10,
+    gap: 5,
+    justifyContent: 'space-between',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
-  cabeceraTarjetaMovil: {
+  cabecera2Col: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1.5,
+    gap: 4,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
-  columnaPrincipalMovil: {
+  idWrapper2Col: {
     flex: 1,
-    gap: 4,
+    minWidth: 0,
+    gap: 1,
   },
-  etiquetaPrincipalMovil: {
-    fontSize: 10,
+  etiquetaId2Col: {
+    fontSize: 9,
     fontWeight: '800',
     color: Palette.forestGreen,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  valorPrincipalMovil: {
-    width: '100%',
+  valorId2Col: {
+    minWidth: 0,
   },
-  badgeEstadoMovil: {
-    alignSelf: 'flex-start',
-  },
-  cuerpoCamposMovil: {
-    gap: 8,
-  },
-  filaCampoCorto: {
+  estadoYAccion2Col: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 5,
+    gap: 3,
+  },
+  badgeEstado2Col: {
+    transform: [{ scale: 0.88 }],
+  },
+  botonAccion2Col: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bloqueSecundario2Col: {
+    paddingVertical: 2,
     borderBottomWidth: 1,
     borderBottomColor: '#F8FAFC',
-    gap: 10,
+    gap: 1,
   },
-  etiquetaCampoCorto: {
-    fontSize: 11,
+  etiquetaSecundaria2Col: {
+    fontSize: 9,
     fontWeight: '700',
     color: '#64748B',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    maxWidth: 130,
+    letterSpacing: 0.3,
   },
-  valorCampoCorto: {
+  valorSecundario2Col: {
+    minWidth: 0,
+  },
+  cuerpoCampos2Col: {
+    gap: 3,
+  },
+  filaCampo2Col: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 1,
+  },
+  etiquetaCampo2Col: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    maxWidth: '48%',
+  },
+  valorCampo2Col: {
     flex: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
-  },
-  bloqueCampoLargo: {
-    gap: 4,
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
-  },
-  etiquetaCampoLargo: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  valorCampoLargo: {
-    width: '100%',
-  },
-  pieAccionesMovil: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-    marginTop: 2,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  etiquetaAccionesMovil: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-  },
-  valorAccionesMovil: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    minWidth: 0,
   },
   scrollWrapper: {
     width: '100%',
@@ -496,15 +498,15 @@ const styles = StyleSheet.create({
   },
   tablaWrapper: {
     width: '100%',
-    minWidth: 960,
+    minWidth: 1040,
   },
   filaEncabezado: {
     flexDirection: 'row',
     backgroundColor: '#F3EFE6',
     borderBottomWidth: 1.5,
     borderBottomColor: Palette.border,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
   celdaEncabezado: {
@@ -524,8 +526,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#F0EAD8',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
   filaPar: {
