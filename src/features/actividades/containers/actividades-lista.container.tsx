@@ -211,66 +211,129 @@ export const ActividadesListaContainer: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Panel de Filtros */}
+        {/* Panel de Filtros Responsivo */}
         <Card estilo={styles.tarjetaFiltros}>
-          <View style={[styles.filaFiltrosPrincipal, !esPantallaAmplia && styles.columnaSimple]}>
-            <View style={{ flex: 2 }}>
-              <Input
-                placeholder="Buscar por código (ACT-001), labor o descripción..."
-                value={busqueda}
-                onChangeText={(texto) => {
-                  setBusqueda(texto);
-                  setPagina(1);
-                }}
-                iconoIzquierda={<Search size={18} color="#6B7280" />}
-              />
-            </View>
+          {esPantallaAmplia ? (
+            <View style={styles.filaFiltrosPrincipal}>
+              <View style={{ flex: 2 }}>
+                <Input
+                  placeholder="Buscar por código (ACT-001), labor o descripción..."
+                  value={busqueda}
+                  onChangeText={(texto) => {
+                    setBusqueda(texto);
+                    setPagina(1);
+                  }}
+                  iconoIzquierda={<Search size={18} color="#6B7280" />}
+                />
+              </View>
 
-            <View style={{ flex: 1.2 }}>
-              <Select
-                placeholder="Estado..."
-                opciones={[
-                  { label: 'Todos los estados', valor: '' },
-                  { label: '🟡 Programada (Pendiente)', valor: 'PENDIENTE' },
-                  { label: '🔵 En Ejecución', valor: 'EN_PROGRESO' },
-                  { label: '🟢 Completada', valor: 'COMPLETADA' },
-                  { label: '🔴 Cancelada', valor: 'CANCELADA' },
-                ]}
-                valor={filtroEstado}
-                onChange={(val) => {
-                  setFiltroEstado(val);
-                  setPagina(1);
-                }}
-              />
-            </View>
-
-            <View style={styles.filaBotonesFiltroBarra}>
-              <Pressable
-                style={[
-                  styles.botonToggleFiltros,
-                  (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.botonToggleFiltrosActivo,
-                ]}
-                onPress={() => setMostrarFiltrosAvanzados((prev) => !prev)}
-              >
-                <Filter size={16} color={mostrarFiltrosAvanzados || hayFiltrosActivos ? Palette.forestGreen : '#6B7280'} />
-                <Text
-                  style={[
-                    styles.textoToggleFiltros,
-                    (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.textoToggleFiltrosActivo,
+              <View style={{ flex: 1.2 }}>
+                <Select
+                  placeholder="Estado..."
+                  opciones={[
+                    { label: 'Todos los estados', valor: '' },
+                    { label: '🟡 Programada (Pendiente)', valor: 'PENDIENTE' },
+                    { label: '🔵 En Ejecución', valor: 'EN_PROGRESO' },
+                    { label: '🟢 Completada', valor: 'COMPLETADA' },
+                    { label: '🔴 Cancelada', valor: 'CANCELADA' },
                   ]}
-                >
-                  Filtros {hayFiltrosActivos ? '•' : ''}
-                </Text>
-              </Pressable>
+                  valor={filtroEstado}
+                  onChange={(val) => {
+                    setFiltroEstado(val);
+                    setPagina(1);
+                  }}
+                />
+              </View>
 
-              {hayFiltrosActivos && (
-                <Pressable style={styles.botonLimpiarFiltros} onPress={limpiarFiltros}>
-                  <X size={14} color="#6B7280" />
-                  <Text style={styles.textoLimpiarFiltros}>Limpiar</Text>
+              <View style={styles.filaBotonesFiltroBarra}>
+                <Pressable
+                  style={[
+                    styles.botonToggleFiltros,
+                    (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.botonToggleFiltrosActivo,
+                  ]}
+                  onPress={() => setMostrarFiltrosAvanzados((prev) => !prev)}
+                >
+                  <Filter size={16} color={mostrarFiltrosAvanzados || hayFiltrosActivos ? Palette.forestGreen : '#6B7280'} />
+                  <Text
+                    style={[
+                      styles.textoToggleFiltros,
+                      (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.textoToggleFiltrosActivo,
+                    ]}
+                  >
+                    Filtros {hayFiltrosActivos ? '•' : ''}
+                  </Text>
                 </Pressable>
-              )}
+
+                {hayFiltrosActivos && (
+                  <Pressable style={styles.botonLimpiarFiltros} onPress={limpiarFiltros}>
+                    <X size={14} color="#6B7280" />
+                    <Text style={styles.textoLimpiarFiltros}>Limpiar</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
-          </View>
+          ) : (
+            /* DISEÑO MÓVIL RESPONSIVO Y LIMPIO */
+            <View style={styles.columnaFiltrosMovil}>
+              {/* Fila 1: Buscador a 100% de ancho con placeholder adaptado */}
+              <View style={{ width: '100%' }}>
+                <Input
+                  placeholder="Buscar labor o código..."
+                  value={busqueda}
+                  onChangeText={(texto) => {
+                    setBusqueda(texto);
+                    setPagina(1);
+                  }}
+                  iconoIzquierda={<Search size={16} color="#6B7280" />}
+                />
+              </View>
+
+              {/* Fila 2: Selector de Estado + Botón Filtros lado a lado */}
+              <View style={styles.filaMovilEstadoYFiltros}>
+                <View style={{ flex: 1 }}>
+                  <Select
+                    placeholder="Estado..."
+                    opciones={[
+                      { label: 'Todos los estados', valor: '' },
+                      { label: '🟡 Programada (Pendiente)', valor: 'PENDIENTE' },
+                      { label: '🔵 En Ejecución', valor: 'EN_PROGRESO' },
+                      { label: '🟢 Completada', valor: 'COMPLETADA' },
+                      { label: '🔴 Cancelada', valor: 'CANCELADA' },
+                    ]}
+                    valor={filtroEstado}
+                    onChange={(val) => {
+                      setFiltroEstado(val);
+                      setPagina(1);
+                    }}
+                  />
+                </View>
+
+                <Pressable
+                  style={[
+                    styles.botonToggleFiltros,
+                    (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.botonToggleFiltrosActivo,
+                  ]}
+                  onPress={() => setMostrarFiltrosAvanzados((prev) => !prev)}
+                >
+                  <Filter size={15} color={mostrarFiltrosAvanzados || hayFiltrosActivos ? Palette.forestGreen : '#6B7280'} />
+                  <Text
+                    style={[
+                      styles.textoToggleFiltros,
+                      (mostrarFiltrosAvanzados || hayFiltrosActivos) && styles.textoToggleFiltrosActivo,
+                    ]}
+                  >
+                    Filtros {hayFiltrosActivos ? '•' : ''}
+                  </Text>
+                </Pressable>
+
+                {hayFiltrosActivos && (
+                  <Pressable style={styles.botonLimpiarFiltros} onPress={limpiarFiltros}>
+                    <X size={14} color="#6B7280" />
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* Filtros avanzados desplegables (Parcela, Supervisor, Rango de Fechas) */}
           {mostrarFiltrosAvanzados && (
@@ -344,11 +407,12 @@ export const ActividadesListaContainer: React.FC = () => {
           )}
 
           {/* Selector de Modo de Vista (Tarjetas vs Tabla) */}
-          <View style={styles.filaSelectorVista}>
+          <View style={[styles.filaSelectorVista, !esPantallaAmplia && styles.filaSelectorVistaMovil]}>
             <Pressable
               onPress={() => setModoVista('tarjetas')}
               style={[
                 styles.botonModoVista,
+                !esPantallaAmplia && { flex: 1, justifyContent: 'center' },
                 modoVista === 'tarjetas' && styles.botonModoVistaActivo,
               ]}
             >
@@ -370,6 +434,7 @@ export const ActividadesListaContainer: React.FC = () => {
               onPress={() => setModoVista('tabla')}
               style={[
                 styles.botonModoVista,
+                !esPantallaAmplia && { flex: 1, justifyContent: 'center' },
                 modoVista === 'tabla' && styles.botonModoVistaActivo,
               ]}
             >
@@ -500,6 +565,17 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
   },
+  columnaFiltrosMovil: {
+    flexDirection: 'column',
+    gap: 10,
+    width: '100%',
+  },
+  filaMovilEstadoYFiltros: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
   columnaSimple: {
     flexDirection: 'column',
   },
@@ -557,6 +633,10 @@ const styles = StyleSheet.create({
     gap: 8,
     alignSelf: 'flex-start',
     marginTop: 4,
+  },
+  filaSelectorVistaMovil: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
   botonModoVista: {
     flexDirection: 'row',
