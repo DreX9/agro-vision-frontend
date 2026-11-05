@@ -132,9 +132,9 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'codigo',
       encabezado: 'Código',
-      anchoMinimo: 180,
+      anchoMinimo: 135,
       render: (a: ActividadItem) => (
-        <Text style={styles.textoCodigo} numberOfLines={1}>
+        <Text style={styles.textoCodigo}>
           {a.codigo}
         </Text>
       ),
@@ -142,7 +142,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'labor',
       encabezado: 'Labor Agrícola',
-      anchoMinimo: 210,
+      anchoMinimo: 180,
       render: (a: ActividadItem) => {
         const info = obtenerInfoTipoLabor(a.tipo);
         const tieneTituloPersonalizado = Boolean(a.titulo && a.titulo.trim() !== a.codigo.trim());
@@ -161,7 +161,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
               <Text style={[styles.textoNombreLaborTabla, { color: info.tema.text }]}>
                 {info.label}
               </Text>
-              <Text style={styles.textoSubtituloLaborTabla} numberOfLines={1}>
+              <Text style={styles.textoSubtituloLaborTabla} numberOfLines={2}>
                 {tieneTituloPersonalizado ? a.titulo : info.descripcion}
                 {a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}
               </Text>
@@ -173,21 +173,21 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'parcela',
       encabezado: 'Parcela & Cultivo',
-      flex: 1.4,
-      anchoMinimo: 180,
+      flex: 1.3,
+      anchoMinimo: 165,
       render: (a: ActividadItem) => (
         <View style={styles.filaUbicacion}>
           <MapPin size={13} color={Palette.forestGreen} style={{ marginTop: 2 }} />
           <View style={styles.contenedorTextoUbicacion}>
-            <Text style={styles.textoParcela} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={styles.textoParcela} numberOfLines={2}>
               {a.parcelaNombre || 'Parcela'}
             </Text>
             {a.sectorNombre ? (
-              <Text style={styles.textoCultivo} numberOfLines={2} ellipsizeMode="tail">
+              <Text style={styles.textoCultivo} numberOfLines={2}>
                 {a.sectorNombre}{a.cultivoNombre ? ` (${a.cultivoNombre})` : ''}
               </Text>
             ) : a.cultivoNombre ? (
-              <Text style={styles.textoCultivo} numberOfLines={1} ellipsizeMode="tail">
+              <Text style={styles.textoCultivo} numberOfLines={1}>
                 ({a.cultivoNombre})
               </Text>
             ) : null}
@@ -198,7 +198,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'fecha',
       encabezado: 'Fecha Programada',
-      anchoMinimo: 130,
+      anchoMinimo: 115,
       render: (a: ActividadItem) => (
         <View style={styles.filaFecha}>
           <Calendar size={13} color="#6B7280" />
@@ -214,7 +214,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'cuadrilla',
       encabezado: 'Personal Asignado',
-      anchoMinimo: 130,
+      anchoMinimo: 120,
       render: (a: ActividadItem) => (
         <View style={styles.filaCuadrilla}>
           <Users size={14} color={Palette.forestGreen} />
@@ -227,7 +227,7 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     {
       id: 'estado',
       encabezado: 'Estado',
-      anchoMinimo: 140,
+      anchoMinimo: 135,
       render: (a: ActividadItem) => {
         let badgeRef: View | null = null;
         const estaCambiando = idActividadCambiandoEstado === a.id;
@@ -330,7 +330,8 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'web' ? 'monospace' : 'monospace',
     fontWeight: '700',
     color: Palette.forestGreen,
-    fontSize: 13,
+    fontSize: 12,
+    lineHeight: 16,
   },
   filaLaborTabla: {
     flexDirection: 'row',
@@ -350,15 +351,17 @@ const styles = StyleSheet.create({
   },
   infoLaborTabla: {
     flex: 1,
-    gap: 1,
+    gap: 2,
   },
   textoNombreLaborTabla: {
     fontSize: 13,
     fontWeight: '700',
+    lineHeight: 17,
   },
   textoSubtituloLaborTabla: {
     fontSize: 11,
     color: '#6B7280',
+    lineHeight: 15,
   },
   filaUbicacion: {
     flexDirection: 'row',
@@ -372,10 +375,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     maxWidth: '100%',
-    overflow: 'hidden',
   },
-  textoParcela: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  textoCultivo: { fontSize: 11, color: '#6B7280', flexShrink: 1 },
+  textoParcela: { fontSize: 13, fontWeight: '600', color: '#111827', lineHeight: 17 },
+  textoCultivo: { fontSize: 11, color: '#6B7280', lineHeight: 15, flexShrink: 1 },
   filaFecha: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   textoFecha: { fontSize: 12, color: '#374151', fontWeight: '500' },
   filaCuadrilla: { flexDirection: 'row', alignItems: 'center', gap: 6 },

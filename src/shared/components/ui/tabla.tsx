@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   ViewStyle,
-  Platform,
   useWindowDimensions,
   Pressable,
   ActivityIndicator,
@@ -36,8 +35,8 @@ export interface TablaProps<T> {
 }
 
 /**
- * @description Componente de tabla de datos responsiva con vista en tarjetas 2x2 compactas para móviles
- * y vista tabular completa con scroll horizontal optimizado.
+ * @description Componente de tabla responsiva con tarjetas compactas de 1 columna adaptadas a pantalla móvil
+ * y tabla de datos con saltos de línea ordenados y scroll horizontal suave.
  */
 export function Tabla<T>({
   columnas,
@@ -52,7 +51,6 @@ export function Tabla<T>({
 }: TablaProps<T>) {
   const { width } = useWindowDimensions();
   const esMovil = width < 768;
-  const esPantallaMuyPequena = width < 340;
   const [vistaMovil, setVistaMovil] = useState<'tarjetas' | 'tabla'>(vistaInicialMovil);
 
   // Identificar columnas especiales
@@ -65,13 +63,13 @@ export function Tabla<T>({
   // Columna principal (código o primera columna)
   const colPrincipal = columnas[0];
 
-  // Si la segunda columna es nombre, labor o título, mostrarla destacada bajo la cabecera
+  // Si la segunda columna es nombre, labor o título, mostrarla en cabecera
   const tieneColSecundaria =
     columnas.length > 1 &&
     (columnas[1].id === 'nombre' || columnas[1].id === 'labor' || columnas[1].id === 'titulo');
   const colSecundaria = tieneColSecundaria ? columnas[1] : undefined;
 
-  // Columnas intermedias restantes en formato compacto
+  // Columnas intermedias restantes para los metadatos compactos
   const columnasIntermedias = columnas.filter(
     (c) => c !== colPrincipal && c !== colSecundaria && c !== colAcciones && c !== colEstado,
   );
@@ -80,11 +78,9 @@ export function Tabla<T>({
     if (!mostrarSelectorVistas || !permitirCambioVistaMovil) return null;
     return (
       <View style={enTabla ? styles.barraToggleMovilEnTabla : styles.barraToggleMovil}>
-        {!enTabla && (
-          <Text style={styles.textoRegistrosMovil}>
-            {datos.length} {datos.length === 1 ? 'registro' : 'registros'}
-          </Text>
-        )}
+        <Text style={styles.textoRegistrosMovil}>
+          {datos.length} {datos.length === 1 ? 'registro' : 'registros'}
+        </Text>
         <View style={styles.grupoBotonesToggle}>
           <Pressable
             onPress={() => setVistaMovil('tarjetas')}
@@ -94,7 +90,7 @@ export function Tabla<T>({
             ]}
           >
             <LayoutGrid
-              size={12}
+              size={13}
               color={vistaMovil === 'tarjetas' ? '#FFFFFF' : '#4B5563'}
             />
             <Text
@@ -103,7 +99,7 @@ export function Tabla<T>({
                 vistaMovil === 'tarjetas' && styles.textoBotonToggleActivo,
               ]}
             >
-              Cards (2x2)
+              Tarjetas
             </Text>
           </Pressable>
 
@@ -115,7 +111,7 @@ export function Tabla<T>({
             ]}
           >
             <ListTree
-              size={12}
+              size={13}
               color={vistaMovil === 'tabla' ? '#FFFFFF' : '#4B5563'}
             />
             <Text
@@ -132,20 +128,20 @@ export function Tabla<T>({
         {enTabla && (
           <View style={styles.avisoDeslizar}>
             <ArrowRightLeft size={11} color="#6B7280" />
-            <Text style={styles.textoAvisoDeslizar}>Desliza para ver más</Text>
+            <Text style={styles.textoAvisoDeslizar}>Desliza</Text>
           </View>
         )}
       </View>
     );
   };
 
-  // VISTA MÓVIL EN MODO TARJETA (GRID 2x2 COMPACTO)
+  // VISTA MÓVIL EN MODO TARJETA (1 COLUMNA COMPACTA ADAPTADA A LA PANTALLA)
   if (esMovil && vistaMovil === 'tarjetas') {
     return (
       <View style={[styles.contenedorMovil, estilo]}>
         {renderSelectorVistas(false)}
 
-        {/* Listado de Tarjetas en Cuadrícula 2x2 */}
+        {/* Listado de Tarjetas Compactas de 1 Columna */}
         {cargando ? (
           <View style={styles.filaVacia}>
             <ActivityIndicator size="small" color={Palette.forestGreen} />
@@ -154,61 +150,50 @@ export function Tabla<T>({
         ) : datos.length > 0 ? (
           <View style={styles.listaTarjetasMovil}>
             {datos.map((item, index) => (
-              <View
-                key={claveExtractor(item)}
-                style={[
-                  styles.tarjetaMovil2Col,
-                  esPantallaMuyPequena && { width: '100%' },
-                ]}
-              >
-                {/* Cabecera Compacta: Identificador + (Estado & Acciones a la derecha) */}
-                <View style={styles.cabecera2Col}>
-                  <View style={styles.idWrapper2Col}>
-                    <Text style={styles.etiquetaId2Col} numberOfLines={1}>
-                      {colPrincipal.encabezado}
-                    </Text>
-                    <View style={styles.valorId2Col}>
-                      {colPrincipal.render(item, index)}
+              <View key={claveExtractor(item)} style={styles.tarjetaMovil1Col}>
+                {/* Cabecera: Identificador y Título a la izquierda, Estado y Acción a la derecha */}
+                <View style={styles.cabecera1Col}>
+                  <View style={styles.identificadoresWrapper}>
+                    <View style={styles.filaIdYNombre}>
+                      <View style={styles.cajaIdPrincipal}>
+                        {colPrincipal.render(item, index)}
+                      </View>
+                      {colSecundaria && (
+                        <View style={styles.cajaNombreSecundario}>
+                          {colSecundaria.render(item, index)}
+                        </View>
+                      )}
                     </View>
                   </View>
 
-                  <View style={styles.estadoYAccion2Col}>
+                  <View style={styles.estadoYAccion1Col}>
                     {colEstado && (
-                      <View style={styles.badgeEstado2Col}>
+                      <View style={styles.badgeEstado1Col}>
                         {colEstado.render(item, index)}
                       </View>
                     )}
                     {colAcciones && (
-                      <View style={styles.botonAccion2Col}>
+                      <View style={styles.botonAccion1Col}>
                         {colAcciones.render(item, index)}
                       </View>
                     )}
                   </View>
                 </View>
 
-                {/* Bloque Secundario Destacado (Nombre de Lote / Labor) */}
-                {colSecundaria && (
-                  <View style={styles.bloqueSecundario2Col}>
-                    <Text style={styles.etiquetaSecundaria2Col} numberOfLines={1}>
-                      {colSecundaria.encabezado}
-                    </Text>
-                    <View style={styles.valorSecundario2Col}>
-                      {colSecundaria.render(item, index)}
-                    </View>
-                  </View>
-                )}
-
-                {/* Campos restantes en formato ultra-compacto */}
+                {/* Línea de atributos y metadatos en formato horizontal fluido */}
                 {columnasIntermedias.length > 0 && (
-                  <View style={styles.cuerpoCampos2Col}>
-                    {columnasIntermedias.map((col) => (
-                      <View key={col.id} style={styles.filaCampo2Col}>
-                        <Text style={styles.etiquetaCampo2Col} numberOfLines={1}>
+                  <View style={styles.filaMetadatos1Col}>
+                    {columnasIntermedias.map((col, idx) => (
+                      <View key={col.id} style={styles.itemMeta1Col}>
+                        <Text style={styles.etiquetaMeta1Col}>
                           {col.encabezado}:
                         </Text>
-                        <View style={styles.valorCampo2Col}>
+                        <View style={styles.valorMeta1Col}>
                           {col.render(item, index)}
                         </View>
+                        {idx < columnasIntermedias.length - 1 && (
+                          <Text style={styles.separadorBullet}>·</Text>
+                        )}
                       </View>
                     ))}
                   </View>
@@ -238,12 +223,12 @@ export function Tabla<T>({
         style={styles.scrollWrapper}
       >
         <View style={styles.tablaWrapper}>
-          {/* Fila de Encabezados */}
+          {/* Fila de Encabezados con saltos de línea permitidos */}
           <View style={styles.filaEncabezado}>
             {columnas.map((col) => {
               const anchoEstilo = {
                 flex: col.flex ?? 1,
-                minWidth: col.anchoMinimo ?? 130,
+                minWidth: col.anchoMinimo ?? 120,
               };
               const alineacionEstilo = {
                 alignItems:
@@ -259,13 +244,15 @@ export function Tabla<T>({
                   key={col.id}
                   style={[styles.celdaEncabezado, anchoEstilo, alineacionEstilo]}
                 >
-                  <Text style={styles.textoEncabezado}>{col.encabezado}</Text>
+                  <Text style={styles.textoEncabezado} numberOfLines={2}>
+                    {col.encabezado}
+                  </Text>
                 </View>
               );
             })}
           </View>
 
-          {/* Filas de Datos */}
+          {/* Filas de Datos con alineación vertical limpia y saltos de línea */}
           {cargando ? (
             <View style={styles.filaVacia}>
               <ActivityIndicator size="small" color={Palette.forestGreen} />
@@ -285,7 +272,7 @@ export function Tabla<T>({
                   {columnas.map((col) => {
                     const anchoEstilo = {
                       flex: col.flex ?? 1,
-                      minWidth: col.anchoMinimo ?? 130,
+                      minWidth: col.anchoMinimo ?? 120,
                     };
                     const alineacionEstilo = {
                       alignItems:
@@ -338,20 +325,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     paddingVertical: 2,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   barraToggleMovilEnTabla: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#F8FAFC',
     borderBottomWidth: 1,
     borderBottomColor: Palette.border,
   },
   textoRegistrosMovil: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -365,9 +352,9 @@ const styles = StyleSheet.create({
   botonToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: 6,
   },
   botonToggleActivo: {
@@ -393,101 +380,92 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   listaTarjetasMovil: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     width: '100%',
   },
-  tarjetaMovil2Col: {
-    width: '48.7%',
+  tarjetaMovil1Col: {
+    width: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 10,
-    gap: 5,
-    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 6,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
-  cabecera2Col: {
+  cabecera1Col: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 4,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    gap: 8,
   },
-  idWrapper2Col: {
+  identificadoresWrapper: {
     flex: 1,
     minWidth: 0,
-    gap: 1,
   },
-  etiquetaId2Col: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: Palette.forestGreen,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  valorId2Col: {
-    minWidth: 0,
-  },
-  estadoYAccion2Col: {
+  filaIdYNombre: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  badgeEstado2Col: {
-    transform: [{ scale: 0.88 }],
+  cajaIdPrincipal: {
+    flexShrink: 0,
   },
-  botonAccion2Col: {
+  cajaNombreSecundario: {
+    flex: 1,
+    minWidth: 120,
+  },
+  estadoYAccion1Col: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  badgeEstado1Col: {
+    transform: [{ scale: 0.92 }],
+  },
+  botonAccion1Col: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bloqueSecundario2Col: {
-    paddingVertical: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
-    gap: 1,
+  filaMetadatos1Col: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
   },
-  etiquetaSecundaria2Col: {
-    fontSize: 9,
+  itemMeta1Col: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  etiquetaMeta1Col: {
+    fontSize: 10,
     fontWeight: '700',
     color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
-  valorSecundario2Col: {
-    minWidth: 0,
-  },
-  cuerpoCampos2Col: {
+  valorMeta1Col: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 3,
   },
-  filaCampo2Col: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 1,
-  },
-  etiquetaCampo2Col: {
-    fontSize: 9,
+  separadorBullet: {
+    fontSize: 12,
+    color: '#94A3B8',
     fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    maxWidth: '48%',
-  },
-  valorCampo2Col: {
-    flex: 1,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    minWidth: 0,
+    marginLeft: 3,
   },
   scrollWrapper: {
     width: '100%',
@@ -498,7 +476,7 @@ const styles = StyleSheet.create({
   },
   tablaWrapper: {
     width: '100%',
-    minWidth: 1040,
+    minWidth: 840,
   },
   filaEncabezado: {
     flexDirection: 'row',
@@ -506,28 +484,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1.5,
     borderBottomColor: Palette.border,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   celdaEncabezado: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     justifyContent: 'center',
-    overflow: 'hidden',
-    minWidth: 0,
   },
   textoEncabezado: {
     fontSize: 11,
     fontWeight: '800',
     color: '#374151',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
+    lineHeight: 15,
   },
   filaDato: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#F0EAD8',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   filaPar: {
@@ -537,18 +514,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FCFAF5',
   },
   celdaDato: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     justifyContent: 'center',
-    overflow: 'hidden',
-    minWidth: 0,
   },
   filaVacia: {
-    padding: 40,
+    padding: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   textoVacio: {
-    fontSize: 14,
+    fontSize: 13,
     color: Palette.textSecondary,
     fontStyle: 'italic',
   },
