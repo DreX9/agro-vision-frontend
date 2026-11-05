@@ -65,7 +65,7 @@ export const ActividadesListaContainer: React.FC = () => {
   const [mostrarFiltrosAvanzados, setMostrarFiltrosAvanzados] = useState(false);
 
   const [pagina, setPagina] = useState(1);
-  const [limite, setLimite] = useState(10);
+  const [limite, setLimite] = useState(12);
   const [modoVista, setModoVista] = useState<'tarjetas' | 'tabla'>(
     esOperador ? 'tarjetas' : 'tabla',
   );
@@ -423,7 +423,7 @@ export const ActividadesListaContainer: React.FC = () => {
                 totalPaginas={data.totalPaginas}
                 totalElementos={data.total}
                 elementosPorPagina={limite}
-                opcionesLimite={[10, 20, 30]}
+                opcionesLimite={[6, 9, 12, 24]}
                 onCambiarPagina={(nuevaPagina: number) => setPagina(nuevaPagina)}
                 onCambiarLimite={(nuevoLimite: number) => {
                   setLimite(nuevoLimite);

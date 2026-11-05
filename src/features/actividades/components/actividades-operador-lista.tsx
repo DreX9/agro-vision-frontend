@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Platform, Alert, useWindowDimensions } from 'react-native';
 import {
   Calendar,
   MapPin,
@@ -141,6 +141,33 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     }
   };
 
+  const obtenerEstiloTipoLabor = (tipo: string) => {
+    const tipoNorm = (tipo || '').toUpperCase();
+    if (tipoNorm.includes('RIEG')) {
+      return { bg: '#E0F2FE', text: '#0369A1', border: '#BAE6FD' };
+    }
+    if (tipoNorm.includes('FERT')) {
+      return { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' };
+    }
+    if (tipoNorm.includes('PODA')) {
+      return { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' };
+    }
+    if (tipoNorm.includes('COSECH')) {
+      return { bg: '#F3E8FF', text: '#7E22CE', border: '#E9D5FF' };
+    }
+    if (tipoNorm.includes('FITO') || tipoNorm.includes('FUMI') || tipoNorm.includes('PLAG')) {
+      return { bg: '#FEE2E2', text: '#B91C1C', border: '#FECACA' };
+    }
+    if (tipoNorm.includes('SIEMBR') || tipoNorm.includes('PREP')) {
+      return { bg: '#FEF9C3', text: '#A16207', border: '#FEF08A' };
+    }
+    return { bg: '#F1F5F9', text: '#475569', border: '#E2E8F0' };
+  };
+
+  const { width } = useWindowDimensions();
+  // 3 columnas en pantallas anchas (>= 1180px), 2 columnas en medianas (>= 768px), 1 columna en móviles
+  const numColumnas = width >= 1180 ? 3 : width >= 768 ? 2 : 1;
+
   if (actividades.length === 0 && !cargando) {
     return (
       <View style={styles.cajaVacia}>
@@ -149,20 +176,44 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     );
   }
 
+  const anchoTarjetaStyle = Platform.select({
+    web: {
+      width:
+        numColumnas === 3
+          ? 'calc((100% - 32px) / 3)'
+          : numColumnas === 2
+            ? 'calc((100% - 16px) / 2)'
+            : '100%',
+      maxWidth:
+        numColumnas === 3
+          ? 'calc((100% - 32px) / 3)'
+          : numColumnas === 2
+            ? 'calc((100% - 16px) / 2)'
+            : '100%',
+      flexGrow: 0,
+      flexShrink: 0,
+    } as any,
+    default: {
+      width: numColumnas === 3 ? '31.5%' : numColumnas === 2 ? '48.5%' : '100%',
+      maxWidth: numColumnas === 3 ? '31.5%' : numColumnas === 2 ? '48.5%' : '100%',
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+  });
+
   return (
     <View style={styles.contenedor}>
       {actividades.map((act) => {
-
         const tareasBackendActividad = tareasBackend?.filter((t: any) => t.actividadId === act.id) || [];
-  
+
         const misTareas: TareaMapeada[] = tareasBackendActividad.map((t: any) => ({
           id: t.id,
-          titulo: t.descripcion, 
-          descripcion: '', 
+          titulo: t.descripcion,
+          descripcion: '',
           estado: t.estado,
           completada: t.estado === 'COMPLETADA',
           completadaEn: t.fechaCompletado,
-          zonaTrabajo: t.descripcion, 
+          zonaTrabajo: t.descripcion,
         }));
 
         const hallazgos = hallazgosPorActividad[act.id] || [];
@@ -194,11 +245,13 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         const misTareasCompletadas = misTareas.length > 0 && misTareas.every((t) => t.completada);
         const misTareasEnProgreso = misTareas.some((t) => t.estado === 'EN_PROGRESO');
 
-        const miAsignacion = usuario?.id ? obtenerEstadoZonaOperador(act.id, usuario.id) : undefined;
         const miTrabajador = act.trabajadores?.find((t) => t.usuarioId === usuario?.id);
+        const esOperarioAsignado = Boolean(miTrabajador) || (!esSupervisor && Boolean(usuario?.id));
+
+        const miAsignacion = usuario?.id ? obtenerEstadoZonaOperador(act.id, usuario.id) : undefined;
         const { rol: rolExtraido, zona: zonaExtraida } = extraerRolYZona(miTrabajador?.rolEnActividad);
 
-        const miZonaTexto = miAsignacion?.zonaTrabajo || zonaExtraida || 'Zona de labor asignada';
+        const miZonaTexto = miAsignacion?.zonaTrabajo || zonaExtraida || 'Zona asignada en campo';
         const miRolTexto = miAsignacion?.rolEnActividad || rolExtraido || 'Operador de campo';
 
         const miEstadoZona: 'PENDIENTE' | 'EN_PROGRESO' | 'COMPLETADA' = misTareas.length > 0
@@ -209,305 +262,283 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               : 'PENDIENTE'
           : miAsignacion?.estado || (estadoEfectivo === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
 
+        const estiloTipo = obtenerEstiloTipoLabor(act.tipo);
+
+        const textoBadgeEstado =
+          ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+            (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+          estadoEfectivo !== 'COMPLETADA'
+            ? 'Por Validar'
+            : formatearEstadoTexto(estadoEfectivo);
+
+        const varianteBadgeEstado =
+          ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
+            (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
+          estadoEfectivo !== 'COMPLETADA'
+            ? 'alerta'
+            : obtenerVarianteEstado(estadoEfectivo);
+
         return (
-          <View key={act.id} style={styles.tarjetaLabor}>
-            {/* BLOQUE DESTACADO: LA TAREA DEL OPERADOR */}
-            {misTareas.length > 0 ? (
-              <View style={styles.cajaZonaPersonal}>
-                <View style={styles.cabeceraZonaPersonal}>
-                  <View style={styles.filaTituloZonaPersonal}>
-                    <ListTodo size={16} color={Palette.forestGreen} />
-                    <Text style={styles.etiquetaZonaPersonal}>
-                      {misTareas.length === 1 ? 'Tu Tarea Asignada:' : `Tus Tareas Asignadas (${misTareas.length}):`}
-                    </Text>
-                  </View>
-                  <Badge
-                    texto={
-                      misTareas.every((t) => t.completada)
-                        ? '✓ Tareas Finalizadas'
-                        : misTareas.some((t) => t.estado === 'EN_PROGRESO')
-                          ? 'En Terreno'
-                          : 'Por Iniciar'
-                    }
-                    variante={
-                      misTareas.every((t) => t.completada)
-                        ? 'exito'
-                        : misTareas.some((t) => t.estado === 'EN_PROGRESO')
-                          ? 'info'
-                          : 'alerta'
-                    }
-                  />
-                </View>
-
-                {misTareas.map((tarea) => (
-                  <View key={tarea.id} style={styles.tarjetaTareaOperadorCard}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text
-                        style={[
-                          styles.textoTituloTareaOperador,
-                          tarea.completada && styles.textoTituloTareaOperadorCompletada,
-                        ]}
-                      >
-                        {tarea.completada ? '✓ ' : '○ '}
-                        {tarea.titulo}
+          <View key={act.id} style={[styles.tarjetaLabor, anchoTarjetaStyle]}>
+            <View style={styles.cuerpoSuperiorTarjeta}>
+              {/* Cabecera de Tarjeta: Tipo de Labor, Código y Estado */}
+              <View style={styles.cabeceraTarjeta}>
+                <View style={styles.filaSuperiorCabecera}>
+                  <View style={styles.filaCodigoTipo}>
+                    <View
+                      style={[
+                        styles.pillTipoLabor,
+                        { backgroundColor: estiloTipo.bg, borderColor: estiloTipo.border },
+                      ]}
+                    >
+                      <Text style={[styles.textoPillTipoLabor, { color: estiloTipo.text }]}>
+                        {act.tipo.replace(/_/g, ' ')}
                       </Text>
-                      {tarea.completada && tarea.completadaEn ? (
-                        <Text style={styles.textoCompletadoMini}>
-                          Finalizada a las{' '}
-                          {new Date(tarea.completadaEn).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Text>
-                      ) : null}
                     </View>
-
-                    <View style={styles.columnaAccionTareaCard}>
-                      {!tarea.completada ? (
-                        tarea.estado === 'EN_PROGRESO' ? (
-                          <Boton
-                            titulo="✓ Finalizar"
-                            variante="primario"
-                            tamano="sm"
-                            onPress={() => handleFinalizarMiTarea(act, tarea.id)}
-                          />
-                        ) : (
-                          <Boton
-                            titulo="▶ Iniciar"
-                            variante="secundario"
-                            tamano="sm"
-                            onPress={() => handleIniciarMiTarea(act, tarea.id)}
-                          />
-                        )
-                      ) : (
-                        <Badge texto="Completada" variante="exito" />
-                      )}
-                    </View>
+                    <Text style={styles.codigoLabor}>{act.codigo}</Text>
                   </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.cajaZonaPersonal}>
-                <View style={styles.cabeceraZonaPersonal}>
-                  <View style={styles.filaTituloZonaPersonal}>
-                    <Compass size={16} color={Palette.forestGreen} />
-                    <Text style={styles.etiquetaZonaPersonal}>Tu Zona / Subárea Asignada:</Text>
-                  </View>
-                  <Badge
-                    texto={
-                      miEstadoZona === 'COMPLETADA'
-                        ? '✓ Finalizada'
-                        : miEstadoZona === 'EN_PROGRESO'
-                          ? 'En Terreno'
-                          : 'Por Iniciar'
-                    }
-                    variante={
-                      miEstadoZona === 'COMPLETADA'
-                        ? 'exito'
-                        : miEstadoZona === 'EN_PROGRESO'
-                          ? 'info'
-                          : 'alerta'
-                    }
-                  />
+
+                  <Badge texto={textoBadgeEstado} variante={varianteBadgeEstado} />
                 </View>
 
-                <Text style={styles.textoNombreZona}>📍 {miZonaTexto}</Text>
-                <Text style={styles.textoRolEnZona}>Rol operativo: {miRolTexto}</Text>
-                {tieneTareasEspecificas ? (
-                  <Text style={styles.textoAvisoSinTareas}>
-                    Las tareas desglosadas por el supervisor en esta actividad corresponden a otros compañeros de la cuadrilla.
-                  </Text>
-                ) : (
-                  <Text style={styles.textoAvisoSinTareas}>
-                    El supervisor aún no ha desglosado tareas individuales con responsable específico para esta labor.
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* Contexto General de la Actividad Macro */}
-            <View style={styles.cabeceraTarjeta}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.filaCodigoTipo}>
-                  <Text style={styles.codigoLabor}>{act.codigo}</Text>
-                  <Text style={styles.tipoLabor}>{act.tipo.replace(/_/g, ' ')}</Text>
-                </View>
-                <Text style={styles.tituloLabor}>{act.titulo}</Text>
-              </View>
-
-              <Badge
-                texto={
-                  ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
-                    (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
-                  estadoEfectivo !== 'COMPLETADA'
-                    ? 'Por Validar (100% tareas)'
-                    : `Labor General: ${formatearEstadoTexto(estadoEfectivo)}`
-                }
-                variante={
-                  ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
-                    (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
-                  estadoEfectivo !== 'COMPLETADA'
-                    ? 'alerta'
-                    : obtenerVarianteEstado(estadoEfectivo)
-                }
-              />
-            </View>
-
-            {/* Ubicación y Parcela */}
-            <View style={styles.filaUbicacion}>
-              <MapPin size={15} color={Palette.forestGreen} />
-              <Text style={styles.textoUbicacion}>
-                <Text style={{ fontWeight: '700' }}>{act.parcelaNombre || 'Parcela'}</Text>
-                {act.sectorNombre ? ` · ${act.sectorNombre}` : ''}
-                {act.cultivoNombre ? ` (${act.cultivoNombre})` : ''}
-              </Text>
-            </View>
-
-            {/* DESCRIPCIÓN OPERATIVA */}
-            <View style={styles.cajaDescripcionDestacada}>
-              <View style={styles.filaTituloDescripcion}>
-                <FileText size={15} color={Palette.forestGreen} />
-                <Text style={styles.etiquetaDescripcion}>Indicaciones Operativas:</Text>
-              </View>
-              <Text style={styles.cuerpoDescripcion}>
-                {act.descripcion && act.descripcion.trim().length > 0
-                  ? act.descripcion
-                  : 'Sin indicaciones adicionales especificadas por el supervisor o agrónomo.'}
-              </Text>
-            </View>
-
-            {/* AVANCE DE LA CUADRILLA */}
-            <View style={styles.cajaProgresoCuadrilla}>
-              <View style={styles.filaCabeceraProgreso}>
-                <View style={styles.filaIconoTextoProgreso}>
-                  <Users size={14} color={Palette.forestGreen} />
-                  <Text style={styles.tituloProgresoCuadrilla}>
-                    {tieneTareasEspecificas ? (
-                      <>
-                        Avance de Cuadrilla:{' '}
-                        <Text style={{ fontWeight: '800', color: Palette.forestGreen }}>
-                          {progresoTareas.tareasCompletadas} de {progresoTareas.totalTareas} tareas
-                        </Text>{' '}
-                        completadas ({progresoTareas.porcentaje}%)
-                      </>
-                    ) : (
-                      <>
-                        Avance de Cuadrilla:{' '}
-                        <Text style={{ fontWeight: '800', color: Palette.forestGreen }}>
-                          {progresoCuadrilla.zonasCompletadas} de {progresoCuadrilla.totalZonas} operarios
-                        </Text>{' '}
-                        completaron su zona ({progresoCuadrilla.porcentaje}%)
-                      </>
-                    )}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.barraProgresoFondo}>
-                <View
-                  style={[
-                    styles.barraProgresoRelleno,
-                    {
-                      width: `${Math.min(
-                        100,
-                        Math.max(
-                          0,
-                          tieneTareasEspecificas ? progresoTareas.porcentaje : progresoCuadrilla.porcentaje,
-                        ),
-                      )}%`,
-                    },
-                  ]}
-                />
-              </View>
-
-              <Text style={styles.notaProgresoColaborativo}>
-                {tieneTareasEspecificas
-                  ? progresoTareas.todasCompletadas && estadoEfectivo === 'COMPLETADA'
-                    ? '🎉 Toda la cuadrilla finalizó sus tareas y la labor fue validada y completada por el supervisor.'
-                    : progresoTareas.todasCompletadas
-                      ? esSupervisor
-                        ? '⭐ La cuadrilla completó el 100% de las tareas. Valida el trabajo en terreno y confirma el cierre definitivo.'
-                        : '✓ Toda la cuadrilla ha finalizado sus tareas. Esperando validación y confirmación del supervisor.'
-                      : misTareas.length > 0 && misTareasCompletadas
-                        ? '✓ Has completado tu tarea asignada. Esperando que tus compañeros de cuadrilla completen las suyas.'
-                        : misTareasEnProgreso
-                          ? '▶ Te encuentras ejecutando tu labor asignada.'
-                          : 'Cada operario debe marcar completadas sus tareas asignadas para que el supervisor valide el cierre de la labor.'
-                  : progresoCuadrilla.todasCompletadas && estadoEfectivo === 'COMPLETADA'
-                    ? '🎉 Todos los operarios completaron su zona y la labor general fue cerrada.'
-                    : progresoCuadrilla.todasCompletadas
-                      ? esSupervisor
-                        ? '⭐ Todos los operarios completaron su zona. Valida el trabajo y confirma el cierre.'
-                        : '✓ Toda la cuadrilla completó su zona. Esperando validación del supervisor.'
-                      : miEstadoZona === 'COMPLETADA'
-                        ? '✓ Has finalizado tu zona asignada. Esperando que tus compañeros completen las suyas.'
-                        : miEstadoZona === 'EN_PROGRESO'
-                          ? '▶ Te encuentras ejecutando labores en tu zona asignada.'
-                          : 'Cada operario debe completar su zona asignada para que el supervisor valide el cierre de la labor.'}
-              </Text>
-            </View>
-
-            {/* Fecha y Resumen de Insumos */}
-            <View style={styles.filaMetas}>
-              <View style={styles.itemMeta}>
-                <Calendar size={13} color="#6B7280" />
-                <Text style={styles.textoMeta}>
-                  {new Date(act.fechaInicio).toLocaleDateString('es-PE', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
+                <Text style={styles.tituloLabor} numberOfLines={2}>
+                  {act.titulo}
                 </Text>
               </View>
 
-              {act.cantidadRecursos > 0 && (
+              {/* Ubicación: Parcela, Sector y Variedad */}
+              <View style={styles.filaUbicacion}>
+                <MapPin size={14} color={Palette.forestGreen} />
+                <Text style={styles.textoUbicacion} numberOfLines={1}>
+                  <Text style={{ fontWeight: '700', color: '#1B4332' }}>
+                    {act.parcelaNombre || 'Parcela'}
+                  </Text>
+                  {act.sectorNombre ? ` · ${act.sectorNombre}` : ''}
+                  {act.cultivoNombre ? ` (${act.cultivoNombre})` : ''}
+                </Text>
+              </View>
+
+              {/* Supervisor o Responsable asignado (referencia operativa clara) */}
+              {act.usuarioResponsableNombre ? (
+                <View style={styles.filaSupervisor}>
+                  <Users size={12} color="#6B7280" />
+                  <Text style={styles.textoSupervisor} numberOfLines={1}>
+                    Supervisor: {act.usuarioResponsableNombre}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Indicaciones Operativas */}
+              <View style={styles.cajaDescripcionDestacada}>
+                <View style={styles.filaTituloDescripcion}>
+                  <FileText size={12} color={Palette.forestGreen} />
+                  <Text style={styles.etiquetaDescripcion}>Indicaciones Operativas:</Text>
+                </View>
+                <Text style={styles.cuerpoDescripcion} numberOfLines={2} ellipsizeMode="tail">
+                  {act.descripcion && act.descripcion.trim().length > 0
+                    ? act.descripcion
+                    : 'Sin indicaciones adicionales especificadas por el supervisor o agrónomo.'}
+                </Text>
+              </View>
+
+              {/* BLOQUE DESTACADO PERSONAL (SÓLO SI EL USUARIO ES OPERARIO ASIGNADO O TIENE ROL OPERADOR) */}
+              {esOperarioAsignado && (
+                misTareas.length > 0 ? (
+                  <View style={styles.cajaZonaPersonal}>
+                    <View style={styles.cabeceraZonaPersonal}>
+                      <View style={styles.filaTituloZonaPersonal}>
+                        <ListTodo size={13} color={Palette.forestGreen} />
+                        <Text style={styles.etiquetaZonaPersonal}>
+                          {misTareas.length === 1 ? 'Tu Tarea Asignada:' : `Tus Tareas (${misTareas.length}):`}
+                        </Text>
+                      </View>
+                      <Badge
+                        texto={
+                          misTareas.every((t) => t.completada)
+                            ? 'Finalizadas'
+                            : misTareas.some((t) => t.estado === 'EN_PROGRESO')
+                              ? 'En Terreno'
+                              : 'Por Iniciar'
+                        }
+                        variante={
+                          misTareas.every((t) => t.completada)
+                            ? 'exito'
+                            : misTareas.some((t) => t.estado === 'EN_PROGRESO')
+                              ? 'info'
+                              : 'alerta'
+                        }
+                      />
+                    </View>
+
+                    {misTareas.slice(0, 3).map((tarea) => (
+                      <View key={tarea.id} style={styles.tarjetaTareaOperadorCard}>
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <Text
+                            style={[
+                              styles.textoTituloTareaOperador,
+                              tarea.completada && styles.textoTituloTareaOperadorCompletada,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {tarea.completada ? '✓ ' : '○ '}
+                            {tarea.titulo}
+                          </Text>
+                        </View>
+
+                        <View style={styles.columnaAccionTareaCard}>
+                          {!tarea.completada ? (
+                            tarea.estado === 'EN_PROGRESO' ? (
+                              <Boton
+                                titulo="Finalizar"
+                                variante="primario"
+                                tamano="sm"
+                                onPress={() => handleFinalizarMiTarea(act, tarea.id)}
+                              />
+                            ) : (
+                              <Boton
+                                titulo="Iniciar"
+                                variante="secundario"
+                                tamano="sm"
+                                onPress={() => handleIniciarMiTarea(act, tarea.id)}
+                              />
+                            )
+                          ) : (
+                            <Badge texto="Completada" variante="exito" />
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                    {misTareas.length > 3 && (
+                      <Text style={styles.textoMasTareasMini}>
+                        +{misTareas.length - 3} tareas más en bitácora
+                      </Text>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.cajaZonaPersonalMini}>
+                    <View style={styles.filaTituloZonaPersonal}>
+                      <Compass size={13} color={Palette.forestGreen} />
+                      <Text style={styles.etiquetaZonaPersonal}>Tu Zona:</Text>
+                      <Text style={styles.textoNombreZonaMini} numberOfLines={1}>
+                        {miZonaTexto}
+                      </Text>
+                    </View>
+                    <Badge
+                      texto={
+                        miEstadoZona === 'COMPLETADA'
+                          ? 'Finalizada'
+                          : miEstadoZona === 'EN_PROGRESO'
+                            ? 'En Terreno'
+                            : 'Por Iniciar'
+                      }
+                      variante={
+                        miEstadoZona === 'COMPLETADA'
+                          ? 'exito'
+                          : miEstadoZona === 'EN_PROGRESO'
+                            ? 'info'
+                            : 'alerta'
+                      }
+                    />
+                  </View>
+                )
+              )}
+
+              {/* AVANCE DE LA CUADRILLA */}
+              <View style={styles.cajaProgresoCuadrilla}>
+                <View style={styles.filaCabeceraProgreso}>
+                  <View style={styles.filaIconoTextoProgreso}>
+                    <Users size={13} color={Palette.forestGreen} />
+                    <Text style={styles.tituloProgresoCuadrilla}>Avance de Cuadrilla</Text>
+                  </View>
+                  <Text style={styles.porcentajeProgresoCuadrilla}>
+                    {tieneTareasEspecificas ? progresoTareas.porcentaje : progresoCuadrilla.porcentaje}%
+                  </Text>
+                </View>
+
+                <View style={styles.barraProgresoFondo}>
+                  <View
+                    style={[
+                      styles.barraProgresoRelleno,
+                      {
+                        width: `${Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            tieneTareasEspecificas ? progresoTareas.porcentaje : progresoCuadrilla.porcentaje,
+                          ),
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+
+                <Text style={styles.notaProgresoColaborativo} numberOfLines={1}>
+                  {tieneTareasEspecificas
+                    ? `${progresoTareas.tareasCompletadas} de ${progresoTareas.totalTareas} tareas completadas`
+                    : `${progresoCuadrilla.zonasCompletadas} de ${progresoCuadrilla.totalZonas} operarios completaron su zona`}
+                </Text>
+              </View>
+
+              {/* Metadatos: Fecha, Insumos, Operarios, Alertas */}
+              <View style={styles.filaMetas}>
                 <View style={styles.itemMeta}>
-                  <Package size={13} color="#6B7280" />
+                  <Calendar size={12} color="#6B7280" />
                   <Text style={styles.textoMeta}>
-                    {act.cantidadRecursos} {act.cantidadRecursos === 1 ? 'insumo' : 'insumos'}
+                    {new Date(act.fechaInicio).toLocaleDateString('es-PE', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </Text>
                 </View>
-              )}
+
+                {act.cantidadRecursos > 0 && (
+                  <View style={styles.itemMeta}>
+                    <Package size={12} color="#6B7280" />
+                    <Text style={styles.textoMeta}>
+                      {act.cantidadRecursos} {act.cantidadRecursos === 1 ? 'insumo' : 'insumos'}
+                    </Text>
+                  </View>
+                )}
+
+                {act.cantidadTrabajadores ? (
+                  <View style={styles.itemMeta}>
+                    <Users size={12} color="#6B7280" />
+                    <Text style={styles.textoMeta}>
+                      {act.cantidadTrabajadores} {act.cantidadTrabajadores === 1 ? 'operario' : 'operarios'}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {hallazgos.length > 0 && (
+                  <View style={[styles.itemMeta, styles.itemMetaAlerta]}>
+                    <AlertTriangle size={12} color="#D97706" />
+                    <Text style={[styles.textoMeta, { color: '#B45309', fontWeight: '600' }]}>
+                      {hallazgos.length} {hallazgos.length === 1 ? 'alerta' : 'alertas'}
+                    </Text>
+                  </View>
+                )}
+
+                {puntoGuardado && (
+                  <View style={[styles.itemMeta, styles.itemMetaGps]}>
+                    <Navigation size={12} color={Palette.forestGreen} />
+                    <Text style={[styles.textoMeta, { color: Palette.forestGreen }]} numberOfLines={1}>
+                      📍 {puntoGuardado.referencia}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
 
-            {/* Resumen del Turno del Operador */}
-            <View style={styles.filaResumenTurno}>
-              {misTareas.length > 0 && (
-                <View style={styles.pillResumen}>
-                  <CheckCircle2 size={13} color={Palette.forestGreen} />
-                  <Text style={styles.textoPillResumen}>
-                    {misTareas.filter((s) => s.completada).length}/{misTareas.length} tareas del turno
-                  </Text>
-                </View>
-              )}
-
-              {hallazgos.length > 0 && (
-                <View style={[styles.pillResumen, styles.pillAlerta]}>
-                  <AlertTriangle size={13} color="#D97706" />
-                  <Text style={[styles.textoPillResumen, { color: '#B45309' }]}>
-                    {hallazgos.length} {hallazgos.length === 1 ? 'novedad' : 'novedades'}
-                  </Text>
-                </View>
-              )}
-
-              {puntoGuardado && (
-                <View style={[styles.pillResumen, styles.pillPuntoGps]}>
-                  <Navigation size={13} color={Palette.forestGreen} />
-                  <Text style={styles.textoPillResumen} numberOfLines={1} ellipsizeMode="tail">
-                    📍 {puntoGuardado.referencia}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Acciones principales del Operador y Validación del Supervisor */}
+            {/* Acciones de la Tarjeta / Botones Inferiores */}
             <View style={styles.filaAcciones}>
+              {/* Botón Supervisor: Validar si la cuadrilla finalizó sus tareas */}
               {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
                 (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
                 estadoEfectivo !== 'COMPLETADA' &&
                 esSupervisor && (
                   <Boton
-                    titulo="✓ Validar y Finalizar Labor"
+                    titulo="✓ Validar y Finalizar"
                     variante="primario"
                     tamano="sm"
                     iconoIzquierda={<CheckCircle2 size={13} color={Palette.white} />}
@@ -515,51 +546,26 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                   />
                 )}
 
-              {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
-                (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
-                estadoEfectivo !== 'COMPLETADA' &&
-                !esSupervisor && (
-                  <View style={styles.pillValidacionEsperando}>
-                    <CheckCircle2 size={13} color="#2563EB" />
-                    <Text style={styles.textoValidacionEsperando}>
-                      {tieneTareasEspecificas ? 'Tareas' : 'Zonas'} 100% listas · En espera de validación de supervisor
-                    </Text>
-                  </View>
-                )}
-
-              {!tieneTareasEspecificas && miEstadoZona === 'PENDIENTE' && (
+              {/* Botones Operario: Iniciar / Finalizar jornada */}
+              {esOperarioAsignado && !tieneTareasEspecificas && miEstadoZona === 'PENDIENTE' && (
                 <Boton
-                  titulo="▶ Iniciar mi jornada"
+                  titulo="▶ Iniciar jornada"
                   variante="primario"
                   tamano="sm"
                   onPress={() => handleIniciarMiZona(act)}
                 />
               )}
 
-              {!tieneTareasEspecificas && miEstadoZona === 'EN_PROGRESO' && (
+              {esOperarioAsignado && !tieneTareasEspecificas && miEstadoZona === 'EN_PROGRESO' && (
                 <Boton
-                  titulo="✓ Finalizar mi zona"
+                  titulo="✓ Finalizar zona"
                   variante="primario"
                   tamano="sm"
                   onPress={() => handleFinalizarMiZona(act)}
                 />
               )}
 
-              {((tieneTareasEspecificas &&
-                misTareas.length > 0 &&
-                misTareasCompletadas &&
-                !progresoTareas.todasCompletadas) ||
-                (!tieneTareasEspecificas &&
-                  miEstadoZona === 'COMPLETADA' &&
-                  !progresoCuadrilla.todasCompletadas)) && (
-                <View style={styles.pillZonaFinalizadaEsperando}>
-                  <CheckCircle2 size={13} color="#059669" />
-                  <Text style={styles.textoZonaFinalizadaEsperando}>
-                    Tus tareas están listas (esperando cuadrilla)
-                  </Text>
-                </View>
-              )}
-
+              {/* Botón Bitácora & Tareas (Acceso a detalles completos) */}
               <Boton
                 titulo="Bitácora & Tareas"
                 variante="secundario"
@@ -577,7 +583,11 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
 const styles = StyleSheet.create({
   contenedor: {
-    gap: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    alignItems: 'stretch',
+    width: '100%',
   },
   cajaVacia: {
     padding: 30,
@@ -586,6 +596,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    width: '100%',
   },
   textoVacio: {
     fontSize: 14,
@@ -599,123 +610,58 @@ const styles = StyleSheet.create({
     borderColor: '#D7E3CF',
     padding: 16,
     gap: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
   },
-  cajaZonaPersonal: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-    borderRadius: 10,
-    padding: 12,
+  cuerpoSuperiorTarjeta: {
+    gap: 10,
+    flex: 1,
+  },
+  cabeceraTarjeta: {
     gap: 6,
   },
-  cabeceraZonaPersonal: {
+  filaSuperiorCabecera: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    marginBottom: 2,
-  },
-  filaTituloZonaPersonal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  etiquetaZonaPersonal: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Palette.forestGreen,
-    textTransform: 'uppercase',
-  },
-  textoNombreZona: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#14532D',
-  },
-  textoRolEnZona: {
-    fontSize: 12,
-    color: '#166534',
-    fontWeight: '500',
-  },
-  textoAvisoSinTareas: {
-    fontSize: 11,
-    color: '#4B5563',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  tarjetaTareaOperadorCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D1E7DD',
-    borderRadius: 8,
-    padding: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
-  },
-  textoTituloTareaOperador: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1B4332',
-  },
-  textoTituloTareaOperadorCompletada: {
-    textDecorationLine: 'line-through',
-    color: '#6B7280',
-  },
-  textoZonaOperadorCard: {
-    fontSize: 11,
-    color: '#14532D',
-  },
-  textoIndicacionTareaCard: {
-    fontSize: 11,
-    color: '#4B5563',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  textoCompletadoMini: {
-    fontSize: 10,
-    color: Palette.forestGreen,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  columnaAccionTareaCard: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  cabeceraTarjeta: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
   },
   filaCodigoTipo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  pillTipoLabor: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  textoPillTipoLabor: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   codigoLabor: {
     fontSize: 12,
     fontWeight: '700',
-    color: Palette.forestGreen,
+    color: '#4B5563',
     fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
   },
-  tipoLabor: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-    textTransform: 'uppercase',
-  },
   tituloLabor: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#111827',
+    lineHeight: 20,
   },
   filaUbicacion: {
     flexDirection: 'row',
@@ -725,38 +671,124 @@ const styles = StyleSheet.create({
   textoUbicacion: {
     fontSize: 13,
     color: '#374151',
+    flex: 1,
+  },
+  filaSupervisor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: -2,
+  },
+  textoSupervisor: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
   },
   cajaDescripcionDestacada: {
     backgroundColor: '#F8FAF5',
-    borderLeftWidth: 3.5,
+    borderLeftWidth: 3,
     borderLeftColor: Palette.forestGreen,
-    padding: 10,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    borderRadius: 6,
+    gap: 2,
   },
   filaTituloDescripcion: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   etiquetaDescripcion: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Palette.forestGreen,
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   cuerpoDescripcion: {
-    fontSize: 13,
-    color: '#2D3748',
-    lineHeight: 18,
+    fontSize: 12,
+    color: '#374151',
+    lineHeight: 16,
+  },
+  cajaZonaPersonal: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 8,
+    padding: 10,
+    gap: 6,
+  },
+  cajaZonaPersonalMini: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 8,
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cabeceraZonaPersonal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  filaTituloZonaPersonal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  etiquetaZonaPersonal: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: Palette.forestGreen,
+  },
+  textoNombreZonaMini: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#14532D',
+    flex: 1,
+  },
+  tarjetaTareaOperadorCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1E7DD',
+    borderRadius: 6,
+    padding: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  textoTituloTareaOperador: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1B4332',
+  },
+  textoTituloTareaOperadorCompletada: {
+    textDecorationLine: 'line-through',
+    color: '#6B7280',
+  },
+  columnaAccionTareaCard: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  textoMasTareasMini: {
+    fontSize: 10,
+    color: Palette.forestGreen,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   cajaProgresoCuadrilla: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 8,
-    padding: 10,
-    gap: 6,
+    padding: 9,
+    gap: 5,
   },
   filaCabeceraProgreso: {
     flexDirection: 'row',
@@ -766,112 +798,69 @@ const styles = StyleSheet.create({
   filaIconoTextoProgreso: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   tituloProgresoCuadrilla: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#374151',
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  porcentajeProgresoCuadrilla: {
+    fontSize: 12,
+    color: Palette.forestGreen,
+    fontWeight: '800',
   },
   barraProgresoFondo: {
-    height: 7,
+    height: 6,
     backgroundColor: '#E5E7EB',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   barraProgresoRelleno: {
     height: '100%',
     backgroundColor: Palette.forestGreen,
-    borderRadius: 4,
+    borderRadius: 3,
   },
   notaProgresoColaborativo: {
     fontSize: 11,
     color: '#6B7280',
-    fontStyle: 'italic',
   },
   filaMetas: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  itemMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  textoMeta: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  filaResumenTurno: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
   },
-  pillResumen: {
+  itemMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#EDF5E8',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 5,
   },
-  pillAlerta: {
+  itemMetaAlerta: {
     backgroundColor: '#FEF3C7',
   },
-  pillPuntoGps: {
+  itemMetaGps: {
     backgroundColor: '#E6F4EA',
-    maxWidth: 220,
+    maxWidth: 160,
   },
-  textoPillResumen: {
+  textoMeta: {
     fontSize: 11,
-    fontWeight: '600',
-    color: Palette.forestGreen,
+    color: '#4B5563',
+    fontWeight: '500',
   },
   filaAcciones: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
+    gap: 8,
+    marginTop: 'auto',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    paddingTop: 12,
+    paddingTop: 10,
     flexWrap: 'wrap',
-  },
-  pillZonaFinalizadaEsperando: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  textoZonaFinalizadaEsperando: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  pillValidacionEsperando: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  textoValidacionEsperando: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E40AF',
   },
 });
