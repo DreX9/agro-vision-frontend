@@ -51,7 +51,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const tienePermiso = tienePermisoRuta(usuario?.rol, rutaLimpia);
 
   return (
-    <SafeAreaView style={styles.contenedorRaiz}>
+    <SafeAreaView style={styles.contenedorRaiz} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.layoutPrincipal}>
         {/* Sidebar en Desktop / Tablet */}
         {esPantallaAmplia && (

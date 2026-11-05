@@ -7,12 +7,14 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, ShieldAlert } from 'lucide-react-native';
 import { useAuthStore } from '@/features/autenticacion';
 import { ModalAlertaRapidaOperador } from './ModalAlertaRapidaOperador';
 
 export function BotonAlertaOperadorFlotante() {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const usuario = useAuthStore((s) => s.usuario);
   const [modalAbierto, setModalAbierto] = useState(false);
 
@@ -26,12 +28,24 @@ export function BotonAlertaOperadorFlotante() {
 
   const esMovil = width < 600;
 
+  // Calculamos la distancia inferior respetando los insets nativos del celular (Android / iOS).
+  // insets.bottom mide la barra de botones nativos de Android (48-56px). Sumamos un margen para que
+  // el botón flote holgadamente arriba sin tocar ni tapar la barra de navegación del sistema.
+  const bottomOffset = Math.max(insets.bottom, 12) + (esMovil ? 28 : 24);
+  const rightOffset = Math.max(insets.right, 0) + (esMovil ? 18 : 24);
+
   return (
     <>
       <View
         style={[
           styles.contenedorFlotante,
-          Platform.OS === 'web' ? ({ position: 'fixed' } as any) : { position: 'absolute' },
+          {
+            position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+            bottom: bottomOffset,
+            right: rightOffset,
+            width: esMovil ? 52 : undefined,
+            height: esMovil ? 52 : undefined,
+          },
         ]}
         pointerEvents="box-none"
       >
@@ -61,20 +75,22 @@ export function BotonAlertaOperadorFlotante() {
         </Pressable>
       </View>
 
-      {/* Modal de Alerta Rápida con GPS y Reconocimiento Geográfico */}
-      <ModalAlertaRapidaOperador
-        visible={modalAbierto}
-        onCerrar={() => setModalAbierto(false)}
-      />
+      {/* Modal de Alerta Rápida con GPS y Reconocimiento Geográfico (solo en el árbol cuando se abre) */}
+      {modalAbierto && (
+        <ModalAlertaRapidaOperador
+          visible={modalAbierto}
+          onCerrar={() => setModalAbierto(false)}
+        />
+      )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
   contenedorFlotante: {
-    bottom: 24,
-    right: 24,
     zIndex: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   botonFab: {
     flexDirection: 'row',
@@ -94,9 +110,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   botonFabMovil: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   botonFabPresionado: {
     opacity: 0.85,
