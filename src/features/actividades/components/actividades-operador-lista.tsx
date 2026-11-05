@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, Alert } from 'react-native';
 import {
   Calendar,
   MapPin,
@@ -18,6 +18,7 @@ import { Badge, Boton } from '@/shared/components/ui';
 import { ActividadItem, EstadoActividadTipo, extraerRolYZona } from '../types/actividad.types';
 import { useOperadorJornadaStore } from '../stores/operador-jornada.store';
 import { useAuthStore } from '@/features/autenticacion';
+import { useMisSubActividadesQuery, useCompletarSubActividadMutation } from '../api/actividades.api';
 
 export interface ActividadesOperadorListaProps {
   actividades: ActividadItem[];
@@ -26,12 +27,17 @@ export interface ActividadesOperadorListaProps {
   onCambiarEstado?: (actividad: ActividadItem, nuevoEstado?: EstadoActividadTipo) => void;
 }
 
-/**
- * @description Vista adaptada para el Operador de Campo. Presenta cada labor destacando
- * específicamente la tarea que le fue asignada por el supervisor, el avance colaborativo de la cuadrilla
- * y el botón para iniciar/completar su labor (la actividad general solo se cierra cuando
- * todas las tareas de los operadores se completan).
- */
+
+export interface TareaMapeada {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  estado: string;
+  completada: boolean;
+  completadaEn: string | null;
+  zonaTrabajo: string;
+}
+
 export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> = ({
   actividades,
   cargando = false,
@@ -41,8 +47,11 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
   const usuario = useAuthStore((s) => s.usuario);
   const esSupervisor = usuario?.rol === 'SUPERVISOR' || usuario?.rol === 'ADMINISTRADOR';
 
+
+  const { data: tareasBackend, refetch: recargarTareasBackend } = useMisSubActividadesQuery();
+  const { mutateAsync: completarTareaApi } = useCompletarSubActividadMutation();
+
   const {
-    subtareasPorActividad,
     hallazgosPorActividad,
     puntosAvancePorActividad,
     sincronizarZonasDesdeTrabajadores,
@@ -52,14 +61,11 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     obtenerProgresoActividad,
     iniciarTareaOperador,
     completarTareaOperador,
-    obtenerSubtareas,
     obtenerProgresoTareas,
   } = useOperadorJornadaStore();
 
-  // Sincronizar cuadrillas, zonas asignadas y subtareas con el store de persistencia local
   useEffect(() => {
     actividades.forEach((act) => {
-      obtenerSubtareas(act.id, act.tipo);
       if (act.trabajadores && act.trabajadores.length > 0) {
         sincronizarZonasDesdeTrabajadores(
           act.id,
@@ -73,40 +79,33 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         );
       }
     });
-  }, [actividades, sincronizarZonasDesdeTrabajadores, obtenerSubtareas]);
-
-  // Si en la base de datos la labor quedó como COMPLETADA pero tiene tareas pendientes
-  // (por ejemplo porque se agregaron nuevas tareas o se eliminaron las completadas),
-  // se sincroniza automáticamente de vuelta a EN_PROGRESO o PENDIENTE.
-  useEffect(() => {
-    actividades.forEach((act) => {
-      const subtareas = subtareasPorActividad[act.id] || [];
-      if (subtareas.length > 0) {
-        const progreso = obtenerProgresoTareas(act.id);
-        if (!progreso.todasCompletadas && act.estado === 'COMPLETADA') {
-          const nuevoEstado: EstadoActividadTipo =
-            progreso.tareasCompletadas > 0 ? 'EN_PROGRESO' : 'PENDIENTE';
-          onCambiarEstado?.(act, nuevoEstado);
-        }
-      }
-    });
-  }, [actividades, subtareasPorActividad, obtenerProgresoTareas, onCambiarEstado]);
+  }, [actividades, sincronizarZonasDesdeTrabajadores]);
 
   const handleIniciarMiTarea = (act: ActividadItem, tareaId: string) => {
     if (!usuario?.id) return;
-    iniciarTareaOperador(act.id, tareaId);
+    iniciarTareaOperador(act.id, tareaId); // Efecto visual local
     if (act.estado === 'PENDIENTE' && onCambiarEstado) {
       onCambiarEstado(act, 'EN_PROGRESO');
     }
   };
 
-  const handleFinalizarMiTarea = (act: ActividadItem, tareaId: string) => {
+  const handleFinalizarMiTarea = async (act: ActividadItem, tareaId: string) => {
     if (!usuario?.id) return;
-    const nombreUsuario =
-      usuario.nombreCompleto || `${usuario.nombres} ${usuario.apellidos}`.trim() || 'Operador';
-    completarTareaOperador(act.id, tareaId, nombreUsuario);
-    // Ya NO se marca la actividad como COMPLETADA automáticamente por el operador.
-    // El supervisor validará y confirmará la finalización definitiva de la labor.
+    try {
+      
+      await completarTareaApi(tareaId);
+      
+      
+      const nombreUsuario = usuario.nombreCompleto || `${usuario.nombres} ${usuario.apellidos}`.trim() || 'Operador';
+      completarTareaOperador(act.id, tareaId, nombreUsuario);
+      
+    
+      recargarTareasBackend();
+      
+      Alert.alert('¡Excelente!', 'Tarea marcada como completada en el sistema.');
+    } catch (error) {
+      Alert.alert('Error', 'Hubo un problema de conexión al completar la tarea.');
+    }
   };
 
   const handleIniciarMiZona = (act: ActividadItem) => {
@@ -122,35 +121,23 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     completarZonaOperador(act.id, usuario.id);
   };
 
-  const obtenerVarianteEstado = (
-    estado: EstadoActividadTipo,
-  ): 'exito' | 'info' | 'alerta' | 'peligro' | 'neutro' => {
+  const obtenerVarianteEstado = (estado: EstadoActividadTipo): 'exito' | 'info' | 'alerta' | 'peligro' | 'neutro' => {
     switch (estado) {
-      case 'COMPLETADA':
-        return 'exito';
-      case 'EN_PROGRESO':
-        return 'info';
-      case 'PENDIENTE':
-        return 'alerta';
-      case 'CANCELADA':
-        return 'peligro';
-      default:
-        return 'neutro';
+      case 'COMPLETADA': return 'exito';
+      case 'EN_PROGRESO': return 'info';
+      case 'PENDIENTE': return 'alerta';
+      case 'CANCELADA': return 'peligro';
+      default: return 'neutro';
     }
   };
 
   const formatearEstadoTexto = (estado: EstadoActividadTipo): string => {
     switch (estado) {
-      case 'COMPLETADA':
-        return 'Completada';
-      case 'EN_PROGRESO':
-        return 'En Progreso';
-      case 'PENDIENTE':
-        return 'Pendiente';
-      case 'CANCELADA':
-        return 'Cancelada';
-      default:
-        return estado;
+      case 'COMPLETADA': return 'Completada';
+      case 'EN_PROGRESO': return 'En Progreso';
+      case 'PENDIENTE': return 'Pendiente';
+      case 'CANCELADA': return 'Cancelada';
+      default: return estado;
     }
   };
 
@@ -165,20 +152,27 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
   return (
     <View style={styles.contenedor}>
       {actividades.map((act) => {
-        const subtareas = subtareasPorActividad[act.id] || [];
+
+        const tareasBackendActividad = tareasBackend?.filter((t: any) => t.actividadId === act.id) || [];
+  
+        const misTareas: TareaMapeada[] = tareasBackendActividad.map((t: any) => ({
+          id: t.id,
+          titulo: t.descripcion, 
+          descripcion: '', 
+          estado: t.estado,
+          completada: t.estado === 'COMPLETADA',
+          completadaEn: t.fechaCompletado,
+          zonaTrabajo: t.descripcion, 
+        }));
+
         const hallazgos = hallazgosPorActividad[act.id] || [];
         const puntoGuardado = puntosAvancePorActividad[act.id];
 
-        // Tareas específicas asignadas a este operador
-        const misTareas = subtareas.filter((t) => t.responsableId === usuario?.id);
-        const tieneTareasEspecificas = subtareas.length > 0;
+        const tieneTareasEspecificas = misTareas.length > 0;
         const progresoTareas = obtenerProgresoTareas(act.id);
-
         const totalCuadrilla = act.trabajadores?.length || act.cantidadTrabajadores || 1;
         const progresoCuadrilla = obtenerProgresoActividad(act.id, totalCuadrilla);
 
-        // Estado efectivo de la actividad:
-        // Si hay tareas de cuadrilla (o zonas) y NO todas están completadas, NO puede mostrarse como COMPLETADA
         const estadoEfectivo: EstadoActividadTipo = (() => {
           if (tieneTareasEspecificas) {
             if (!progresoTareas.todasCompletadas) {
@@ -200,7 +194,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         const misTareasCompletadas = misTareas.length > 0 && misTareas.every((t) => t.completada);
         const misTareasEnProgreso = misTareas.some((t) => t.estado === 'EN_PROGRESO');
 
-        // Fallback de zona de operario
         const miAsignacion = usuario?.id ? obtenerEstadoZonaOperador(act.id, usuario.id) : undefined;
         const miTrabajador = act.trabajadores?.find((t) => t.usuarioId === usuario?.id);
         const { rol: rolExtraido, zona: zonaExtraida } = extraerRolYZona(miTrabajador?.rolEnActividad);
@@ -208,7 +201,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         const miZonaTexto = miAsignacion?.zonaTrabajo || zonaExtraida || 'Zona de labor asignada';
         const miRolTexto = miAsignacion?.rolEnActividad || rolExtraido || 'Operador de campo';
 
-        // El estado de zona del operador depende de sus tareas asignadas, no del estado de la actividad macro
         const miEstadoZona: 'PENDIENTE' | 'EN_PROGRESO' | 'COMPLETADA' = misTareas.length > 0
           ? misTareasCompletadas
             ? 'COMPLETADA'
@@ -219,7 +211,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
         return (
           <View key={act.id} style={styles.tarjetaLabor}>
-            {/* BLOQUE DESTACADO: LA TAREA QUE SE LE DIO AL OPERADOR POR EL SUPERVISOR */}
+            {/* BLOQUE DESTACADO: LA TAREA DEL OPERADOR */}
             {misTareas.length > 0 ? (
               <View style={styles.cajaZonaPersonal}>
                 <View style={styles.cabeceraZonaPersonal}>
@@ -259,16 +251,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                         {tarea.completada ? '✓ ' : '○ '}
                         {tarea.titulo}
                       </Text>
-                      {tarea.zonaTrabajo ? (
-                        <Text style={styles.textoZonaOperadorCard}>
-                          📍 Zona: <Text style={{ fontWeight: '700' }}>{tarea.zonaTrabajo}</Text>
-                        </Text>
-                      ) : null}
-                      {tarea.descripcion ? (
-                        <Text style={styles.textoIndicacionTareaCard}>
-                          📝 {tarea.descripcion}
-                        </Text>
-                      ) : null}
                       {tarea.completada && tarea.completadaEn ? (
                         <Text style={styles.textoCompletadoMini}>
                           Finalizada a las{' '}
@@ -305,7 +287,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 ))}
               </View>
             ) : (
-              /* Fallback si el supervisor aún no ha desglosado tareas específicas a su nombre */
               <View style={styles.cajaZonaPersonal}>
                 <View style={styles.cabeceraZonaPersonal}>
                   <View style={styles.filaTituloZonaPersonal}>
@@ -422,7 +403,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 </View>
               </View>
 
-              {/* Barra de progreso */}
               <View style={styles.barraProgresoFondo}>
                 <View
                   style={[
@@ -440,7 +420,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                 />
               </View>
 
-              {/* Nota explicativa de completado colaborativo y validación de supervisor */}
               <Text style={styles.notaProgresoColaborativo}>
                 {tieneTareasEspecificas
                   ? progresoTareas.todasCompletadas && estadoEfectivo === 'COMPLETADA'
@@ -491,13 +470,13 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               )}
             </View>
 
-            {/* Resumen del Turno del Operador (Pills de avance) */}
+            {/* Resumen del Turno del Operador */}
             <View style={styles.filaResumenTurno}>
-              {subtareas.length > 0 && (
+              {misTareas.length > 0 && (
                 <View style={styles.pillResumen}>
                   <CheckCircle2 size={13} color={Palette.forestGreen} />
                   <Text style={styles.textoPillResumen}>
-                    {subtareas.filter((s) => s.completada).length}/{subtareas.length} tareas del turno
+                    {misTareas.filter((s) => s.completada).length}/{misTareas.length} tareas del turno
                   </Text>
                 </View>
               )}
@@ -523,7 +502,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
             {/* Acciones principales del Operador y Validación del Supervisor */}
             <View style={styles.filaAcciones}>
-              {/* Si la cuadrilla terminó el 100% de tareas o zonas, el Supervisor valida y confirma el cierre */}
               {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
                 (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
                 estadoEfectivo !== 'COMPLETADA' &&
@@ -537,7 +515,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                   />
                 )}
 
-              {/* Si es operador y completó 100% de tareas o zonas esperando validación del supervisor */}
               {((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
                 (!tieneTareasEspecificas && progresoCuadrilla.todasCompletadas)) &&
                 estadoEfectivo !== 'COMPLETADA' &&
@@ -550,10 +527,9 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
                   </View>
                 )}
 
-              {/* Si no tiene tareas específicas desglosadas, permitir iniciar/completar zona */}
               {!tieneTareasEspecificas && miEstadoZona === 'PENDIENTE' && (
                 <Boton
-                  titulo="▶ Iniciar mi jornada en esta zona"
+                  titulo="▶ Iniciar mi jornada"
                   variante="primario"
                   tamano="sm"
                   onPress={() => handleIniciarMiZona(act)}
@@ -562,7 +538,7 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
 
               {!tieneTareasEspecificas && miEstadoZona === 'EN_PROGRESO' && (
                 <Boton
-                  titulo="✓ Finalizar mi zona de trabajo"
+                  titulo="✓ Finalizar mi zona"
                   variante="primario"
                   tamano="sm"
                   onPress={() => handleFinalizarMiZona(act)}
