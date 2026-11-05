@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { Check, User, Users, Search, ChevronLeft, ChevronRight, Clock, AlertTriangle, Lock } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
-import { Input, Badge } from '@/shared/components/ui';
+import { Input, Badge, Boton } from '@/shared/components/ui'; // <-- Asegúrate de que Boton esté exportado aquí
 import { TipoActividadTipo, esLaborCampo, ConflictoDisponibilidad } from '../types/actividad.types';
-import { useValidarDisponibilidadQuery } from '../api/actividades.api';
+import { useValidarDisponibilidadQuery, useAsignarSubActividadesMutation } from '../api/actividades.api'; // <-- Importamos el nuevo hook
 import { styles } from './actividad-formulario-cuadrilla.styles';
 
 export interface TrabajadorAsignadoInput {
@@ -48,11 +48,6 @@ export interface EvaluacionTrabajador {
   rolesSugeridos: string[];
 }
 
-/**
- * @description Evalúa la idoneidad y prioridad de un trabajador según su rol y el tipo de labor.
- * Labores operativas de campo priorizan Operadores y relegan Administradores.
- * Labores administrativas y técnicas priorizan Agrónomos y Supervisores.
- */
 export const evaluarTrabajadorParaLabor = (
   rol: string,
   tipo: TipoActividadTipo,
@@ -135,7 +130,6 @@ export const evaluarTrabajadorParaLabor = (
       };
     }
   } else {
-    // Labores Administrativas y Técnicas
     if (tipo === 'MONITOREO_FITOSANITARIO') {
       if (rol === 'AGRONOMO') {
         return {
@@ -299,9 +293,6 @@ export const evaluarTrabajadorParaLabor = (
   };
 };
 
-/**
- * @description Formatea el nombre del rol a una etiqueta plural amigable.
- */
 const formatearEtiquetaRol = (rol: string): string => {
   if (rol === 'TODOS') return 'Todos';
   if (rol === 'RECOMENDADOS') return '⭐ Recomendados';
@@ -312,11 +303,6 @@ const formatearEtiquetaRol = (rol: string): string => {
   return `${rol.charAt(0) + rol.slice(1).toLowerCase()}s`;
 };
 
-/**
- * @description Selector responsivo de cuadrilla con exclusión automática del encargado,
- * recomendación contextual por tipo de labor (ej. Riego -> Operadores arriba, Administradores al final)
- * y tabs dinámicos de roles.
- */
 export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrillaProps> = ({
   usuariosDisponibles,
   trabajadoresSeleccionados,
@@ -341,14 +327,13 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
   const [limite, setLimite] = useState<number>(10);
   const [mostrarOcupados, setMostrarOcupados] = useState(false);
 
-  // 1. Excluir al encargado de la labor, excluir permanentemente a Administradores (perfil de oficina),
-  // y si es Supervisor, limitar estrictamente a Operadores
+  // Hook para asignar subactividades
+  const { mutateAsync: asignarSubactividades, isPending: guardandoTareas } = useAsignarSubActividadesMutation();
+
   const usuariosCandidatos = useMemo(() => {
     return usuariosDisponibles.filter((u) => {
       if (u.id === responsableId) return false;
-      // Regla de negocio: Los administradores NO pertenecen a cuadrillas operativas de campo
       if (u.rol === 'ADMINISTRADOR') return false;
-      // Regla de jerarquía: El supervisor SOLO coordina a Operadores de campo
       if (esSupervisor) {
         return u.rol === 'OPERADOR';
       }
@@ -356,7 +341,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     });
   }, [usuariosDisponibles, responsableId, esSupervisor]);
 
-  // Horarios de la labor para la validación de disponibilidad
   const fechaBase = (fechaLabor || new Date().toISOString()).split('T')[0];
   const horaIni = turnoHorasLabor?.inicio || '07:00';
   const horaFin = turnoHorasLabor?.fin || '12:00';
@@ -386,7 +370,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     }));
   }, [usuariosCandidatos, fechaInicioIso, fechaFinIso]);
 
-  // Consulta en tiempo real de disponibilidad contra la base de datos
   const { data: resultadoDisponibilidad } = useValidarDisponibilidadQuery({
     parcelaId,
     fechaInicio: fechaInicioIso,
@@ -406,20 +389,17 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     return map;
   }, [resultadoDisponibilidad]);
 
-  // 2. Filtrado de disponibilidad horaria:
-  // Por defecto, los trabajadores ocupados en otras labores en el mismo horario NO aparecen
   const usuariosFiltradosDisponibilidad = useMemo(() => {
     return usuariosCandidatos.filter((u) => {
       const estaSeleccionado = trabajadoresSeleccionados.some((t) => t.usuarioId === u.id);
       if (estaSeleccionado) return true;
       if (!mostrarOcupados && mapaConflictos.has(u.id)) {
-        return false; // Excluido porque no puede hacer dos trabajos a la vez
+        return false;
       }
       return true;
     });
   }, [usuariosCandidatos, trabajadoresSeleccionados, mapaConflictos, mostrarOcupados]);
 
-  // 3. Evaluar idoneidad y ordenar por relevancia
   const usuariosEvaluados = useMemo(() => {
     const lista = usuariosFiltradosDisponibilidad.map((usuario) => ({
       usuario,
@@ -427,7 +407,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
       conflicto: mapaConflictos.get(usuario.id),
     }));
 
-    // Filtrar por texto de búsqueda
     const filtradosBusqueda = lista.filter(({ usuario }) => {
       if (!busqueda.trim()) return true;
       const q = busqueda.toLowerCase();
@@ -443,14 +422,12 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
       );
     });
 
-    // Filtrar por tab seleccionado
     const filtradosTab = filtradosBusqueda.filter(({ usuario, evaluacion }) => {
       if (rolFiltro === 'TODOS') return true;
       if (rolFiltro === 'RECOMENDADOS') return evaluacion.esRecomendado;
       return usuario.rol === rolFiltro;
     });
 
-    // Ordenar: seleccionados primero -> mayor score de recomendación -> administradores al final -> alfabético
     return [...filtradosTab].sort((a, b) => {
       const aSel = trabajadoresSeleccionados.some((t) => t.usuarioId === a.usuario.id);
       const bSel = trabajadoresSeleccionados.some((t) => t.usuarioId === b.usuario.id);
@@ -463,10 +440,8 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     });
   }, [usuariosFiltradosDisponibilidad, tipoActual, busqueda, rolFiltro, trabajadoresSeleccionados, mapaConflictos]);
 
-  // Generación dinámica de tabs según los roles disponibles
   const rolesDisponibles = useMemo(() => {
     if (esSupervisor) {
-      // Para supervisores se ocultan pestañas de Agrónomos y Administradores
       return ['TODOS', 'RECOMENDADOS'];
     }
     const setRoles = new Set<string>();
@@ -476,7 +451,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     return ['TODOS', 'RECOMENDADOS', ...Array.from(setRoles)];
   }, [usuariosFiltradosDisponibilidad, esSupervisor]);
 
-  // Paginación
   const totalUsuarios = usuariosEvaluados.length;
   const totalPaginas = Math.max(1, Math.ceil(totalUsuarios / limite));
   const paginaAjustada = Math.min(pagina, totalPaginas);
@@ -504,6 +478,31 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
     setPagina(1);
   };
 
+  // Función para registrar las subactividades directamente desde esta vista (Lado Supervisor)
+  const handleGuardarSubactividades = async () => {
+    if (!actividadId) return;
+
+    // Convertimos la zona de trabajo (o el rol sugerido) en la descripción de la subactividad
+    const tareas = trabajadoresSeleccionados.map(t => ({
+      operadorId: t.usuarioId,
+      descripcion: t.zonaTrabajo && t.zonaTrabajo.trim() !== '' 
+        ? t.zonaTrabajo 
+        : `Labor de ${t.rolEnActividad || 'campo'} asignada`
+    }));
+
+    if (tareas.length === 0) {
+      Alert.alert('Atención', 'Debes seleccionar al menos un operador para asignar tareas.');
+      return;
+    }
+
+    try {
+      await asignarSubactividades({ actividadId, subActividades: tareas });
+      Alert.alert('Éxito', 'Las tareas fueron asignadas y notificadas a los operadores de la cuadrilla.');
+    } catch (error) {
+      Alert.alert('Error', 'Hubo un problema al asignar las tareas.');
+    }
+  };
+
   return (
     <View style={styles.contenedor}>
       <View style={styles.cabecera}>
@@ -520,19 +519,18 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
 
       <Text style={styles.subtitulo}>
         {esSupervisor
-          ? 'Seleccione los operarios de campo disponibles para esta labor.'
+          ? 'Seleccione los operarios de campo y asigne sus labores específicas.'
           : esAgronomo
           ? 'Conformación de cuadrilla a cargo del Supervisor en terreno.'
           : 'Seleccione y filtre el personal para esta labor.'}
       </Text>
 
-      {/* Banner de filtro por cruce de horario */}
       {mapaConflictos.size > 0 && (
         <View style={styles.bannerConflictosHorario}>
           <View style={styles.contenidoBannerConflictos}>
             <Clock size={15} color="#92400E" />
             <Text style={styles.textoBannerConflictosHorario}>
-              {mapaConflictos.size} trabajador{mapaConflictos.size > 1 ? 'es' : ''} ocupado{mapaConflictos.size > 1 ? 's' : ''} en otras labores ({horaIni} - {horaFin}) {mostrarOcupados ? 'visibles' : 'ocultos automáticamente'}.
+              {mapaConflictos.size} trabajador{mapaConflictos.size > 1 ? 'es' : ''} ocupado{mapaConflictos.size > 1 ? 's' : ''} en otras labores ({horaIni} a {horaFin}) {mostrarOcupados ? 'visibles' : 'ocultos automáticamente'}.
             </Text>
           </View>
           <Pressable
@@ -546,7 +544,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
         </View>
       )}
 
-      {/* Barra de búsqueda y tabs dinámicos por rol */}
       <View style={styles.filtrosBarra}>
         <Input
           placeholder="Buscar trabajador por nombre, correo..."
@@ -573,7 +570,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
         </View>
       </View>
 
-      {/* Lista de trabajadores con scroll y altura controlada */}
       <ScrollView
         style={styles.listaScroll}
         nestedScrollEnabled
@@ -654,21 +650,18 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                           }
                         />
 
-                        {/* Especialidad agrícola del operario */}
                         {usuario.especialidad ? (
                           <Text style={{ fontSize: 11, fontWeight: '600', color: Palette.forestGreen }}>
                             🌱 {usuario.especialidad.replace(/_/g, ' ')}
                           </Text>
                         ) : null}
 
-                        {/* Cuadrilla habitual */}
                         {usuario.cuadrilla ? (
                           <Text style={{ fontSize: 11, color: '#4B5563', fontWeight: '500' }}>
                             👥 {usuario.cuadrilla}
                           </Text>
                         ) : null}
 
-                        {/* Distintivo de idoneidad/recomendación según la labor */}
                         {evaluacion.tipoAviso === 'recomendado' && (
                           <View style={styles.badgeRecomendado}>
                             <Text style={styles.textoBadgeRecomendado}>
@@ -694,7 +687,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                         )}
                       </View>
 
-                      {/* Notificación de conflicto de horario con otra labor */}
                       {conflicto ? (
                         <View style={styles.badgeConflicto}>
                           <AlertTriangle size={12} color="#DC2626" />
@@ -706,7 +698,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                     </View>
                   </Pressable>
 
-                  {/* Asignación de rol específico según la labor */}
                   {estaSeleccionado && (
                     <View style={styles.seccionRolLaborCompacta}>
                       <Text style={styles.etiquetaRolLabor}>Función:</Text>
@@ -730,7 +721,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                         })}
                       </View>
 
-                      {/* Zona de Trabajo o Subtarea asignada a este operador */}
                       <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#E5E7EB', gap: 6 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: Palette.forestGreen }}>
@@ -779,10 +769,9 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
                         />
                       </View>
 
-                      {/* Horario y Horas asignadas a este trabajador */}
                       <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: Palette.forestGreen }}>
-                          ⏱️ Turno: {asignado?.horaInicio || turnoHorasLabor?.inicio || '07:00'} - {asignado?.horaFin || turnoHorasLabor?.fin || '12:00'}
+                          ⏱️ Turno: {asignado?.horaInicio || turnoHorasLabor?.inicio || '07:00'} a {asignado?.horaFin || turnoHorasLabor?.fin || '12:00'}
                         </Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                           <Text style={{ fontSize: 11, color: '#4B5563', fontWeight: '600' }}>Horas:</Text>
@@ -819,7 +808,6 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
         )}
       </ScrollView>
 
-      {/* Pie de página con selector 10/20 y controles de paginación */}
       {totalUsuarios > 0 && (
         <View style={styles.piePaginacion}>
           <View style={styles.selectorLimite}>
@@ -871,6 +859,17 @@ export const ActividadFormularioCuadrilla: React.FC<ActividadFormularioCuadrilla
               <ChevronRight size={14} color="#374151" />
             </Pressable>
           </View>
+        </View>
+      )}
+
+      {/* BOTÓN EXCLUSIVO PARA SUPERVISORES: GUARDA LAS SUBACTIVIDADES */}
+      {esSupervisor && actividadId && (
+        <View style={{ marginTop: 16 }}>
+          <Boton
+            titulo={guardandoTareas ? "Asignando tareas al personal..." : "Confirmar y Asignar Tareas"}
+            onPress={handleGuardarSubactividades}
+            disabled={guardandoTareas || trabajadoresSeleccionados.length === 0}
+          />
         </View>
       )}
     </View>

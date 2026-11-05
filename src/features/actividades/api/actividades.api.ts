@@ -17,6 +17,9 @@ export const ACTIVIDADES_KEYS = {
   lista: (filtros: FiltrosActividadesParams) => [...ACTIVIDADES_KEYS.listas(), filtros] as const,
   detalles: () => [...ACTIVIDADES_KEYS.todas, 'detalle'] as const,
   detalle: (id: string) => [...ACTIVIDADES_KEYS.detalles(), id] as const,
+  
+  // NUEVA CLAVE PARA SUBACTIVIDADES DEL OPERADOR
+  misTareas: () => [...ACTIVIDADES_KEYS.todas, 'mis-tareas'] as const,
 };
 
 /**
@@ -166,5 +169,61 @@ export function useValidarDisponibilidadQuery(params: {
       params.trabajadores.length > 0,
     ),
     staleTime: 1000 * 15,
+  });
+}
+
+// ============================================================================
+// NUEVOS HOOKS PARA SUBACTIVIDADES (SUPERVISOR Y OPERADOR)
+// ============================================================================
+
+/**
+ * @description Hook para que el supervisor asigne subactividades a los operadores de una actividad matriz.
+ */
+export function useAsignarSubActividadesMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ actividadId, subActividades }: { 
+      actividadId: string; 
+      subActividades: { operadorId: string; descripcion: string }[] 
+    }) => {
+      const respuesta = await apiClient.post(`/actividades/${actividadId}/subactividades`, { subActividades });
+      return respuesta.data;
+    },
+    onSuccess: (_, variables) => {
+      // Refrescamos el detalle de la actividad para que el supervisor vea las nuevas tareas asignadas
+      queryClient.invalidateQueries({ queryKey: ACTIVIDADES_KEYS.detalle(variables.actividadId) });
+    },
+  });
+}
+
+/**
+ * @description Hook para que el operador consulte las subactividades que se le han asignado.
+ */
+export function useMisSubActividadesQuery() {
+  return useQuery({
+    queryKey: ACTIVIDADES_KEYS.misTareas(),
+    queryFn: async () => {
+      const respuesta = await apiClient.get('/actividades/mis-tareas/subactividades');
+      return respuesta.data;
+    },
+  });
+}
+
+/**
+ * @description Hook para que el operador marque una de sus subactividades como completada.
+ */
+export function useCompletarSubActividadMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (subActividadId: string) => {
+      const respuesta = await apiClient.patch(`/actividades/subactividades/${subActividadId}/completar`);
+      return respuesta.data;
+    },
+    onSuccess: () => {
+      // Invalidamos la caché de las tareas del operador para que la lista se actualice inmediatamente
+      queryClient.invalidateQueries({ queryKey: ACTIVIDADES_KEYS.misTareas() });
+    },
   });
 }
