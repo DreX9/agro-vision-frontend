@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,7 +17,7 @@ import { useAuthStore } from '@/features/autenticacion';
 import { tienePermisoRuta } from '@/shared/constants/roles-permisos';
 import { AccesoDenegado } from './acceso-denegado';
 import { useUIStore } from '@/shared/stores/ui.store';
-import { BotonAlertaOperadorFlotante } from '@/features/diagnosticos';
+import { BotonAlertaOperadorFlotante } from '@/features/diagnosticos/components/BotonAlertaOperadorFlotante';
 
 export interface AppLayoutProps {
   children: React.ReactNode;

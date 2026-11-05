@@ -201,7 +201,7 @@ export function DiagnosticosListaContainer() {
           {/* Listado Completo de Hallazgos con Filtros y Detalles */}
           <HistorialDiagnosticosCampo
             parcelaId={parcelaSeleccionada}
-            limite={50}
+            limite={10}
             modoCompacto={false}
           />
         </View>

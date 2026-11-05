@@ -109,56 +109,63 @@ export const ParcelasListaContainer: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Barra de Submódulos y Vistas */}
-          <View style={styles.barraSubmodulos}>
-            <Pressable
-              onPress={() => setVistaModo('tabla')}
-              style={[styles.tabSubmodulo, vistaModo === 'tabla' && styles.tabSubmoduloActivo]}
-            >
-              <ListTree size={16} color={vistaModo === 'tabla' ? Palette.forestGreen : '#6B7280'} />
-              <Text
-                style={[
-                  styles.textoTabSubmodulo,
-                  vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
-                ]}
-              >
-                Vista Tabla ({data?.total ?? 0})
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setVistaModo('mapa')}
-              style={[styles.tabSubmodulo, vistaModo === 'mapa' && styles.tabSubmoduloActivo]}
-            >
-              <MapIcon size={16} color={vistaModo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
-              <Text
-                style={[
-                  styles.textoTabSubmodulo,
-                  vistaModo === 'mapa' && styles.textoTabSubmoduloActivo,
-                ]}
-              >
-                Mapa Satelital Completo
-              </Text>
-            </Pressable>
-
-            {esAdmin && (
+          {/* Barra deslizable de Submódulos y Vistas */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrollBarraSubmodulos}
+            style={styles.wrapperBarraSubmodulos}
+          >
+            <View style={styles.barraSubmodulos}>
               <Pressable
-                onPress={() => router.push('/parcelas/nuevo' as Href)}
+                onPress={() => setVistaModo('tabla')}
+                style={[styles.tabSubmodulo, vistaModo === 'tabla' && styles.tabSubmoduloActivo]}
+              >
+                <ListTree size={16} color={vistaModo === 'tabla' ? Palette.forestGreen : '#6B7280'} />
+                <Text
+                  style={[
+                    styles.textoTabSubmodulo,
+                    vistaModo === 'tabla' && styles.textoTabSubmoduloActivo,
+                  ]}
+                >
+                  Vista Tabla ({data?.total ?? 0})
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setVistaModo('mapa')}
+                style={[styles.tabSubmodulo, vistaModo === 'mapa' && styles.tabSubmoduloActivo]}
+              >
+                <MapIcon size={16} color={vistaModo === 'mapa' ? Palette.forestGreen : '#6B7280'} />
+                <Text
+                  style={[
+                    styles.textoTabSubmodulo,
+                    vistaModo === 'mapa' && styles.textoTabSubmoduloActivo,
+                  ]}
+                >
+                  Mapa Satelital Completo
+                </Text>
+              </Pressable>
+
+              {esAdmin && (
+                <Pressable
+                  onPress={() => router.push('/parcelas/nuevo' as Href)}
+                  style={({ pressed }) => [styles.tabSubmodulo, pressed && styles.tabSubmoduloPresionado]}
+                >
+                  <PlusCircle size={16} color="#6B7280" />
+                  <Text style={styles.textoTabSubmodulo}>Registrar parcela</Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                onPress={() => router.push('/cultivos/nuevo' as Href)}
                 style={({ pressed }) => [styles.tabSubmodulo, pressed && styles.tabSubmoduloPresionado]}
               >
-                <PlusCircle size={16} color="#6B7280" />
-                <Text style={styles.textoTabSubmodulo}>Registrar parcela</Text>
+                <Sprout size={16} color="#6B7280" />
+                <Text style={styles.textoTabSubmodulo}>Registrar cultivo</Text>
               </Pressable>
-            )}
-
-          <Pressable
-            onPress={() => router.push('/cultivos/nuevo' as Href)}
-            style={({ pressed }) => [styles.tabSubmodulo, pressed && styles.tabSubmoduloPresionado]}
-          >
-            <Sprout size={16} color="#6B7280" />
-            <Text style={styles.textoTabSubmodulo}>Registrar cultivo</Text>
-          </Pressable>
-        </View>
+            </View>
+          </ScrollView>
 
         {/* Vista Alternada: Modo Mapa Satelital o Modo Tabla */}
         {vistaModo === 'mapa' ? (
@@ -278,6 +285,14 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     gap: 16,
     width: '100%',
+  },
+  wrapperBarraSubmodulos: {
+    width: '100%',
+    flexGrow: 0,
+  },
+  scrollBarraSubmodulos: {
+    flexGrow: 0,
+    paddingVertical: 2,
   },
   barraSubmodulos: {
     flexDirection: 'row',
