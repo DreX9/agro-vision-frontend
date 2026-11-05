@@ -15,7 +15,7 @@ import {
 } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Boton } from '@/shared/components/ui';
-import { ActividadItem, EstadoActividadTipo, extraerRolYZona } from '../types/actividad.types';
+import { ActividadItem, EstadoActividadTipo, extraerRolYZona, obtenerInfoTipoLabor } from '../types/actividad.types';
 import { useOperadorJornadaStore } from '../stores/operador-jornada.store';
 import { useAuthStore } from '@/features/autenticacion';
 import { useMisSubActividadesQuery, useCompletarSubActividadMutation } from '../api/actividades.api';
@@ -141,29 +141,6 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
     }
   };
 
-  const obtenerEstiloTipoLabor = (tipo: string) => {
-    const tipoNorm = (tipo || '').toUpperCase();
-    if (tipoNorm.includes('RIEG')) {
-      return { bg: '#E0F2FE', text: '#0369A1', border: '#BAE6FD' };
-    }
-    if (tipoNorm.includes('FERT')) {
-      return { bg: '#DCFCE7', text: '#15803D', border: '#BBF7D0' };
-    }
-    if (tipoNorm.includes('PODA')) {
-      return { bg: '#FEF3C7', text: '#B45309', border: '#FDE68A' };
-    }
-    if (tipoNorm.includes('COSECH')) {
-      return { bg: '#F3E8FF', text: '#7E22CE', border: '#E9D5FF' };
-    }
-    if (tipoNorm.includes('FITO') || tipoNorm.includes('FUMI') || tipoNorm.includes('PLAG')) {
-      return { bg: '#FEE2E2', text: '#B91C1C', border: '#FECACA' };
-    }
-    if (tipoNorm.includes('SIEMBR') || tipoNorm.includes('PREP')) {
-      return { bg: '#FEF9C3', text: '#A16207', border: '#FEF08A' };
-    }
-    return { bg: '#F1F5F9', text: '#475569', border: '#E2E8F0' };
-  };
-
   const { width } = useWindowDimensions();
   // 3 columnas en pantallas anchas (>= 1180px), 2 columnas en medianas (>= 768px), 1 columna en móviles
   const numColumnas = width >= 1180 ? 3 : width >= 768 ? 2 : 1;
@@ -262,7 +239,8 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
               : 'PENDIENTE'
           : miAsignacion?.estado || (estadoEfectivo === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE');
 
-        const estiloTipo = obtenerEstiloTipoLabor(act.tipo);
+        const infoLabor = obtenerInfoTipoLabor(act.tipo);
+        const tieneTituloPersonalizado = Boolean(act.titulo && act.titulo.trim() !== act.codigo.trim());
 
         const textoBadgeEstado =
           ((tieneTareasEspecificas && progresoTareas.todasCompletadas) ||
@@ -281,29 +259,38 @@ export const ActividadesOperadorLista: React.FC<ActividadesOperadorListaProps> =
         return (
           <View key={act.id} style={[styles.tarjetaLabor, anchoTarjetaStyle]}>
             <View style={styles.cuerpoSuperiorTarjeta}>
-              {/* Cabecera de Tarjeta: Tipo de Labor, Código y Estado */}
-              <View style={styles.cabeceraTarjeta}>
-                <View style={styles.filaSuperiorCabecera}>
-                  <View style={styles.filaCodigoTipo}>
-                    <View
-                      style={[
-                        styles.pillTipoLabor,
-                        { backgroundColor: estiloTipo.bg, borderColor: estiloTipo.border },
-                      ]}
-                    >
-                      <Text style={[styles.textoPillTipoLabor, { color: estiloTipo.text }]}>
-                        {act.tipo.replace(/_/g, ' ')}
-                      </Text>
-                    </View>
-                    <Text style={styles.codigoLabor}>{act.codigo}</Text>
+              {/* Cabecera Destacada de Labor Agrícola (Idéntica distinción a creación) */}
+              <View
+                style={[
+                  styles.cabeceraLaborDestacada,
+                  { backgroundColor: infoLabor.tema.bg, borderColor: infoLabor.tema.border },
+                ]}
+              >
+                <View style={styles.filaLaborSuperior}>
+                  {/* Icono temático de la labor en círculo destacado */}
+                  <View style={[styles.circuloIconoLabor, { backgroundColor: infoLabor.tema.badgeBg }]}>
+                    <Text style={styles.emojiLabor}>{infoLabor.icono}</Text>
                   </View>
 
+                  {/* Nombre oficial de la labor y subtítulo descriptivo */}
+                  <View style={styles.infoLaborColumna}>
+                    <Text style={[styles.nombreLaborDestacado, { color: infoLabor.tema.text }]}>
+                      {infoLabor.label}
+                    </Text>
+                    <Text style={styles.descripcionLaborSubtexto} numberOfLines={1} ellipsizeMode="tail">
+                      {tieneTituloPersonalizado ? act.titulo : infoLabor.descripcion}
+                    </Text>
+                  </View>
+
+                  {/* Badge de Estado General */}
                   <Badge texto={textoBadgeEstado} variante={varianteBadgeEstado} />
                 </View>
 
-                <Text style={styles.tituloLabor} numberOfLines={2}>
-                  {act.titulo}
-                </Text>
+                {/* Código técnico de labor en tag secundario para trazabilidad */}
+                <View style={styles.filaCodigoTag}>
+                  <Text style={styles.textoEtiquetaCodigo}>CÓDIGO:</Text>
+                  <Text style={styles.codigoLaborMonospace}>{act.codigo}</Text>
+                </View>
               </View>
 
               {/* Ubicación: Parcela, Sector y Variedad */}
@@ -623,45 +610,60 @@ const styles = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  cabeceraTarjeta: {
-    gap: 6,
-  },
-  filaSuperiorCabecera: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  filaCodigoTipo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-    flex: 1,
-  },
-  pillTipoLabor: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
+  cabeceraLaborDestacada: {
     borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
   },
-  textoPillTipoLabor: {
-    fontSize: 10,
+  filaLaborSuperior: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  circuloIconoLabor: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLabor: {
+    fontSize: 18,
+  },
+  infoLaborColumna: {
+    flex: 1,
+    gap: 1,
+  },
+  nombreLaborDestacado: {
+    fontSize: 15,
     fontWeight: '800',
-    textTransform: 'uppercase',
+    letterSpacing: 0.2,
+  },
+  descripcionLaborSubtexto: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  filaCodigoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  textoEtiquetaCodigo: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#6B7280',
     letterSpacing: 0.5,
   },
-  codigoLabor: {
-    fontSize: 12,
+  codigoLaborMonospace: {
+    fontSize: 11,
     fontWeight: '700',
-    color: '#4B5563',
+    color: '#374151',
     fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
-  },
-  tituloLabor: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-    lineHeight: 20,
   },
   filaUbicacion: {
     flexDirection: 'row',

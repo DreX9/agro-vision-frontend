@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, Platform, ActivityIndicator } from '
 import { MoreVertical, Users, Calendar, MapPin, ChevronDown } from 'lucide-react-native';
 import { Palette } from '@/constants/theme';
 import { Badge, Tabla, ColumnaTabla } from '@/shared/components/ui';
-import { ActividadItem, EstadoActividadTipo } from '../types/actividad.types';
+import { ActividadItem, EstadoActividadTipo, obtenerInfoTipoLabor } from '../types/actividad.types';
 import { ActividadesMenuAcciones, PosicionMenu } from './actividades-menu-acciones';
 import { ActividadEstadoPopover, PosicionPopover } from './actividad-estado-popover';
 
@@ -137,14 +137,34 @@ export const ActividadesTabla: React.FC<ActividadesTablaProps> = ({
     },
     {
       id: 'labor',
-      encabezado: 'Labor / Título',
-      anchoMinimo: 180,
-      render: (a: ActividadItem) => (
-        <View>
-          <Text style={styles.textoTitulo}>{a.titulo}</Text>
-          <Text style={styles.textoTipo}>{formatearTipo(a.tipo)}{a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}</Text>
-        </View>
-      ),
+      encabezado: 'Labor Agrícola',
+      anchoMinimo: 220,
+      render: (a: ActividadItem) => {
+        const info = obtenerInfoTipoLabor(a.tipo);
+        const tieneTituloPersonalizado = Boolean(a.titulo && a.titulo.trim() !== a.codigo.trim());
+
+        return (
+          <View style={styles.filaLaborTabla}>
+            <View
+              style={[
+                styles.avatarIconoLaborTabla,
+                { backgroundColor: info.tema.bg, borderColor: info.tema.border },
+              ]}
+            >
+              <Text style={styles.emojiLaborTabla}>{info.icono}</Text>
+            </View>
+            <View style={styles.infoLaborTabla}>
+              <Text style={[styles.textoNombreLaborTabla, { color: info.tema.text }]}>
+                {info.label}
+              </Text>
+              <Text style={styles.textoSubtituloLaborTabla} numberOfLines={1}>
+                {tieneTituloPersonalizado ? a.titulo : info.descripcion}
+                {a.blancoBiologico ? ` · ${a.blancoBiologico}` : ''}
+              </Text>
+            </View>
+          </View>
+        );
+      },
     },
     {
       id: 'parcela',
@@ -305,8 +325,34 @@ const styles = StyleSheet.create({
     color: Palette.forestGreen,
     fontSize: 13,
   },
-  textoTitulo: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
-  textoTipo: { fontSize: 11, color: '#4B5563', fontWeight: '500', textTransform: 'capitalize' },
+  filaLaborTabla: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarIconoLaborTabla: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLaborTabla: {
+    fontSize: 15,
+  },
+  infoLaborTabla: {
+    flex: 1,
+    gap: 1,
+  },
+  textoNombreLaborTabla: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  textoSubtituloLaborTabla: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
   filaUbicacion: {
     flexDirection: 'row',
     alignItems: 'flex-start',

@@ -51,6 +51,204 @@ export const laborRequiereInsumos = (tipo: TipoActividadTipo): boolean => {
   return LABORES_CON_INSUMOS.includes(tipo);
 };
 
+export interface InfoTipoLabor {
+  tipo: TipoActividadTipo;
+  label: string;
+  icono: string;
+  descripcion: string;
+  tema: {
+    bg: string;
+    border: string;
+    text: string;
+    badgeBg: string;
+    badgeText: string;
+  };
+}
+
+export const CATALOGO_TIPOS_LABOR: Record<string, InfoTipoLabor> = {
+  FERTILIZACION: {
+    tipo: 'FERTILIZACION',
+    label: 'Fertilización',
+    icono: '🧪',
+    descripcion: 'Nutrición foliar / edáfica',
+    tema: {
+      bg: '#F0FDF4',
+      border: '#BBF7D0',
+      text: '#166534',
+      badgeBg: '#DCFCE7',
+      badgeText: '#15803D',
+    },
+  },
+  RIEGO: {
+    tipo: 'RIEGO',
+    label: 'Riego',
+    icono: '💧',
+    descripcion: 'Lámina de agua por goteo/aspersión',
+    tema: {
+      bg: '#F0F9FF',
+      border: '#BAE6FD',
+      text: '#075985',
+      badgeBg: '#E0F2FE',
+      badgeText: '#0369A1',
+    },
+  },
+  PODA: {
+    tipo: 'PODA',
+    label: 'Poda',
+    icono: '✂️',
+    descripcion: 'Formación, producción o sanitaria',
+    tema: {
+      bg: '#FFFBEB',
+      border: '#FDE68A',
+      text: '#92400E',
+      badgeBg: '#FEF3C7',
+      badgeText: '#B45309',
+    },
+  },
+  COSECHA: {
+    tipo: 'COSECHA',
+    label: 'Cosecha',
+    icono: '🧺',
+    descripcion: 'Recolección y selección de fruta',
+    tema: {
+      bg: '#FAF5FF',
+      border: '#E9D5FF',
+      text: '#6B21A8',
+      badgeBg: '#F3E8FF',
+      badgeText: '#7E22CE',
+    },
+  },
+  SIEMBRA: {
+    tipo: 'SIEMBRA',
+    label: 'Siembra',
+    icono: '🌱',
+    descripcion: 'Plantación o trasplante de plantones',
+    tema: {
+      bg: '#FEFCE8',
+      border: '#FEF08A',
+      text: '#854D0E',
+      badgeBg: '#FEF9C3',
+      badgeText: '#A16207',
+    },
+  },
+  CONTROL_PLAGAS: {
+    tipo: 'CONTROL_PLAGAS',
+    label: 'Control Plagas',
+    icono: '🛡️',
+    descripcion: 'Sanidad y fitoprotección',
+    tema: {
+      bg: '#EFF6FF',
+      border: '#BFDBFE',
+      text: '#1E40AF',
+      badgeBg: '#DBEAFE',
+      badgeText: '#1D4ED8',
+    },
+  },
+  DESHIERBE: {
+    tipo: 'DESHIERBE',
+    label: 'Deshierbe',
+    icono: '🌿',
+    descripcion: 'Control manual o mecánico de malezas',
+    tema: {
+      bg: '#F2FBF4',
+      border: '#C7EED0',
+      text: '#14532D',
+      badgeBg: '#D1FAE5',
+      badgeText: '#065F46',
+    },
+  },
+  MANTENIMIENTO: {
+    tipo: 'MANTENIMIENTO',
+    label: 'Mantenimiento',
+    icono: '🔧',
+    descripcion: 'Infraestructura, cercos y riego',
+    tema: {
+      bg: '#F8FAFC',
+      border: '#CBD5E1',
+      text: '#334155',
+      badgeBg: '#F1F5F9',
+      badgeText: '#475569',
+    },
+  },
+  MONITOREO_FITOSANITARIO: {
+    tipo: 'MONITOREO_FITOSANITARIO',
+    label: 'Monitoreo Fitosanitario',
+    icono: '🔬',
+    descripcion: 'Evaluación de plagas y anomalías',
+    tema: {
+      bg: '#FEF2F2',
+      border: '#FECACA',
+      text: '#991B1B',
+      badgeBg: '#FEE2E2',
+      badgeText: '#B91C1C',
+    },
+  },
+  AUDITORIA_CALIDAD: {
+    tipo: 'AUDITORIA_CALIDAD',
+    label: 'Auditoría Calidad',
+    icono: '📋',
+    descripcion: 'Control de calidad y estándares',
+    tema: {
+      bg: '#F5F3FF',
+      border: '#DDD6FE',
+      text: '#5B21B6',
+      badgeBg: '#EDE9FE',
+      badgeText: '#6D28D9',
+    },
+  },
+  SUPERVISION_TECNICA: {
+    tipo: 'SUPERVISION_TECNICA',
+    label: 'Supervisión Técnica',
+    icono: '🔍',
+    descripcion: 'Inspección agronómica en terreno',
+    tema: {
+      bg: '#F0FDFA',
+      border: '#99F6E4',
+      text: '#115E59',
+      badgeBg: '#CCFBF1',
+      badgeText: '#0F766E',
+    },
+  },
+  GESTION_ADMINISTRATIVA: {
+    tipo: 'GESTION_ADMINISTRATIVA',
+    label: 'Gestión Administrativa',
+    icono: '📁',
+    descripcion: 'Planificación y reportes',
+    tema: {
+      bg: '#F8FAFC',
+      border: '#E2E8F0',
+      text: '#475569',
+      badgeBg: '#F1F5F9',
+      badgeText: '#334155',
+    },
+  },
+};
+
+export const obtenerInfoTipoLabor = (tipo: string): InfoTipoLabor => {
+  const clave = (tipo || '').toUpperCase().trim();
+  if (CATALOGO_TIPOS_LABOR[clave]) {
+    return CATALOGO_TIPOS_LABOR[clave];
+  }
+  for (const [k, v] of Object.entries(CATALOGO_TIPOS_LABOR)) {
+    if (clave.includes(k) || k.includes(clave)) {
+      return v;
+    }
+  }
+  return {
+    tipo: 'OTRO',
+    label: tipo ? tipo.replace(/_/g, ' ') : 'Labor Agrícola',
+    icono: '🌾',
+    descripcion: 'Labor asignada en terreno',
+    tema: {
+      bg: '#F8FAFC',
+      border: '#E2E8F0',
+      text: '#475569',
+      badgeBg: '#F1F5F9',
+      badgeText: '#334155',
+    },
+  };
+};
+
 export type EstadoActividadTipo =
   | 'PENDIENTE'
   | 'EN_PROGRESO'

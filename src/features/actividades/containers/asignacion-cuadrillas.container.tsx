@@ -8,6 +8,7 @@ import {
   Modal,
   TextInput,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import {
@@ -43,6 +44,7 @@ import {
   ActividadItem,
   extraerJornalesRequeridos,
   TrabajadorAsignado,
+  obtenerInfoTipoLabor,
 } from '../types/actividad.types';
 import { Usuario } from '@/features/usuarios/types/usuario.types';
 import { useAuthStore } from '@/features/autenticacion';
@@ -356,30 +358,46 @@ export const AsignacionCuadrillasContainer: React.FC = () => {
               const esProgramada = act.estado === 'PENDIENTE';
               const esEnEjecucion = act.estado === 'EN_PROGRESO';
 
+              const infoLabor = obtenerInfoTipoLabor(act.tipo);
+              const tieneTituloPersonalizado = Boolean(act.titulo && act.titulo.trim() !== act.codigo.trim());
+
               return (
                 <Card key={act.id} estilo={styles.tarjetaLabor}>
-                  {/* Encabezado de la Tarjeta */}
-                  <View style={styles.cabeceraTarjeta}>
-                    <View style={styles.filaCodigoTipo}>
-                      <Badge texto={act.tipo} variante="neutro" />
-                      <Text style={styles.codigoLabor}>{act.codigo}</Text>
+                  {/* Encabezado Destacado con Identidad Visual de Labor */}
+                  <View
+                    style={[
+                      styles.cabeceraLaborDestacada,
+                      { backgroundColor: infoLabor.tema.bg, borderColor: infoLabor.tema.border },
+                    ]}
+                  >
+                    <View style={styles.filaLaborSuperior}>
+                      <View style={[styles.circuloIconoLabor, { backgroundColor: infoLabor.tema.badgeBg }]}>
+                        <Text style={styles.emojiLabor}>{infoLabor.icono}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.nombreLaborDestacado, { color: infoLabor.tema.text }]}>
+                          {infoLabor.label}
+                        </Text>
+                        <Text style={styles.descripcionLaborSubtexto} numberOfLines={1}>
+                          {tieneTituloPersonalizado ? act.titulo : infoLabor.descripcion}
+                        </Text>
+                      </View>
+                      <Badge
+                        texto={
+                          esProgramada
+                            ? 'PROGRAMADA'
+                            : esEnEjecucion
+                              ? 'EN EJECUCIÓN'
+                              : act.estado
+                        }
+                        variante={esProgramada ? 'alerta' : esEnEjecucion ? 'info' : 'neutro'}
+                      />
                     </View>
-                    <Badge
-                      texto={
-                        esProgramada
-                          ? '🟡 PROGRAMADA'
-                          : esEnEjecucion
-                            ? '🔵 EN EJECUCIÓN'
-                            : act.estado
-                      }
-                      variante={esProgramada ? 'alerta' : esEnEjecucion ? 'info' : 'neutro'}
-                    />
+                    <View style={styles.filaCodigoTag}>
+                      <Text style={styles.textoEtiquetaCodigo}>CÓDIGO:</Text>
+                      <Text style={styles.codigoLaborMonospace}>{act.codigo}</Text>
+                    </View>
                   </View>
-
-                  {/* Título de la Labor */}
-                  <Text style={styles.tituloLabor} numberOfLines={2}>
-                    {act.titulo}
-                  </Text>
 
                   {/* Metadatos Agronómicos y de Campo */}
                   <View style={styles.seccionDetallesCampo}>
@@ -763,6 +781,57 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     padding: 18,
     gap: 12,
+  },
+  cabeceraLaborDestacada: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+  },
+  filaLaborSuperior: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  circuloIconoLabor: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLabor: {
+    fontSize: 18,
+  },
+  nombreLaborDestacado: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  descripcionLaborSubtexto: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
+  },
+  filaCodigoTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  textoEtiquetaCodigo: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 0.5,
+  },
+  codigoLaborMonospace: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
   },
   cabeceraTarjeta: {
     flexDirection: 'row',
